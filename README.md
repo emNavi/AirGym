@@ -1,5 +1,5 @@
 # AirGym
-> This project builds inspired by Aerial Gym Simulator but greatly improves it. 
+> This project is inspired by Aerial Gym Simulator but greatly improves it. 
 
 This project provides a super realistic dynamics and RL framework for Sim2Real tasks of quadcopter.
 
@@ -11,7 +11,7 @@ This project provides a super realistic dynamics and RL framework for Sim2Real t
 > Note this repository has been tested on Ubuntu 20.04/22.04 with PyTorch 2.0.0 + CUDA11.8.
 
 ## Installation
-### 1. Install IsaacGym Preview 4 with torch2.00+cu11.8
+### 1. Install IsaacGym Preview 4 with torch2.0.0+cuda11.8
 1. Download package from the [official page](https://developer.nvidia.com/isaac-gym) and unzip.
 1. Edit `install_requires` in `python/setup.py`:
     ```
