@@ -186,13 +186,18 @@ class X152bPx4(BaseTask):
         num_resets = len(env_ids)
 
         self.root_states[env_ids] = self.initial_root_states[env_ids]
+        # self.root_states[env_ids,
+        #                  0:3] = 2.0*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
+        # self.root_states[env_ids,
+        #                  7:10] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
+        # self.root_states[env_ids,
+        #                  10:13] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
         self.root_states[env_ids,
                          0:3] = .0*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
         self.root_states[env_ids,
-                         7:10] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
+                         7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
         self.root_states[env_ids,
-                         10:13] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
-
+                         10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
         self.root_states[env_ids, 3:7] = 0
         self.root_states[env_ids, 6] = 1.0
 
@@ -214,17 +219,7 @@ class X152bPx4(BaseTask):
             self.reset_idx(reset_env_ids)
         
         actions = _actions.to(self.device)
-        # for rate _control
-        # self.actions = torch.clamp(actions, min=-1.0, max=1.0)
-        # self.actions[...,:3] = self.actions[...,:3]*2.0 # 0 1 2 rad/s
-        # self.actions[...,3] = (actions[...,3] + 1)/3 # 3 thrust
-        # for vel_control
-        self.actions = tensor_clamp(
-            actions, self.action_lower_limits, self.action_upper_limits)
-        # end
-
         # tensor [n,4]
-        actions_cpu = self.actions.cpu().numpy()
         obs_buf_cpu = self.obs_buf.cpu().numpy()
         root_pos_cpu = self.obs_buf[..., 0:3].cpu().numpy()
         root_quats_cpu = self.obs_buf[..., 3:7].cpu().numpy()
@@ -232,11 +227,22 @@ class X152bPx4(BaseTask):
         ang_vel_cpu = self.obs_buf[..., 10:13].cpu().numpy()
 
         # for vel_control
-        self.parallel_vel_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
-        self.cmd_thrusts = torch.tensor(self.parallel_vel_control.update(actions_cpu.astype(np.float64)))
+        # self.actions = tensor_clamp(
+        #     actions, self.action_lower_limits, self.action_upper_limits)
+        # actions_cpu = self.actions.cpu().numpy()
+
+        # root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
+        # self.parallel_vel_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
+        # self.cmd_thrusts = torch.tensor(self.parallel_vel_control.update(actions_cpu.astype(np.float64)))
         # for rate _control
-        # self.parallel_rate_control.set_q_world(root_quats_cpu.astype(np.float64))
-        # self.cmd_thrusts = torch.tensor(self.parallel_rate_control.update(actions_cpu.astype(np.float64),angular_velocity_cpu.astype(np.float64),0.01)) 
+        self.actions = torch.clamp(actions, min=-1.0, max=1.0)
+        self.actions[...,:3] = self.actions[...,:3]*2.0 # 0 1 2 rad/s
+        self.actions[...,3] = (actions[...,3] + 1)/3 # 3 thrust
+        actions_cpu = self.actions.cpu().numpy()
+
+        root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
+        self.parallel_rate_control.set_q_world(root_quats_cpu.astype(np.float64))
+        self.cmd_thrusts = torch.tensor(self.parallel_rate_control.update(actions_cpu.astype(np.float64),ang_vel_cpu.astype(np.float64),0.01)) 
         # end
 
         # debugging
@@ -249,43 +255,13 @@ class X152bPx4(BaseTask):
         
         thrusts=((self.cmd_thrusts**2)*5.0).to('cuda') # [n,4]
 
-        # thrusts given rotation
-        root_quats = self.root_quats
-        rot_x = quat_axis(root_quats, 0)
-        rot_y = quat_axis(root_quats, 1)
-        rot_z = quat_axis(root_quats, 2)
-        # rot_matrix = torch.cat((rot_x, rot_y, rot_z), 1).reshape(-1, 3, 3).double()
-
-        rot_matrix_np = rot_utils.quats_to_rot_matrices(root_quats_cpu)
-        rot_matrix = torch.tensor(rot_matrix_np).to("cuda")
-
         force_x = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
         force_y = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
         force_xy = torch.cat((force_x, force_y), 1).reshape(-1, 4, 2)
         thrusts = thrusts.reshape(-1, 4, 1)
         thrusts = torch.cat((force_xy, thrusts), 2)
 
-        thrusts_0 = thrusts[:, 0]
-        thrusts_0 = thrusts_0[:, :, None]
-
-        thrusts_1 = thrusts[:, 1]
-        thrusts_1 = thrusts_1[:, :, None]
-
-        thrusts_2 = thrusts[:, 2]
-        thrusts_2 = thrusts_2[:, :, None]
-
-        thrusts_3 = thrusts[:, 3]
-        thrusts_3 = thrusts_3[:, :, None]
-
-        mod_thrusts_0 = torch.matmul(rot_matrix, thrusts_0)
-        mod_thrusts_1 = torch.matmul(rot_matrix, thrusts_1)
-        mod_thrusts_2 = torch.matmul(rot_matrix, thrusts_2)
-        mod_thrusts_3 = torch.matmul(rot_matrix, thrusts_3)
-
-        self.thrusts[:, 0] = torch.squeeze(mod_thrusts_0)
-        self.thrusts[:, 1] = torch.squeeze(mod_thrusts_1)
-        self.thrusts[:, 2] = torch.squeeze(mod_thrusts_2)
-        self.thrusts[:, 3] = torch.squeeze(mod_thrusts_3)
+        self.thrusts = thrusts
 
         # # clear actions for reset envs
         self.thrusts[reset_env_ids] = 0
@@ -303,6 +279,8 @@ class X152bPx4(BaseTask):
         # apply actions
         self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
             self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.LOCAL_SPACE)
+        # self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
+        #     self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.GLOBAL_SPACE)
         # apply propeller rotation
         # self.gym.set_joint_target_velocity(self.sim, )
 

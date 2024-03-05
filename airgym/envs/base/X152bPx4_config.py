@@ -27,7 +27,7 @@ class X152bPx4Cfg(BaseConfig):
         collision_mask = 1 # 1 to disable, 0 to enable...bitwise filter
         replace_cylinder_with_capsule = False # replace collision cylinders with capsules, leads to faster/more stable simulation
         flip_visual_attachments = False # Some .obj meshes must be flipped from y-up to z-up
-        density = 0.001
+        density = -1 #0.001
         angular_damping = 0.
         linear_damping = 0.
         max_angular_velocity = 100.
@@ -43,7 +43,7 @@ class X152bPx4Cfg(BaseConfig):
     class sim:
         dt =  0.01
         substeps = 1
-        gravity = [0., 0. , -9.81]  # [m/s^2]
+        gravity = [0., 0., -9.81] #[0., 0. , -9.81]  # [m/s^2]
         up_axis = 1  # 0 is y, 1 is z
 
         class physx:

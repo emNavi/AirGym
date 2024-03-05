@@ -12,11 +12,11 @@ def sample_command(args):
     env, env_cfg = task_registry.make_env(name=args.task, args=args)
     print("Number of environments", env_cfg.env.num_envs)
     command_actions = torch.zeros((env_cfg.env.num_envs, env_cfg.env.num_actions))
-    t = 2
-    command_actions[:, 0] = t
-    command_actions[:, 1] = t
-    command_actions[:, 2] = t
-    command_actions[:, 3] = t
+    
+    command_actions[:, 0] = 0
+    command_actions[:, 1] = 0
+    command_actions[:, 2] = 0
+    command_actions[:, 3] = 0.6
 
     env.reset()
     for i in range(0, 50000):
