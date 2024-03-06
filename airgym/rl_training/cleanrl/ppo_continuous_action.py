@@ -193,7 +193,6 @@ class Agent(nn.Module):
 if __name__ == "__main__":
     args = get_args()
 
-
     run_name = f"{args.task}__{args.experiment_name}__{args.seed}__{int(time.time())}"
     if args.track:
         import wandb
@@ -223,7 +222,7 @@ if __name__ == "__main__":
     print("using device:", device)
 
     # env setup
-    envs, env_cfg = task_registry.make_env(name="quad", args=args)
+    envs, env_cfg = task_registry.make_env(name=args.task, args=args)
 
     envs = RecordEpisodeStatisticsTorch(envs, device)
 

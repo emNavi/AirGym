@@ -179,25 +179,25 @@ class X152bPx4(BaseTask):
     def reset(self):
         """ Reset all robots"""
         self.reset_idx(torch.arange(self.num_envs, device=self.device))
-        self.post_physics_step()
-        self.compute_observations()
+        obs, privileged_obs, _, _, _ = self.step(torch.zeros(self.num_envs, self.num_actions, device=self.device, requires_grad=False))
+        return obs, privileged_obs
 
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
 
         self.root_states[env_ids] = self.initial_root_states[env_ids]
-        # self.root_states[env_ids,
-        #                  0:3] = 2.0*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
-        # self.root_states[env_ids,
-        #                  7:10] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
-        # self.root_states[env_ids,
-        #                  10:13] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
         self.root_states[env_ids,
-                         0:3] = .0*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
+                         0:3] = 2.0*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
         self.root_states[env_ids,
-                         7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
+                         7:10] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
         self.root_states[env_ids,
-                         10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
+                         10:13] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
+        # self.root_states[env_ids,
+        #                  0:3] = .0*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
+        # self.root_states[env_ids,
+        #                  7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
+        # self.root_states[env_ids,
+        #                  10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
         self.root_states[env_ids, 3:7] = 0
         self.root_states[env_ids, 6] = 1.0
 
@@ -227,22 +227,23 @@ class X152bPx4(BaseTask):
         ang_vel_cpu = self.obs_buf[..., 10:13].cpu().numpy()
 
         # for vel_control
-        # self.actions = tensor_clamp(
-        #     actions, self.action_lower_limits, self.action_upper_limits)
-        # actions_cpu = self.actions.cpu().numpy()
-
-        # root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
-        # self.parallel_vel_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
-        # self.cmd_thrusts = torch.tensor(self.parallel_vel_control.update(actions_cpu.astype(np.float64)))
-        # for rate _control
-        self.actions = torch.clamp(actions, min=-1.0, max=1.0)
-        self.actions[...,:3] = self.actions[...,:3]*2.0 # 0 1 2 rad/s
-        self.actions[...,3] = (actions[...,3] + 1)/3 # 3 thrust
+        self.actions = tensor_clamp(
+            actions, self.action_lower_limits, self.action_upper_limits)
         actions_cpu = self.actions.cpu().numpy()
 
         root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
-        self.parallel_rate_control.set_q_world(root_quats_cpu.astype(np.float64))
-        self.cmd_thrusts = torch.tensor(self.parallel_rate_control.update(actions_cpu.astype(np.float64),ang_vel_cpu.astype(np.float64),0.01)) 
+        self.parallel_vel_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
+        self.cmd_thrusts = torch.tensor(self.parallel_vel_control.update(actions_cpu.astype(np.float64)))
+        
+        # for rate _control
+        # self.actions = torch.clamp(actions, min=-1.0, max=1.0)
+        # self.actions[...,:3] = self.actions[...,:3]*2.0 # 0 1 2 rad/s
+        # self.actions[...,3] = (actions[...,3] + 1)/3 # 3 thrust
+        # actions_cpu = self.actions.cpu().numpy()
+
+        # root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
+        # self.parallel_rate_control.set_q_world(root_quats_cpu.astype(np.float64))
+        # self.cmd_thrusts = torch.tensor(self.parallel_rate_control.update(actions_cpu.astype(np.float64),ang_vel_cpu.astype(np.float64),0.01)) 
         # end
 
         # debugging
