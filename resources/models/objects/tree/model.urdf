@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<robot name="tree">
+  <link name="base_link">
+    <inertial>
+      <origin xyz="0.0 0.0 0.0" rpy="0.0 -0.0 0.0"/>
+      <mass value="10"/>
+      <inertia ixx="1.e6" ixy="0" ixz="0" iyy="1.e6" iyz="0" izz="1."/>
+    </inertial>
+    <visual name="base_link_visual">
+      <geometry>
+        <mesh filename="tree.dae" scale="1. 1. 1."/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="1.57 0 0"/>
+    </visual>
+    <collision name="base_link_collision">
+      <geometry>
+        <mesh filename="tree.dae" scale="1. 1. 1."/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="1.57 0 0"/>
+    </collision>
+  </link>
+</robot>

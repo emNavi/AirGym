@@ -21,6 +21,15 @@ from airgym.utils.helpers import asset_class_to_AssetOptions
 import time
 
 
+
+
+import matplotlib.pyplot as plt
+from torchvision import transforms
+from PIL import Image
+import cv2
+
+
+
 class AerialRobotWithObstacles(BaseTask):
 
     def __init__(self, cfg: AerialRobotWithObstaclesCfg, sim_params, physics_engine, sim_device, headless):
@@ -167,8 +176,9 @@ class AerialRobotWithObstacles(BaseTask):
         # orientation of the camera relative to the body
         local_transform.r = gymapi.Quat(0.0, 0.0, 0.0, 1.0)
 
-
         self.segmentation_counter = 0
+
+        self.outs = []
 
 
         for i in range(self.num_envs):
@@ -187,6 +197,10 @@ class AerialRobotWithObstacles(BaseTask):
                 camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, env_handle, cam_handle, gymapi.IMAGE_DEPTH)
                 torch_cam_tensor = gymtorch.wrap_tensor(camera_tensor)
                 self.camera_tensors.append(torch_cam_tensor)
+
+                # fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                # out = cv2.VideoWriter('depth_video.mp4', fourcc, 30, (270, 480))
+                # self.outs.append(out)
 
             env_asset_list = self.env_asset_manager.prepare_assets_for_simulation(self.gym, self.sim)
             asset_counter = 0
@@ -324,6 +338,7 @@ class AerialRobotWithObstacles(BaseTask):
         self.gym.set_actor_root_state_tensor(self.sim, self.root_tensor)
         self.progress_buf[env_ids] = 0
         self.reset_buf[env_ids] = 1
+        
 
     def pre_physics_step(self, _actions):
         # resets
@@ -367,12 +382,13 @@ class AerialRobotWithObstacles(BaseTask):
         self.collisions[:] = 0
         self.collisions = torch.where(torch.norm(self.contact_forces, dim=1) > 0.1, ones, zeros)
 
-
-
     def dump_images(self):
         for env_id in range(self.num_envs):
             # the depth values are in -ve z axis, so we need to flip it to positive
             self.full_camera_array[env_id] = -self.camera_tensors[env_id]
+
+            # cv2.imshow(str(env_id), self.full_camera_array[env_id].cpu().numpy().astype(np.uint8))
+            # cv2.waitKey(1)
 
     def compute_observations(self):
         self.obs_buf[..., :3] = self.root_positions

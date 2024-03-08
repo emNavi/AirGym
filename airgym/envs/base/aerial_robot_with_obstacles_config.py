@@ -13,12 +13,13 @@ class AerialRobotWithObstaclesCfg(BaseConfig):
     class env:
         num_envs = 64
         num_observations = 13
+        headless = True
         get_privileged_obs = True # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned
         num_actions = 4
         env_spacing = 5.0  # not used with heightfields/trimeshes
         episode_length_s = 10 # episode length in seconds
         num_control_steps_per_env_step = 10 # number of control & physics steps between camera renders
-        enable_onboard_cameras = False # enable onboard cameras
+        enable_onboard_cameras = True # enable onboard cameras
         reset_on_collision = True # reset environment when contact force on quadrotor is above a threshold
         create_ground_plane = True # create a ground plane
 

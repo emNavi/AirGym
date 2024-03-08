@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<robot name="2x4cube">
+  <link name="base_link">
+    <visual name="base_link_visual">
+      <geometry>
+        <mesh filename="2X4.dae" scale="1. 1. 1."/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </visual>
+    <collision name="base_link_collision">
+      <geometry>
+        <mesh filename="2X4.dae" scale="1. 1. 1."/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </collision>
+  </link>
+</robot>
