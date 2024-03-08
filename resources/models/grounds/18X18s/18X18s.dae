@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <asset>
+    <contributor>
+      <author>Blender User</author>
+      <authoring_tool>Blender 3.6.5 commit date:2023-10-16, commit time:14:30, hash:cf1e1ed46b7e</authoring_tool>
+    </contributor>
+    <created>2024-03-07T16:09:40</created>
+    <modified>2024-03-07T16:09:40</modified>
+    <unit name="meter" meter="1"/>
+    <up_axis>Z_UP</up_axis>
+  </asset>
+  <library_effects>
+    <effect id="材质-effect">
+      <profile_COMMON>
+        <newparam sid="_8X18s_png-surface">
+          <surface type="2D">
+            <init_from>_8X18s_png</init_from>
+          </surface>
+        </newparam>
+        <newparam sid="_8X18s_png-sampler">
+          <sampler2D>
+            <source>_8X18s_png-surface</source>
+          </sampler2D>
+        </newparam>
+        <technique sid="common">
+          <lambert>
+            <emission>
+              <color sid="emission">0 0 0 1</color>
+            </emission>
+            <diffuse>
+              <texture texture="_8X18s_png-sampler" texcoord="UV 贴图"/>
+            </diffuse>
+            <index_of_refraction>
+              <float sid="ior">1.45</float>
+            </index_of_refraction>
+          </lambert>
+        </technique>
+      </profile_COMMON>
+    </effect>
+  </library_effects>
+  <library_images>
+    <image id="_8X18s_png" name="_8X18s_png">
+      <init_from>18X18s.png</init_from>
+    </image>
+  </library_images>
+  <library_materials>
+    <material id="材质-material" name="材质">
+      <instance_effect url="#材质-effect"/>
+    </material>
+  </library_materials>
+  <library_geometries>
+    <geometry id="平面-mesh" name="平面">
+      <mesh>
+        <source id="平面-mesh-positions">
+          <float_array id="平面-mesh-positions-array" count="48">-1 -1 0 1 -1 0 -1 1 0 1 1 0 -1 0.5 0 -1 0.25 0 -1 -0.25 0 -1 -0.5 0 1 -0.5 0 1 -0.25 0 1 0.25 0 1 0.5 0 -0.25 -0.5 0 -0.25 -0.25 0 0.25 0.25 0 0.25 0.5 0</float_array>
+          <technique_common>
+            <accessor source="#平面-mesh-positions-array" count="16" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="平面-mesh-normals">
+          <float_array id="平面-mesh-normals-array" count="3">0 0 1</float_array>
+          <technique_common>
+            <accessor source="#平面-mesh-normals-array" count="1" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="平面-mesh-map-0">
+          <float_array id="平面-mesh-map-0-array" count="84">0.3766263 0.2548788 0.001626253 0.2548788 0.001626253 0.004878759 0.3766263 0.2548788 0.001626253 0.3798788 0.001626253 0.2548788 0.6266263 0.7548788 1.001626 1.004879 0.001626253 1.004879 1.001626 0.6298788 0.6266263 0.7548788 0.6266263 0.6298788 0.6266263 0.6298788 0.001626253 0.6298788 0.3766263 0.3798788 0.001626253 0.004878759 1.001626 0.004878759 0.3766263 0.2548788 1.001626 0.004878759 1.001626 0.2548788 0.3766263 0.2548788 0.3766263 0.2548788 0.3766263 0.3798788 0.001626253 0.3798788 0.001626253 1.004879 0.001626253 0.7548788 0.6266263 0.7548788 0.6266263 0.7548788 1.001626 0.7548788 1.001626 1.004879 1.001626 0.6298788 1.001626 0.7548788 0.6266263 0.7548788 0.001626253 0.6298788 0.001626253 0.3798788 0.3766263 0.3798788 0.3766263 0.3798788 1.001626 0.3798788 0.6266263 0.6298788 1.001626 0.3798788 1.001626 0.6298788 0.6266263 0.6298788</float_array>
+          <technique_common>
+            <accessor source="#平面-mesh-map-0-array" count="42" stride="2">
+              <param name="S" type="float"/>
+              <param name="T" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="平面-mesh-vertices">
+          <input semantic="POSITION" source="#平面-mesh-positions"/>
+        </vertices>
+        <triangles material="材质-material" count="14">
+          <input semantic="VERTEX" source="#平面-mesh-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#平面-mesh-normals" offset="1"/>
+          <input semantic="TEXCOORD" source="#平面-mesh-map-0" offset="2" set="0"/>
+          <p>12 0 0 7 0 1 0 0 2 12 0 3 6 0 4 7 0 5 15 0 6 3 0 7 2 0 8 10 0 9 15 0 10 14 0 11 14 0 12 5 0 13 13 0 14 0 0 15 1 0 16 12 0 17 1 0 18 8 0 19 12 0 20 12 0 21 13 0 22 6 0 23 2 0 24 4 0 25 15 0 26 15 0 27 11 0 28 3 0 29 10 0 30 11 0 31 15 0 32 5 0 33 6 0 34 13 0 35 13 0 36 9 0 37 14 0 38 9 0 39 10 0 40 14 0 41</p>
+        </triangles>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_visual_scenes>
+    <visual_scene id="Scene" name="Scene">
+      <node id="平面" name="平面" type="NODE">
+        <matrix sid="transform">9 0 0 0 0 9 0 0 0 0 1 0 0 0 0 1</matrix>
+        <instance_geometry url="#平面-mesh" name="平面">
+          <bind_material>
+            <technique_common>
+              <instance_material symbol="材质-material" target="#材质-material">
+                <bind_vertex_input semantic="UV 贴图" input_semantic="TEXCOORD" input_set="0"/>
+              </instance_material>
+            </technique_common>
+          </bind_material>
+        </instance_geometry>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#Scene"/>
+  </scene>
+</COLLADA>

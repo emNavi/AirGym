@@ -63,10 +63,9 @@ if viewer is None:
     raise Exception("Failed to create viewer")
 
 # load asset
-asset_root = "../../resources/models/objects"
-asset_file = "tree_download/model.urdf"
-# asset_root = "../../resources/models/environment_assets"
-# asset_file = "trees/tree_8.urdf"
+asset_root = "../../resources/models/grounds"
+asset_file = "18X18s/model.urdf"
+
 asset = gym.load_asset(sim, asset_root, asset_file, gymapi.AssetOptions())
 
 num_bodies = gym.get_asset_rigid_body_count(asset)
