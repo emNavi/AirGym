@@ -65,9 +65,9 @@ def get_args():
         {"name": "--wandb-entity", "type":str, "default": None, "help": "the entity (team) of wandb's project"},
 
         # Algorithm specific arguments
-        {"name": "--total-timesteps", "type":int, "default": 30000000,
+        {"name": "--total-timesteps", "type":int, "default": 10000000,
             "help": "total timesteps of the experiments"},
-        {"name": "--learning-rate", "type":float, "default": 0.0026,
+        {"name": "--learning-rate", "type":float, "default": 0.0001,
             "help": "the learning rate of the optimizer"},
         {"name": "--num-steps", "type":int, "default": 16,
             "help": "the number of steps to run in each environment per policy rollout"},
@@ -95,6 +95,8 @@ def get_args():
             "help": "the maximum norm for the gradient clipping"},
         {"name": "--target-kl", "type":float, "default": None,
             "help": "the target KL divergence threshold"},
+        {"name": "--ctl_mode", "type":str, "default": "rate",
+            "help": "control mode"},
         ]
 
     # parse arguments
@@ -193,7 +195,7 @@ class Agent(nn.Module):
 if __name__ == "__main__":
     args = get_args()
 
-    run_name = f"{args.task}__{args.experiment_name}__{args.seed}__{int(time.time())}"
+    run_name = f"{args.task}__{args.experiment_name}__{args.ctl_mode}__{args.seed}__{int(time.time())}"
     if args.track:
         import wandb
 
