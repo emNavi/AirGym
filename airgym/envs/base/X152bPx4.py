@@ -66,31 +66,30 @@ class X152bPx4(BaseTask):
         # choice 1 from rate ctrl and vel ctrl
         if(cfg.env.ctl_mode == "pos"):
             self.action_upper_limits = torch.tensor(
-            [2, 2, 2, 1.0], device=self.device, dtype=torch.float32)
+            [3, 3, 3, 1.0], device=self.device, dtype=torch.float32)
             self.action_lower_limits = torch.tensor(
-            [-2, -2, -2, -1.0], device=self.device, dtype=torch.float32)
+            [-3, -3, -3, -1.0], device=self.device, dtype=torch.float32)
             self.parallel_pos_control = ParallelPosControl(self.num_envs)
-        elif(control_mode_ == "vel"):
+        elif(cfg.env.ctl_mode == "vel"):
             self.action_upper_limits = torch.tensor(
-                [5, 5, 3, 1], device=self.device, dtype=torch.float32)
+                [3, 3, 3, 1], device=self.device, dtype=torch.float32)
             self.action_lower_limits = torch.tensor(
-                [-5, -5, -3, -1], device=self.device, dtype=torch.float32)
+                [-3, -3, -3, -1], device=self.device, dtype=torch.float32)
             self.parallel_vel_control = ParallelVelControl(self.num_envs)
 
-        elif(control_mode_ == "atti"):
+        elif(cfg.env.ctl_mode == "atti"):
             self.action_upper_limits = torch.tensor(
             [1, 1, 1, 1.0], device=self.device, dtype=torch.float32)
             self.action_lower_limits = torch.tensor(
             [-1, -1, -1, 0.0], device=self.device, dtype=torch.float32)
             self.parallel_atti_control = ParallelAttiControl(self.num_envs)
-        elif(control_mode_ == "rate"):
+        elif(cfg.env.ctl_mode == "rate"):
             self.action_upper_limits = torch.tensor(
                 [8, 8, 8, 1], device=self.device, dtype=torch.float32)
             self.action_lower_limits = torch.tensor(
                 [-8, -8, -8, 0], device=self.device, dtype=torch.float32)
-            self.actions = torch.clamp(actions, min=-1.0, max=1.0)
             self.parallel_rate_control = ParallelRateControl(self.num_envs)
-        elif(control_mode_ == "prop"):
+        elif(cfg.env.ctl_mode == "prop"):
             self.action_upper_limits = torch.tensor(
                 [1, 1, 1, 1], device=self.device, dtype=torch.float32)
             self.action_lower_limits = torch.tensor(
@@ -201,6 +200,7 @@ class X152bPx4(BaseTask):
 
         self.time_out_buf = self.progress_buf > self.max_episode_length
         self.extras["time_outs"] = self.time_out_buf
+        self.extras["item_reward_info"] = self.item_reward_info
         return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def reset(self):
@@ -214,9 +214,9 @@ class X152bPx4(BaseTask):
 
         self.root_states[env_ids] = self.initial_root_states[env_ids]
         self.root_states[env_ids,
-                         0:3] = 1.0*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
+                         0:3] = 2.0*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
         self.root_states[env_ids,
-                         7:10] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
+                         7:10] = 0.5*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
         self.root_states[env_ids,
                          10:13] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
         # self.root_states[env_ids,
@@ -330,7 +330,7 @@ class X152bPx4(BaseTask):
         return self.obs_buf
 
     def compute_reward(self):
-        self.rew_buf[:], self.reset_buf[:] = compute_quadcopter_reward(
+        self.rew_buf[:], self.reset_buf[:] ,self.item_reward_info= compute_quadcopter_reward(
             self.cmd_thrusts,
             self.root_positions,
             self.root_quats,
@@ -366,31 +366,32 @@ def quat_axis(q, axis=0):
 # like Control of a Quadrotor With Reinforcement Learning
 @torch.jit.script
 def compute_quadcopter_reward(cmd_thrusts,root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length):
-    # type: (Tensor,Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float) -> Tuple[Tensor, Tensor]
+    # type: (Tensor,Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float) -> Tuple[Tensor, Tensor,Dict[str, Tensor]]
 
     # distance to target
     target_dist = torch.sqrt(root_positions[..., 0] * root_positions[..., 0] +
                              root_positions[..., 1] * root_positions[..., 1] +
                              (root_positions[..., 2]) * (root_positions[..., 2]))
-    pos_reward = 2.0 / (1.0 + 2*target_dist)
+    pos_reward = 2 * (1.0 - (1/6)*target_dist)
 
     target_vel = torch.norm(root_linvels, dim=1)
     target_ang = torch.norm(root_angvels, dim=1)
 
-    # vel_reward = 0.5 * (1-(1/6)*target_vel)
-    # ang_vel_reward =  0.3 * (1.0 - target_ang)
-    vel_reward = 0.3/ (1 + 1.5*target_vel)
-    ang_vel_reward =  0.3 / (1.0 + 6*target_ang)
+    vel_reward = 0.4 * (1-(1/6)*target_vel)
+    ang_vel_reward =  0.2 * (1.0 - (1/6)*target_ang)
+    # vel_reward = 0.1/ (1 + 1.5*target_vel)
+    # ang_vel_reward =  0.1 / (1.0 + 6*target_ang)
+
 
     # uprightness
     ups = quat_axis(root_quats, 2)
 
     # effort reward
     thrust_cmds = torch.clamp(cmd_thrusts, min=0.0, max=1.0).to('cuda')
-    effort_reward = 0.1 * (thrust_cmds).sum(-1)/4
+    effort_reward = 0.4 * (1 - thrust_cmds).sum(-1)/4
 
     # combined reward
-    reward = ang_vel_reward + vel_reward + pos_reward - effort_reward
+    reward = ang_vel_reward + vel_reward + pos_reward + effort_reward
  
 
     # resets due to misbehavior
@@ -401,11 +402,20 @@ def compute_quadcopter_reward(cmd_thrusts,root_positions, root_quats, root_linve
     # resets due to episode length
     reset = torch.where(progress_buf >= max_episode_length - 1, ones, die)
     reset = torch.where(torch.norm(root_positions, dim=1) > 6.0, ones, reset)
+    reset = torch.where(torch.norm(root_linvels, dim=1) > 6.0, ones, reset)
+
     reset = torch.where(root_positions[..., 2] < -3, ones, reset)
     reset = torch.where(root_positions[..., 2] > 3, ones, reset)
 
     reset = torch.where(ups[..., 2] < 0.0, ones, reset) # orient_z 小于0 = 飞行器朝下了
-    return reward, reset
+    
+    item_reward_info = {}
+    item_reward_info["ang_vel_reward"] = ang_vel_reward
+    item_reward_info["effort_reward"] = effort_reward
+    item_reward_info["pos_reward"] = pos_reward
+    item_reward_info["vel_reward"] = vel_reward
+
+    return reward, reset,item_reward_info
 
 
 

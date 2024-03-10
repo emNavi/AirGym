@@ -133,6 +133,11 @@ class RecordEpisodeStatisticsTorch(gym.Wrapper):
         self.episode_lengths = torch.zeros(self.num_envs, dtype=torch.int32, device=self.device)
         self.returned_episode_returns = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
         self.returned_episode_lengths = torch.zeros(self.num_envs, dtype=torch.int32, device=self.device)
+        self.ang_vel_r  = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
+        self.effort_r  = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
+        self.pos_r  = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
+        self.vel_r  = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
+
         return observations
 
     def step(self, action):
@@ -146,6 +151,19 @@ class RecordEpisodeStatisticsTorch(gym.Wrapper):
         self.episode_lengths *= 1 - dones
         infos["r"] = self.returned_episode_returns
         infos["l"] = self.returned_episode_lengths
+
+        self.ang_vel_r += infos["item_reward_info"]["ang_vel_reward"]
+        self.effort_r += infos["item_reward_info"]["effort_reward"]
+        self.pos_r  += infos["item_reward_info"]["pos_reward"]
+        self.vel_r  += infos["item_reward_info"]["vel_reward"]
+        infos["item_reward_info"]["ang_vel_reward"][:]  = self.ang_vel_r
+        infos["item_reward_info"]["effort_reward"][:]  = self.effort_r
+        infos["item_reward_info"]["pos_reward"][:]  = self.pos_r
+        infos["item_reward_info"]["vel_reward"][:]  = self.vel_r
+        self.ang_vel_r *= 1 - dones
+        self.effort_r *= 1 - dones
+        self.pos_r *= 1 - dones
+        self.vel_r *= 1 - dones
         return (
             observations,
             rewards,
@@ -195,7 +213,7 @@ class Agent(nn.Module):
 if __name__ == "__main__":
     args = get_args()
 
-    run_name = f"{args.task}__{args.experiment_name}__{args.ctl_mode}__{args.seed}__{int(time.time())}"
+    run_name = f"fix_{args.task}__{args.experiment_name}__{args.ctl_mode}__{args.seed}__{int(time.time())}"
     if args.track:
         import wandb
 
@@ -290,6 +308,12 @@ if __name__ == "__main__":
                             print(f"global_step={global_step}, episodic_return={episodic_return}")
                             writer.add_scalar("charts/episodic_return", episodic_return, global_step)
                             writer.add_scalar("charts/episodic_length", info["l"][idx], global_step)
+                            # print(info["item_reward_info"]["ang_vel_reward"])
+                            writer.add_scalar("charts/item_ang_vel_reward", info["item_reward_info"]["ang_vel_reward"][idx], global_step)
+                            writer.add_scalar("charts/item_effort_reward", info["item_reward_info"]["effort_reward"][idx], global_step)
+                            writer.add_scalar("charts/item_pos_reward",  info["item_reward_info"]["pos_reward"][idx], global_step)
+                            writer.add_scalar("charts/item_vel_reward",  info["item_reward_info"]["vel_reward"][idx], global_step)
+
                             if "consecutive_successes" in info:  # ShadowHand and AllegroHand metric
                                 writer.add_scalar(
                                     "charts/consecutive_successes", info["consecutive_successes"].item(), global_step
