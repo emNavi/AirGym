@@ -6,6 +6,7 @@ from airgym import AIRGYM_ROOT_DIR
 class X152bPx4Cfg(BaseConfig):
     seed = 1
     class env:
+        ctl_mode = "pos"
         num_envs = 256
         num_observations = 13
         get_privileged_obs = False # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned

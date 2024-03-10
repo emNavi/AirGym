@@ -47,6 +47,9 @@ def update_cfg_from_args(env_cfg, args):
         # num envs
         if args.num_envs is not None:
             env_cfg.env.num_envs = args.num_envs
+            env_cfg.env.ctl_mode = args.ctl_mode
+            # random seed
+            env_cfg.seed = args.seed
     return env_cfg
 
 def get_args(additional_parameters=[]):
