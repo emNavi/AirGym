@@ -1,17 +1,3 @@
-"""
-Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
-
-NVIDIA CORPORATION and its licensors retain all intellectual property
-and proprietary rights in and to this software, related documentation
-and any modifications thereto. Any use, reproduction, disclosure or
-distribution of this software and related documentation without an express
-license agreement from NVIDIA CORPORATION is strictly prohibited.
-
-
-Apply Forces (apply_forces.py)
-----------------------------
-This example shows how to apply forces and torques to rigid bodies using the tensor API.
-"""
 
 from isaacgym import gymutil
 from isaacgym import gymapi
@@ -96,7 +82,7 @@ for i in range(num_envs):
     env = gym.create_env(sim, env_lower, env_upper, num_per_row)
     envs.append(env)
 
-    ahandle = gym.create_actor(env, asset, pose, "actor", i, 1)
+    ahandle = gym.create_actor(env, asset, pose, "actor", i, 0)
     handles.append(ahandle)
 
 gym.viewer_camera_look_at(viewer, None, gymapi.Vec3(20, 20, 5), gymapi.Vec3(0, 0, 1))

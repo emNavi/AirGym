@@ -8,9 +8,9 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 
-Apply Forces (apply_forces.py)
+Apply Forces for X152b (apply_forces_X152b.py)
 ----------------------------
-This example shows how to apply forces and torques to rigid bodies using the tensor API.
+This example shows how to apply forces and torques on X152b using the tensor API.
 """
 
 from isaacgym import gymutil
@@ -96,7 +96,7 @@ for i in range(num_envs):
     envs.append(env)
 
     # generate random bright color
-    c = 0.5 + 0.5 * np.random.random(3)
+    c = np.array([0.2, 0.2, 0.2])
     color = gymapi.Vec3(c[0], c[1], c[2])
 
     ahandle = gym.create_actor(env, asset, pose, "actor", i, 1)
@@ -116,7 +116,7 @@ while not gym.query_viewer_has_closed(viewer):
         # set forces and torques for the ant root bodies
         forces = torch.zeros((num_envs, num_bodies, 3), device=device, dtype=torch.float)
         torques = torch.zeros((num_envs, num_bodies, 3), device=device, dtype=torch.float)
-        forces[:, 1:5, 2] = 30
+        forces[:, 1:5, 2] = 0
         torques[:, 1:3, 2] = torque_amt
         torques[:, 3:5, 2] = -torque_amt
         gym.apply_rigid_body_force_tensors(sim, gymtorch.unwrap_tensor(forces), gymtorch.unwrap_tensor(torques), gymapi.ENV_SPACE)
