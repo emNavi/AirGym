@@ -17,6 +17,8 @@ def sample_command(args):
     command_actions[:, 1] = 0
     command_actions[:, 2] = 0
     command_actions[:, 3] = 0
+    
+    # -4 0 0.7 -1.53
 
     env.reset()
     for i in range(0, 50000):
