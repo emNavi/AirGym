@@ -13,7 +13,7 @@ from airgym.envs.base.base_task import BaseTask
 import airgym.utils.rotations as rot_utils
 from airgym.envs.base.X152bPx4_config import X152bPx4Cfg
 
-from pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
+from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
 
 import matplotlib.pyplot as plt
 from airgym.utils.helpers import asset_class_to_AssetOptions

@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import cv2
 
-from pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
+from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
 
 
 class X152bPx4WithCam(BaseTask):
