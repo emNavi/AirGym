@@ -23,7 +23,7 @@
   <link name="branch_1">
     <inertial>
       <origin xyz="0.0 0.0 0.0" rpy="0.0 -0.0 0.0"/>
-      <mass value="1.0"/>
+      <mass value="0.0"/>
       <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
     </inertial>
     <visual name="branch_1_visual">
@@ -43,7 +43,7 @@
   <link name="branch_2">
     <inertial>
       <origin xyz="0.0 0.0 0.0" rpy="0.0 -0.0 0.0"/>
-      <mass value="1.0"/>
+      <mass value="0.0"/>
       <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
     </inertial>
     <visual name="branch_2_visual">
@@ -63,7 +63,7 @@
   <link name="branch_3">
     <inertial>
       <origin xyz="0.0 0.0 0.0" rpy="0.0 -0.0 0.0"/>
-      <mass value="1.0"/>
+      <mass value="0.0"/>
       <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
     </inertial>
     <visual name="branch_3_visual">
@@ -83,7 +83,7 @@
   <link name="branch_4">
     <inertial>
       <origin xyz="0.0 0.0 0.0" rpy="0.0 -0.0 0.0"/>
-      <mass value="1.0"/>
+      <mass value="0.0"/>
       <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
     </inertial>
     <visual name="branch_4_visual">
@@ -103,7 +103,7 @@
   <link name="branch_5">
     <inertial>
       <origin xyz="0.0 0.0 0.0" rpy="0.0 -0.0 0.0"/>
-      <mass value="1.0"/>
+      <mass value="0.0"/>
       <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
     </inertial>
     <visual name="branch_5_visual">
@@ -123,7 +123,7 @@
   <link name="branch_6">
     <inertial>
       <origin xyz="0.0 0.0 0.0" rpy="0.0 -0.0 0.0"/>
-      <mass value="1.0"/>
+      <mass value="0.0"/>
       <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
     </inertial>
     <visual name="branch_6_visual">
@@ -143,7 +143,7 @@
   <link name="branch_7">
     <inertial>
       <origin xyz="0.0 0.0 0.0" rpy="0.0 -0.0 0.0"/>
-      <mass value="1.0"/>
+      <mass value="0.0"/>
       <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
     </inertial>
     <visual name="branch_7_visual">
@@ -163,7 +163,7 @@
   <link name="branch_8">
     <inertial>
       <origin xyz="0.0 0.0 0.0" rpy="0.0 -0.0 0.0"/>
-      <mass value="1.0"/>
+      <mass value="0.0"/>
       <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
     </inertial>
     <visual name="branch_8_visual">
@@ -183,7 +183,7 @@
   <link name="branch_9">
     <inertial>
       <origin xyz="0.0 0.0 0.0" rpy="0.0 -0.0 0.0"/>
-      <mass value="1.0"/>
+      <mass value="0.0"/>
       <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
     </inertial>
     <visual name="branch_9_visual">
@@ -203,7 +203,7 @@
   <link name="branch_10">
     <inertial>
       <origin xyz="0.0 0.0 0.0" rpy="0.0 -0.0 0.0"/>
-      <mass value="1.0"/>
+      <mass value="0.0"/>
       <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
     </inertial>
     <visual name="branch_10_visual">
@@ -223,7 +223,7 @@
   <link name="branch_11">
     <inertial>
       <origin xyz="0.0 0.0 0.0" rpy="0.0 -0.0 0.0"/>
-      <mass value="1.0"/>
+      <mass value="0.0"/>
       <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
     </inertial>
     <visual name="branch_11_visual">
@@ -243,7 +243,7 @@
   <link name="branch_12">
     <inertial>
       <origin xyz="0.0 0.0 0.0" rpy="0.0 -0.0 0.0"/>
-      <mass value="1.0"/>
+      <mass value="0.0"/>
       <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
     </inertial>
     <visual name="branch_12_visual">

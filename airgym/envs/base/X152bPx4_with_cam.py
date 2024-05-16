@@ -57,7 +57,7 @@ class X152bPx4WithCam(BaseTask):
 
         num_actors = self.env_asset_manager.get_env_actor_count() + 1 # Number of obstacles in the environment + one robot
         bodies_per_env = self.env_asset_manager.get_env_link_count() + self.robot_num_bodies # Number of links in the environment + robot
-        num_actors = 44 - 6
+        
         self.vec_root_tensor = gymtorch.wrap_tensor(
             self.root_tensor).view(self.num_envs, num_actors, 13)
 
@@ -74,8 +74,6 @@ class X152bPx4WithCam(BaseTask):
             if self.get_privileged_obs:
                 self.privileged_obs_buf = self.env_asset_root_states.clone()
 
-        bodies_per_env = self.robot_num_bodies
-        bodies_per_env = 48 - 6
         self.contact_forces = gymtorch.wrap_tensor(self.contact_force_tensor).view(self.num_envs, bodies_per_env, 3)[:, 0]
 
         self.collisions = torch.zeros(self.num_envs, device=self.device)
@@ -214,63 +212,7 @@ class X152bPx4WithCam(BaseTask):
 
         self.segmentation_counter = 0
 
-        self.outs = []
-
-
-        # airgym obstacles assets
-        # load assets
-        asset_root = AIRGYM_ROOT_DIR+"/resources/models"
-        ground_model = "grounds/18X18ground/model.urdf"
-        ground_asset = self.gym.load_asset(self.sim, asset_root, ground_model, gymapi.AssetOptions())
-
-        cube1X4_model = "objects/cubes/1X4/model.urdf"
-        cube1X4_asset = self.gym.load_asset(self.sim, asset_root, cube1X4_model, gymapi.AssetOptions())
-
-        cube2X2square_model = "objects/cubes/2X2square/model.urdf"
-        cube2X2square_asset = self.gym.load_asset(self.sim, asset_root, cube2X2square_model, gymapi.AssetOptions())
-
-        cube2X3_model = "objects/cubes/2X3/model.urdf"
-        cube2X3_asset = self.gym.load_asset(self.sim, asset_root, cube2X3_model, gymapi.AssetOptions())
-
-        cube2X4_model = "objects/cubes/2X4/model.urdf"
-        cube2X4_asset = self.gym.load_asset(self.sim, asset_root, cube2X4_model, gymapi.AssetOptions())
-
-        cube2X4arch_model = "objects/cubes/2X4arch/model.urdf"
-        cube2X4arch_asset = self.gym.load_asset(self.sim, asset_root, cube2X4arch_model, gymapi.AssetOptions())
-
-        cube3X3arch_model = "objects/cubes/3X3arch/model.urdf"
-        cube3X3arch_asset = self.gym.load_asset(self.sim, asset_root, cube3X3arch_model, gymapi.AssetOptions())
-
-        cube3X4arch_model = "objects/cubes/3X4arch/model.urdf"
-        cube3X4arch_asset = self.gym.load_asset(self.sim, asset_root, cube3X4arch_model, gymapi.AssetOptions())
-
-        arch1_6m_model = "objects/arch1_6m/model.urdf"
-        arch1_6m_asset = self.gym.load_asset(self.sim, asset_root, arch1_6m_model, gymapi.AssetOptions())
-
-        circle1_5m_model = "objects/circle1_5m/model.urdf"
-        circle1_5m_asset = self.gym.load_asset(self.sim, asset_root, circle1_5m_model, gymapi.AssetOptions())
-
-        circle2_5m_model = "objects/circle2_5m/model.urdf"
-        circle2_5m_asset = self.gym.load_asset(self.sim, asset_root, circle2_5m_model, gymapi.AssetOptions())
-
-        circle2m_model = "objects/circle2m/model.urdf"
-        circle2m_asset = self.gym.load_asset(self.sim, asset_root, circle2m_model, gymapi.AssetOptions())
-
-        # default pose
-        pose = gymapi.Transform()
-        pose.p.z = 0.0
-
-        # set up the env grid
-        num_envs = self.num_envs
-        num_per_row = int(np.sqrt(num_envs))
-        env_spacing = self.env_spacing
-        env_lower = gymapi.Vec3(-env_spacing, -env_spacing, 0.0)
-        env_upper = gymapi.Vec3(env_spacing, env_spacing, env_spacing)
-
-        # set random seed
-        np.random.seed(12)
-
-        for i in range(num_envs):
+        for i in range(self.num_envs):
             # create environment
             env_handle = self.gym.create_env(self.sim, env_lower, env_upper, int(np.sqrt(self.num_envs)))
             # insert robot asset
@@ -278,152 +220,75 @@ class X152bPx4WithCam(BaseTask):
             # append to lists
             self.envs.append(env_handle)
             self.actor_handles.append(actor_handle)
-            
 
-            pose.p = gymapi.Vec3(-8, -8, -0.01)
-            pose.r = gymapi.Quat(0, 0, 0, 1)
-
-            ground_handle = self.gym.create_actor(env_handle, ground_asset, pose, "actor", i, 1)
-            # for i in range(0, 1): 
-            #     pose.p = gymapi.Vec3((np.random.random(1)-1)*16, (np.random.random(1)-1)*18, 0)
-            #     pose.r = gymapi.Quat(0, 0, (np.random.random(1)-1), 1)
-            #     circle2m_handle = self.gym.create_actor(env_handle, circle2m_asset, pose, "actor", i, 0)
-            # for i in range(0, 1): 
-            #     pose.p = gymapi.Vec3((np.random.random(1)-1)*16, (np.random.random(1)-1)*16, 0)
-            #     pose.r = gymapi.Quat(0, 0, (np.random.random(1)-1), 1)
-            #     arch1_6m_handle = self.gym.create_actor(env_handle, arch1_6m_asset, pose, "actor", i, 0)
-            # for i in range(0, 2):
-            #     pose.p = gymapi.Vec3((np.random.random(1)-1)*16, (np.random.random(1)-1)*16, 0)
-            #     pose.r = gymapi.Quat(0, 0, (np.random.random(1)-1), 1)
-            #     circle1_5m_handle = self.gym.create_actor(env_handle, circle1_5m_asset, pose, "actor", i, 0)
-            # for i in range(0, 2):
-            #     pose.p = gymapi.Vec3((np.random.random(1)-1)*16, (np.random.random(1)-1)*16, 0)
-            #     pose.r = gymapi.Quat(0, 0, (np.random.random(1)-1), 1)
-            #     circle2_5m_handle = self.gym.create_actor(env_handle, circle2_5m_asset, pose, "actor", i, 0)
-            for i in range(0, 2):
-                pose.p = gymapi.Vec3((np.random.random(1)-1)*16, (np.random.random(1)-1)*16, 0)
-                pose.r = gymapi.Quat(0, 0, (np.random.random(1)-1), 1)
-                cube3X3arch_handle = self.gym.create_actor(env_handle, cube3X3arch_asset, pose, "actor", i, 0)
-            for i in range(0, 3):
-                pose.p = gymapi.Vec3((np.random.random(1)-1)*16, (np.random.random(1)-1)*16, 0)
-                pose.r = gymapi.Quat(0, 0, (np.random.random(1)-1), 1)
-                cube2X4_handle = self.gym.create_actor(env_handle, cube2X4_asset, pose, "actor", i, 0)
-            for i in range(0, 3):
-                pose.p = gymapi.Vec3((np.random.random(1)-1)*16, (np.random.random(1)-1)*16, 0)
-                pose.r = gymapi.Quat(0, 0, (np.random.random(1)-1), 1)
-                cube2X4arch_handle = self.gym.create_actor(env_handle, cube2X4arch_asset, pose, "actor", i, 0)
-            for i in range(0, 3):
-                pose.p = gymapi.Vec3((np.random.random(1)-1)*16, (np.random.random(1)-1)*16, 0)
-                pose.r = gymapi.Quat(0, 0, (np.random.random(1)-1), 1)
-                cube2X2square_handle = self.gym.create_actor(env_handle, cube2X2square_asset, pose, "actor", i, 0)
-            for i in range(0, 7):
-                pose.p = gymapi.Vec3((np.random.random(1)-1)*16, (np.random.random(1)-1)*16, 0)
-                pose.r = gymapi.Quat(0, 0, (np.random.random(1)-1), 1)
-                cube1X4_handle = self.gym.create_actor(env_handle, cube1X4_asset, pose, "actor", i, 0)
-            for i in range(0, 12):
-                pose.p = gymapi.Vec3((np.random.random(1)-1)*16, (np.random.random(1)-1)*16, 0)
-                pose.r = gymapi.Quat(0, 0, (np.random.random(1)-1), 1)
-                cube2X3_handle = self.gym.create_actor(env_handle, cube2X3_asset, pose, "actor", i, 0)
-            for i in range(0, 6):
-                pose.p = gymapi.Vec3((np.random.random(1)-1)*16, (np.random.random(1)-1)*16, 0)
-                pose.r = gymapi.Quat(0, 0, (np.random.random(1)-1), 1)
-                cube3X4arch_handle = self.gym.create_actor(env_handle, cube3X4arch_asset, pose, "actor", i, 0)
-        
             if self.enable_onboard_cameras:
                 cam_handle = self.gym.create_camera_sensor(env_handle, camera_props)
                 self.gym.attach_camera_to_body(cam_handle, env_handle, actor_handle, local_transform, gymapi.FOLLOW_TRANSFORM)
                 self.camera_handles.append(cam_handle)
-                # camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, env_handle, cam_handle, gymapi.IMAGE_COLOR)
                 camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, env_handle, cam_handle, gymapi.IMAGE_DEPTH)
                 torch_cam_tensor = gymtorch.wrap_tensor(camera_tensor)
                 self.camera_tensors.append(torch_cam_tensor)
 
-                    # fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                    # out = cv2.VideoWriter('depth_video.mp4', fourcc, 30, (270, 480))
-                    # self.outs.append(out)
-        
-        # airgym obstacles assets ends
+                # fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                # out = cv2.VideoWriter('depth_video.mp4', fourcc, 30, (270, 480))
+                # self.outs.append(out)
+
+            env_asset_list = self.env_asset_manager.prepare_assets_for_simulation(self.gym, self.sim)
+            asset_counter = 0
+
+            # have the segmentation counter be the max defined semantic id + 1. Use this to set the semantic mask of objects that are
+            # do not have a defined semantic id in the config file, but still requre one. Increment for every instance in the next snippet
+            for dict_item in env_asset_list:
+                self.segmentation_counter = max(self.segmentation_counter, int(dict_item["semantic_id"])+1)
+
+            for dict_item in env_asset_list:
+                folder_path = dict_item["asset_folder_path"]
+                filename = dict_item["asset_file_name"]
+                asset_options = dict_item["asset_options"]
+                whole_body_semantic = dict_item["body_semantic_label"]
+                per_link_semantic = dict_item["link_semantic_label"]
+                semantic_masked_links = dict_item["semantic_masked_links"]
+                semantic_id = dict_item["semantic_id"]
+                color = dict_item["color"]
+                collision_mask = dict_item["collision_mask"]
+
+                loaded_asset = self.gym.load_asset(self.sim, folder_path, filename, asset_options)
 
 
+                assert not (whole_body_semantic and per_link_semantic)
+                if semantic_id < 0:
+                    object_segmentation_id = self.segmentation_counter
+                    self.segmentation_counter += 1
+                else:
+                    object_segmentation_id = semantic_id
 
-        # for i in range(self.num_envs):
-        #     # create environment
-        #     env_handle = self.gym.create_env(self.sim, env_lower, env_upper, int(np.sqrt(self.num_envs)))
-        #     # insert robot asset
-        #     actor_handle = self.gym.create_actor(env_handle, robot_asset, start_pose, "robot", i, self.cfg.robot_asset.collision_mask, 0)
-        #     # append to lists
-        #     self.envs.append(env_handle)
-        #     self.actor_handles.append(actor_handle)
+                asset_counter += 1
 
-        #     if self.enable_onboard_cameras:
-        #         cam_handle = self.gym.create_camera_sensor(env_handle, camera_props)
-        #         self.gym.attach_camera_to_body(cam_handle, env_handle, actor_handle, local_transform, gymapi.FOLLOW_TRANSFORM)
-        #         self.camera_handles.append(cam_handle)
-        #         camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, env_handle, cam_handle, gymapi.IMAGE_DEPTH)
-        #         torch_cam_tensor = gymtorch.wrap_tensor(camera_tensor)
-        #         self.camera_tensors.append(torch_cam_tensor)
+                env_asset_handle = self.gym.create_actor(env_handle, loaded_asset, start_pose, "env_asset_"+str(asset_counter), i, collision_mask, object_segmentation_id)
+                self.env_asset_handles.append(env_asset_handle)
+                if len(self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)) > 1:
+                    print("Env asset has rigid body with more than 1 link: ", len(self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)))
+                    sys.exit(0)
 
-        #         # fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        #         # out = cv2.VideoWriter('depth_video.mp4', fourcc, 30, (270, 480))
-        #         # self.outs.append(out)
-
-        #     env_asset_list = self.env_asset_manager.prepare_assets_for_simulation(self.gym, self.sim)
-        #     asset_counter = 0
-
-        #     # have the segmentation counter be the max defined semantic id + 1. Use this to set the semantic mask of objects that are
-        #     # do not have a defined semantic id in the config file, but still requre one. Increment for every instance in the next snippet
-        #     for dict_item in env_asset_list:
-        #         self.segmentation_counter = max(self.segmentation_counter, int(dict_item["semantic_id"])+1)
-
-        #     for dict_item in env_asset_list:
-        #         folder_path = dict_item["asset_folder_path"]
-        #         filename = dict_item["asset_file_name"]
-        #         asset_options = dict_item["asset_options"]
-        #         whole_body_semantic = dict_item["body_semantic_label"]
-        #         per_link_semantic = dict_item["link_semantic_label"]
-        #         semantic_masked_links = dict_item["semantic_masked_links"]
-        #         semantic_id = dict_item["semantic_id"]
-        #         color = dict_item["color"]
-        #         collision_mask = dict_item["collision_mask"]
-
-        #         loaded_asset = self.gym.load_asset(self.sim, folder_path, filename, asset_options)
-
-
-        #         assert not (whole_body_semantic and per_link_semantic)
-        #         if semantic_id < 0:
-        #             object_segmentation_id = self.segmentation_counter
-        #             self.segmentation_counter += 1
-        #         else:
-        #             object_segmentation_id = semantic_id
-
-        #         asset_counter += 1
-
-                # env_asset_handle = self.gym.create_actor(env_handle, loaded_asset, start_pose, "env_asset_"+str(asset_counter), i, collision_mask, object_segmentation_id)
-                # self.env_asset_handles.append(env_asset_handle)
-                # if len(self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)) > 1:
-                #     print("Env asset has rigid body with more than 1 link: ", len(self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)))
-                #     sys.exit(0)
-
-                # if per_link_semantic:
-                #     rigid_body_names = None
-                #     if len(semantic_masked_links) == 0:
-                #         rigid_body_names = self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)
-                #     else:
-                #         rigid_body_names = semantic_masked_links
-                #     for rb_index in range(len(rigid_body_names)):
-                #         self.segmentation_counter += 1
-                #         self.gym.set_rigid_body_segmentation_id(env_handle, env_asset_handle, rb_index, self.segmentation_counter)
+                if per_link_semantic:
+                    rigid_body_names = None
+                    if len(semantic_masked_links) == 0:
+                        rigid_body_names = self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)
+                    else:
+                        rigid_body_names = semantic_masked_links
+                    for rb_index in range(len(rigid_body_names)):
+                        self.segmentation_counter += 1
+                        self.gym.set_rigid_body_segmentation_id(env_handle, env_asset_handle, rb_index, self.segmentation_counter)
             
-                # if color is None:
-                #     color = np.random.randint(low=50,high=200,size=3)
+                if semantic_id != 4 and semantic_id != 5:
+                    if color is None:
+                        color = np.random.randint(low=50,high=200,size=3)
 
-                # self.gym.set_rigid_body_color(env_handle, env_asset_handle, 0, gymapi.MESH_VISUAL,
-                #         gymapi.Vec3(color[0]/255,color[1]/255,color[2]/255))
+                    self.gym.set_rigid_body_color(env_handle, env_asset_handle, 0, gymapi.MESH_VISUAL,
+                            gymapi.Vec3(color[0]/255,color[1]/255,color[2]/255))
 
-
-            # self.envs.append(env_handle)
-            # self.actor_handles.append(actor_handle)
-
+            self.envs.append(env_handle)
+            self.actor_handles.append(actor_handle)
 
         self.robot_body_props = self.gym.get_actor_rigid_body_properties(self.envs[0],self.actor_handles[0])
         self.robot_mass = 0
@@ -470,33 +335,28 @@ class X152bPx4WithCam(BaseTask):
         if 0 in env_ids:
             print("\n\n\n RESETTING ENV 0 \n\n\n")
 
-        # self.env_asset_manager.randomize_pose()
+        self.env_asset_manager.randomize_pose()
         
-        # self.env_asset_root_states[env_ids, :, 0:3] = self.env_asset_manager.asset_pose_tensor[env_ids, :, 0:3]
+        self.env_asset_root_states[env_ids, :, 0:3] = self.env_asset_manager.asset_pose_tensor[env_ids, :, 0:3]
 
-        # euler_angles = self.env_asset_manager.asset_pose_tensor[env_ids, :, 3:6]
-        # self.env_asset_root_states[env_ids, :, 3:7] = quat_from_euler_xyz(euler_angles[..., 0], euler_angles[..., 1], euler_angles[..., 2])
-        # self.env_asset_root_states[env_ids, :, 7:13] = 0.0
-
+        euler_angles = self.env_asset_manager.asset_pose_tensor[env_ids, :, 3:6]
+        self.env_asset_root_states[env_ids, :, 3:7] = quat_from_euler_xyz(euler_angles[..., 0], euler_angles[..., 1], euler_angles[..., 2])
+        self.env_asset_root_states[env_ids, :, 7:13] = 0.0
 
         # get environment lower and upper bounds
-        self.env_lower_bound[env_ids] = self.env_asset_manager.env_lower_bound.diagonal(dim1=-2, dim2=-1)
-        self.env_upper_bound[env_ids] = self.env_asset_manager.env_upper_bound.diagonal(dim1=-2, dim2=-1)
+        if self.env_asset_manager.num_envs > 1:
+            self.env_lower_bound[env_ids] = self.env_asset_manager.env_lower_bound.diagonal(dim1=-2, dim2=-1)
+            self.env_upper_bound[env_ids] = self.env_asset_manager.env_upper_bound.diagonal(dim1=-2, dim2=-1)
+        else:
+            self.env_lower_bound[env_ids] = self.env_asset_manager.env_lower_bound
+            self.env_upper_bound[env_ids] = self.env_asset_manager.env_upper_bound
         drone_pos_rand_sample = torch.rand((num_resets, 3), device=self.device)
 
-        drone_positions = (self.env_upper_bound[env_ids] - self.env_lower_bound[env_ids] -
-                           0.50)*drone_pos_rand_sample + (self.env_lower_bound[env_ids]+ 0.25)
-
-
-        # set drone positions that are sampled within environment bounds
-
-        # self.root_states[env_ids,
-        #                  0:3] = drone_positions
+        drone_positions = (self.env_upper_bound[env_ids] - self.env_lower_bound[env_ids] - 0.50)*drone_pos_rand_sample + (self.env_lower_bound[env_ids]+ 0.25)
         
-        self.root_states[env_ids,0] = -4
-        self.root_states[env_ids,1] = 0
+        # set drone positions that are sampled within environment bounds
+        self.root_states[env_ids, 0:3] = drone_positions
 
-        self.root_states[env_ids,2] = 0.5
         self.root_states[env_ids,
                          7:10] = 0.0*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
         self.root_states[env_ids,
@@ -585,7 +445,6 @@ class X152bPx4WithCam(BaseTask):
 
         self.forces[:, 1:5] = self.thrusts
 
-
         # apply actions
         self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
             self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.LOCAL_SPACE)
@@ -619,8 +478,9 @@ class X152bPx4WithCam(BaseTask):
  
             depth_image = np.clip(self.full_camera_array[env_id].cpu().numpy(), 0, 6)
             dist = cv2.normalize(depth_image, None, 255,0, cv2.NORM_MINMAX, cv2.CV_8UC1)
-            cv2.imshow(str(env_id), dist)
-            cv2.waitKey(1)
+            # cv2.imshow(str(env_id), dist)
+            # cv2.waitKey(1)
+
             # color
             # if(self.camera_tensors[env_id].shape[0] != 0):
             #     img_bgr = cv2.cvtColor(self.camera_tensors[env_id][:, :, :3].cpu().numpy(), cv2.COLOR_BGR2RGB)

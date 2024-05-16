@@ -6,13 +6,15 @@ from airgym import AIRGYM_ROOT_DIR
 THIN_SEMANTIC_ID = 1
 TREE_SEMANTIC_ID = 2
 OBJECT_SEMANTIC_ID = 3
+CUBE_SEMANTIC_ID = 4
+FLAG_SEMANTIC_ID = 5
 WALL_SEMANTIC_ID = 8
 
 class X152bPx4WithCamCfg(BaseConfig):
     seed = 1
     class env:
         ctl_mode = "pos"
-        num_envs = 64
+        num_envs = 1 # must be a square number
         num_observations = 13
         headless = True
         get_privileged_obs = True # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned
@@ -30,7 +32,7 @@ class X152bPx4WithCamCfg(BaseConfig):
         lookat = [0, 0, 0]  # [m]
 
     class sim:
-        dt =  0.01
+        dt =  0.005 #0.01
         substeps = 1
         gravity = [0., 0. , -9.81]  # [m/s^2]
         up_axis = 1  # 0 is y, 1 is z
@@ -47,6 +49,7 @@ class X152bPx4WithCamCfg(BaseConfig):
             max_gpu_contact_pairs = 2**23 #2**24 -> needed for 8000 envs and more
             default_buffer_size_multiplier = 5
             contact_collection = 1 # 0: never, 1: last sub-step, 2: all sub-steps (default=2)
+
 
     class control:
         """
@@ -77,7 +80,7 @@ class X152bPx4WithCamCfg(BaseConfig):
         disable_gravity = False
         collapse_fixed_joints = True # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
         fix_base_link = False # fix the base of the robot
-        collision_mask = 1 # 1 to disable, 0 to enable...bitwise filter
+        collision_mask = 0 # 1 to disable, 0 to enable...bitwise filter
         replace_cylinder_with_capsule = False # replace collision cylinders with capsules, leads to faster/more stable simulation
         flip_visual_attachments = False # Some .obj meshes must be flipped from y-up to z-up
         density = -1 #0.001
@@ -154,7 +157,7 @@ class X152bPx4WithCamCfg(BaseConfig):
         color = [70,200,100]
 
     class object_asset_params(asset_state_params):
-        num_assets = 50
+        num_assets = 30
         
         max_position_ratio = [0.95, 0.95, 0.95] # min position as a ratio of the bounds
         min_position_ratio = [0.05, 0.05, 0.05] # max position as a ratio of the bounds
@@ -171,7 +174,49 @@ class X152bPx4WithCamCfg(BaseConfig):
         set_semantic_mask_per_link = False
         semantic_id = OBJECT_SEMANTIC_ID
 
-        # color = [80,255,100]
+    class cube_asset_params(asset_state_params):
+        num_assets = 10
+        
+        max_position_ratio = [0.9, 0.9, 0] # min position as a ratio of the bounds
+        min_position_ratio = [0.05, 0.05, 0] # max position as a ratio of the bounds
+
+        specified_position = [-1000.0, -1000.0, -1000.0] # if > -900, use this value instead of randomizing the ratios
+
+        min_euler_angles = [0, 0, -np.pi] # min euler angles
+        max_euler_angles = [0, 0, np.pi] # max euler angles
+
+        specified_euler_angle = [-1000.0, -1000.0, -1000.0] # if > -900, use this value instead of randomizing
+
+        links_per_asset = 1
+        set_whole_body_semantic_mask = True
+        set_semantic_mask_per_link = False
+        semantic_id = CUBE_SEMANTIC_ID
+
+        # for object convex decomposition
+        vhacd_enabled = True
+        resolution = 500000
+
+    class flag_asset_params(asset_state_params):
+        num_assets = 3
+        
+        max_position_ratio = [0.9, 0.9, 0] # min position as a ratio of the bounds
+        min_position_ratio = [0.05, 0.05, 0] # max position as a ratio of the bounds
+
+        specified_position = [-1000.0, -1000.0, -1000.0] # if > -900, use this value instead of randomizing the ratios
+
+        min_euler_angles = [0, 0, -np.pi] # min euler angles
+        max_euler_angles = [0, 0, np.pi] # max euler angles
+
+        specified_euler_angle = [-1000.0, -1000.0, -1000.0] # if > -900, use this value instead of randomizing
+
+        links_per_asset = 1
+        set_whole_body_semantic_mask = True
+        set_semantic_mask_per_link = False
+        semantic_id = FLAG_SEMANTIC_ID
+
+        # for object convex decomposition
+        vhacd_enabled = True
+        resolution = 500000
 
     class left_wall(asset_state_params):
         num_assets = 1
@@ -306,9 +351,11 @@ class X152bPx4WithCamCfg(BaseConfig):
         folder_path = f"{AIRGYM_ROOT_DIR}/resources/models/environment_assets"
         
         include_asset_type = {
-            "thin": True,
+            "thin": False,
             "trees": False,
-            "objects": True
+            "objects": False, 
+            "cubes": True,
+            "flags": True
             }
             
         include_env_bound_type = {
@@ -321,6 +368,6 @@ class X152bPx4WithCamCfg(BaseConfig):
 
         env_lower_bound_min = [-5.0, -5.0, 0.0] # lower bound for the environment space
         env_lower_bound_max = [-5.0, -5.0, 0.0] # lower bound for the environment space
-        env_upper_bound_min = [5.0, 5.0, 5.0] # upper bound for the environment space
-        env_upper_bound_max = [5.0, 5.0, 5.0] # upper bound for the environment space
+        env_upper_bound_min = [5.0, 5.0, 1.0] # upper bound for the environment space
+        env_upper_bound_max = [5.0, 5.0, 1.0] # upper bound for the environment space
  

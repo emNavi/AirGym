@@ -21,6 +21,10 @@ def asset_class_to_AssetOptions(asset_class):
     asset_options.max_linear_velocity = asset_class.max_linear_velocity
     asset_options.disable_gravity = asset_class.disable_gravity
     asset_options.replace_cylinder_with_capsule = True
+
+    # for object convex decomposition
+    asset_options.vhacd_enabled = asset_class.vhacd_enabled
+    asset_options.vhacd_params.resolution = asset_class.resolution
     return asset_options
 
 
@@ -52,6 +56,8 @@ class AssetManager:
             "thin": self.cfg.thin_asset_params,
             "trees": self.cfg.tree_asset_params,
             "objects": self.cfg.object_asset_params,
+            "cubes": self.cfg.cube_asset_params,
+            "flags": self.cfg.flag_asset_params,
             "left_wall": self.cfg.left_wall,
             "right_wall": self.cfg.right_wall,
             "back_wall": self.cfg.back_wall,
@@ -200,9 +206,14 @@ class AssetManager:
         return asset_list
 
     def randomly_select_asset_files(self, folder_path, num_files):
-        file_name_list = [f for f in os.listdir(
-            folder_path) if os.path.isfile(os.path.join(folder_path, f))]
-        urdf_files = [f for f in file_name_list if f.endswith('.urdf')]
+        file_name_list = [f for f in os.listdir(folder_path)]
+        urdf_files = []
+        for f in file_name_list:
+            if f.endswith('.urdf'):
+                urdf_files.append(f)
+            else:
+                fm = os.path.join(f, "model.urdf")
+                urdf_files.append(fm)
         selected_files = random.choices(urdf_files, k=num_files)
         return selected_files
     
