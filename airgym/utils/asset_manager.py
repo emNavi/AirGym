@@ -24,7 +24,8 @@ def asset_class_to_AssetOptions(asset_class):
 
     # for object convex decomposition
     asset_options.vhacd_enabled = asset_class.vhacd_enabled
-    asset_options.vhacd_params.resolution = asset_class.resolution
+    if asset_options.vhacd_enabled:
+        asset_options.vhacd_params.resolution = asset_class.resolution
     return asset_options
 
 
@@ -63,7 +64,10 @@ class AssetManager:
             "back_wall": self.cfg.back_wall,
             "front_wall": self.cfg.front_wall,
             "bottom_wall": self.cfg.bottom_wall,
-            "top_wall": self.cfg.top_wall}
+            "top_wall": self.cfg.top_wall,
+            "8X8ground": self.cfg.ground,
+            "8X18ground": self.cfg.ground,
+            }
         
         self.load_asset_tensors()
         self.randomize_pose()
@@ -149,6 +153,7 @@ class AssetManager:
             folder_path = os.path.join(
                 self.asset_config.folder_path, asset_key)
 
+                
             file_list = self.randomly_select_asset_files(
                 folder_path, asset_class.num_assets)
 
@@ -186,8 +191,11 @@ class AssetManager:
             color = asset_class.color
 
             # print("Initializing with key: {}".format(env_bound_key))
-            folder_path = os.path.join(self.asset_config.folder_path, "walls")
-            file_list = [env_bound_key + ".urdf"]*asset_class.num_assets
+            folder_path = os.path.join(self.asset_config.folder_path, "boundaries")
+            if os.path.isdir(os.path.join(folder_path, env_bound_key)):
+                file_list = [os.path.join(env_bound_key, "model.urdf")]*asset_class.num_assets
+            else:
+                file_list = [env_bound_key + ".urdf"]*asset_class.num_assets
 
             for file_name in file_list:
                 asset_dict = {

@@ -155,13 +155,6 @@ for i in range(num_envs):
         pose.r = gymapi.Quat(0, 0, (np.random.random(1)-1), 1)
         cube3X4arch_handle = gym.create_actor(env, cube3X4arch_asset, pose, "actor", i, 0)
 
-    
-
-
-    
-    
-    
-
 gym.viewer_camera_look_at(viewer, None, gymapi.Vec3(20, 20, 5), gymapi.Vec3(0, 0, 1))
 
 gym.prepare_sim(sim)

@@ -8,7 +8,7 @@ TREE_SEMANTIC_ID = 2
 OBJECT_SEMANTIC_ID = 3
 CUBE_SEMANTIC_ID = 4
 FLAG_SEMANTIC_ID = 5
-WALL_SEMANTIC_ID = 8
+BOUNDARY_SEMANTIC_ID = 8
 
 class X152bPx4WithCamCfg(BaseConfig):
     seed = 1
@@ -131,6 +131,9 @@ class X152bPx4WithCamCfg(BaseConfig):
         set_semantic_mask_per_link = False
         semantic_mask_link_list = [] ## If nothing is specified, all links are labeled
         color = [170,66,66]
+
+        # for object convex decomposition
+        vhacd_enabled = False
       
 
     class tree_asset_params(asset_state_params):
@@ -156,6 +159,9 @@ class X152bPx4WithCamCfg(BaseConfig):
         semantic_id = TREE_SEMANTIC_ID
         color = [70,200,100]
 
+        # for object convex decomposition
+        vhacd_enabled = False
+
     class object_asset_params(asset_state_params):
         num_assets = 30
         
@@ -173,6 +179,9 @@ class X152bPx4WithCamCfg(BaseConfig):
         set_whole_body_semantic_mask = False
         set_semantic_mask_per_link = False
         semantic_id = OBJECT_SEMANTIC_ID
+
+        # for object convex decomposition
+        vhacd_enabled = False
 
     class cube_asset_params(asset_state_params):
         num_assets = 10
@@ -218,6 +227,29 @@ class X152bPx4WithCamCfg(BaseConfig):
         vhacd_enabled = True
         resolution = 500000
 
+    class ground(asset_state_params):
+        num_assets = 1
+
+        collision_mask = 1 # objects with the same collision mask will not collide
+        
+        max_position_ratio = [1, 1, 0] # min position as a ratio of the bounds
+        min_position_ratio = [1, 1, 0] # max position as a ratio of the bounds
+
+        specified_position = [-1000.0, -1000.0, -1000.0] # if > -900, use this value instead of randomizing the ratios
+
+        min_euler_angles = [0, 0, 0] # min euler angles
+        max_euler_angles = [0, 0, 0] # max euler angles
+
+        specified_euler_angle = [-1000.0, -1000.0, -1000.0] # if > -900, use this value instead of randomizing
+
+        links_per_asset = 1
+        set_whole_body_semantic_mask = True
+        set_semantic_mask_per_link = False
+        semantic_id = BOUNDARY_SEMANTIC_ID
+
+        # for object convex decomposition
+        vhacd_enabled = False
+
     class left_wall(asset_state_params):
         num_assets = 1
 
@@ -236,8 +268,11 @@ class X152bPx4WithCamCfg(BaseConfig):
         collapse_fixed_joints = False
         links_per_asset = 1
         specific_filepath = "cube.urdf"
-        semantic_id = WALL_SEMANTIC_ID
+        semantic_id = BOUNDARY_SEMANTIC_ID
         color = [100,200,210]
+
+        # for object convex decomposition
+        vhacd_enabled = False
     
     class right_wall(asset_state_params):
         num_assets = 1
@@ -257,8 +292,11 @@ class X152bPx4WithCamCfg(BaseConfig):
         collapse_fixed_joints = False
         links_per_asset = 1
         specific_filepath = "cube.urdf"
-        semantic_id = WALL_SEMANTIC_ID
+        semantic_id = BOUNDARY_SEMANTIC_ID
         color = [100,200,210]
+
+        # for object convex decomposition
+        vhacd_enabled = False
     
     class top_wall(asset_state_params):
         num_assets = 1
@@ -278,8 +316,10 @@ class X152bPx4WithCamCfg(BaseConfig):
         collapse_fixed_joints = False
         links_per_asset = 1
         specific_filepath = "cube.urdf"
-        semantic_id = WALL_SEMANTIC_ID
+        semantic_id = BOUNDARY_SEMANTIC_ID
         color = [100,200,210]
+
+        vhacd_enabled = False
     
     class bottom_wall(asset_state_params):
         num_assets = 1
@@ -299,8 +339,11 @@ class X152bPx4WithCamCfg(BaseConfig):
         collapse_fixed_joints = False
         links_per_asset = 1
         specific_filepath = "cube.urdf"
-        semantic_id = WALL_SEMANTIC_ID
+        semantic_id = BOUNDARY_SEMANTIC_ID
         color = [100,150,150]
+
+        # for object convex decomposition
+        vhacd_enabled = False
     
 
     class front_wall(asset_state_params):
@@ -322,8 +365,11 @@ class X152bPx4WithCamCfg(BaseConfig):
         collapse_fixed_joints = False
         links_per_asset = 1
         specific_filepath = "cube.urdf"
-        semantic_id = WALL_SEMANTIC_ID
+        semantic_id = BOUNDARY_SEMANTIC_ID
         color = [100,200,210]
+
+        # for object convex decomposition
+        vhacd_enabled = False
     
     class back_wall(asset_state_params):
         num_assets = 1
@@ -343,8 +389,11 @@ class X152bPx4WithCamCfg(BaseConfig):
         collapse_fixed_joints = False
         links_per_asset = 1
         specific_filepath = "cube.urdf"
-        semantic_id = WALL_SEMANTIC_ID
+        semantic_id = BOUNDARY_SEMANTIC_ID
         color = [100,200,210]
+
+        # for object convex decomposition
+        vhacd_enabled = False
 
 
     class asset_config:
@@ -359,15 +408,18 @@ class X152bPx4WithCamCfg(BaseConfig):
             }
             
         include_env_bound_type = {
-            "front_wall": False, 
+            "front_wall": True, 
             "left_wall": False, 
             "top_wall": False, 
             "back_wall": False,
             "right_wall": False, 
-            "bottom_wall": False}
+            "bottom_wall": False, 
+            "8X8ground": True,
+            "8X18ground": False,
+            }
 
-        env_lower_bound_min = [-5.0, -5.0, 0.0] # lower bound for the environment space
-        env_lower_bound_max = [-5.0, -5.0, 0.0] # lower bound for the environment space
-        env_upper_bound_min = [5.0, 5.0, 1.0] # upper bound for the environment space
-        env_upper_bound_max = [5.0, 5.0, 1.0] # upper bound for the environment space
+        env_lower_bound_min = [-18.0, -18.0, 0.0] # lower bound for the environment space
+        env_lower_bound_max = [-18.0, -18.0, 0.0] # lower bound for the environment space
+        env_upper_bound_min = [18.0, 18.0, 1.0] # upper bound for the environment space
+        env_upper_bound_max = [18.0, 18.0, 1.0] # upper bound for the environment space
  

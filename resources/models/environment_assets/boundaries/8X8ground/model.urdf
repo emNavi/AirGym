@@ -1,15 +1,15 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<robot name="18X18ground">
+<robot name="8X8ground">
   <link name="base_link">
     <visual name="base_link_visual">
       <geometry>
-        <mesh filename="18X18ground.dae" scale="1. 1. 1."/>
+        <mesh filename="8X8ground.dae" scale="1. 1. 1."/>
       </geometry>
       <origin xyz="0 0 0" rpy="1.57 0 0"/>
     </visual>
     <collision name="base_link_collision">
       <geometry>
-        <mesh filename="18X18ground.dae" scale="1. 1. 1."/>
+        <mesh filename="8X8ground.dae" scale="1. 1. 1."/>
       </geometry>
       <origin xyz="0 0 0" rpy="1.57 0 0"/>
     </collision>

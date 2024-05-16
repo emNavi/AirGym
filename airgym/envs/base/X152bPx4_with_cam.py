@@ -280,7 +280,7 @@ class X152bPx4WithCam(BaseTask):
                         self.segmentation_counter += 1
                         self.gym.set_rigid_body_segmentation_id(env_handle, env_asset_handle, rb_index, self.segmentation_counter)
             
-                if semantic_id != 4 and semantic_id != 5:
+                if semantic_id != 4 and semantic_id != 5 and semantic_id != 8:
                     if color is None:
                         color = np.random.randint(low=50,high=200,size=3)
 
