@@ -206,7 +206,6 @@ class X152bPx4WithCam(BaseTask):
         local_transform.p = gymapi.Vec3(0.15, 0.00, 0.1)
         # orientation of the camera relative to the body
         # local_transform.r = gymapi.Quat(0.0, 0.269, 0.0, 0.963)
-
          
         local_transform.r = gymapi.Quat(0.0, 0.0, 0.0, 1.0)
 

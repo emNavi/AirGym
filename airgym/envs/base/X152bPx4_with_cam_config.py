@@ -14,12 +14,12 @@ class X152bPx4WithCamCfg(BaseConfig):
     seed = 1
     class env:
         ctl_mode = "pos"
-        num_envs = 1 # must be a square number
+        num_envs = 4 # must be a square number
         num_observations = 13
         headless = True
         get_privileged_obs = True # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned
         num_actions = 4
-        env_spacing = 9  # not used with heightfields/trimeshes
+        env_spacing = 10  # not used with heightfields/trimeshes
         episode_length_s = 10 # episode length in seconds
         num_control_steps_per_env_step = 10 # number of control & physics steps between camera renders
         enable_onboard_cameras = True # enable onboard cameras
@@ -184,7 +184,7 @@ class X152bPx4WithCamCfg(BaseConfig):
         vhacd_enabled = False
 
     class cube_asset_params(asset_state_params):
-        num_assets = 10
+        num_assets = 20
         
         max_position_ratio = [0.9, 0.9, 0] # min position as a ratio of the bounds
         min_position_ratio = [0.05, 0.05, 0] # max position as a ratio of the bounds
@@ -206,7 +206,7 @@ class X152bPx4WithCamCfg(BaseConfig):
         resolution = 500000
 
     class flag_asset_params(asset_state_params):
-        num_assets = 3
+        num_assets = 6
         
         max_position_ratio = [0.9, 0.9, 0] # min position as a ratio of the bounds
         min_position_ratio = [0.05, 0.05, 0] # max position as a ratio of the bounds
@@ -232,8 +232,8 @@ class X152bPx4WithCamCfg(BaseConfig):
 
         collision_mask = 1 # objects with the same collision mask will not collide
         
-        max_position_ratio = [1, 1, 0] # min position as a ratio of the bounds
-        min_position_ratio = [1, 1, 0] # max position as a ratio of the bounds
+        max_position_ratio = [0.5, .5, 0.05] # min position as a ratio of the bounds
+        min_position_ratio = [0.5, .5, 0.05] # max position as a ratio of the bounds
 
         specified_position = [-1000.0, -1000.0, -1000.0] # if > -900, use this value instead of randomizing the ratios
 
@@ -338,7 +338,6 @@ class X152bPx4WithCamCfg(BaseConfig):
 
         collapse_fixed_joints = False
         links_per_asset = 1
-        specific_filepath = "cube.urdf"
         semantic_id = BOUNDARY_SEMANTIC_ID
         color = [100,150,150]
 
@@ -408,18 +407,18 @@ class X152bPx4WithCamCfg(BaseConfig):
             }
             
         include_env_bound_type = {
-            "front_wall": True, 
+            "front_wall": False, 
             "left_wall": False, 
             "top_wall": False, 
             "back_wall": False,
             "right_wall": False, 
             "bottom_wall": False, 
-            "8X8ground": True,
             "8X18ground": False,
+            "18X18ground": True,
             }
 
-        env_lower_bound_min = [-18.0, -18.0, 0.0] # lower bound for the environment space
-        env_lower_bound_max = [-18.0, -18.0, 0.0] # lower bound for the environment space
-        env_upper_bound_min = [18.0, 18.0, 1.0] # upper bound for the environment space
-        env_upper_bound_max = [18.0, 18.0, 1.0] # upper bound for the environment space
+        env_lower_bound_min = [-8.0, -8.0, 0.0] # lower bound for the environment space
+        env_lower_bound_max = [-8.0, -8.0, 0.0] # lower bound for the environment space
+        env_upper_bound_min = [8.0, 8.0, 1.0] # upper bound for the environment space
+        env_upper_bound_max = [8.0, 8.0, 1.0] # upper bound for the environment space
  

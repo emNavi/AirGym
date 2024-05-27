@@ -5,8 +5,8 @@
       <author>Blender User</author>
       <authoring_tool>Blender 3.6.5 commit date:2023-10-16, commit time:14:30, hash:cf1e1ed46b7e</authoring_tool>
     </contributor>
-    <created>2024-03-07T16:08:53</created>
-    <modified>2024-03-07T16:08:53</modified>
+    <created>2024-03-07T16:06:47</created>
+    <modified>2024-03-07T16:06:47</modified>
     <unit name="meter" meter="1"/>
     <up_axis>Z_UP</up_axis>
   </asset>
@@ -41,7 +41,7 @@
   </library_effects>
   <library_images>
     <image id="_8X18ground_png" name="_8X18ground_png">
-      <init_from>18X18ground.png</init_from>
+      <init_from>8X18ground.png</init_from>
     </image>
   </library_images>
   <library_materials>
@@ -73,7 +73,7 @@
           </technique_common>
         </source>
         <source id="平面-mesh-map-0">
-          <float_array id="平面-mesh-map-0-array" count="12">1 0 0 1 0 0 1 0 1 1 0 1</float_array>
+          <float_array id="平面-mesh-map-0-array" count="12">0.4447306 0 0 1 0 0 0.4447306 0 0.4447306 1 0 1</float_array>
           <technique_common>
             <accessor source="#平面-mesh-map-0-array" count="6" stride="2">
               <param name="S" type="float"/>
@@ -96,7 +96,7 @@
   <library_visual_scenes>
     <visual_scene id="Scene" name="Scene">
       <node id="平面" name="平面" type="NODE">
-        <matrix sid="transform">9 0 0 0 0 9 0 0 0 0 1 0 0 0 0 1</matrix>
+        <matrix sid="transform">4 0 0 0 0 9 0 0 0 0 1 0 0 0 0 1</matrix>
         <instance_geometry url="#平面-mesh" name="平面">
           <bind_material>
             <technique_common>

@@ -65,15 +65,15 @@ class AssetManager:
             "front_wall": self.cfg.front_wall,
             "bottom_wall": self.cfg.bottom_wall,
             "top_wall": self.cfg.top_wall,
-            "8X8ground": self.cfg.ground,
             "8X18ground": self.cfg.ground,
+            "18X18ground": self.cfg.ground,
             }
         
         self.load_asset_tensors()
         self.randomize_pose()
 
 
-    def _add_asset_2_tensor(self,asset_class):
+    def _add_asset_2_tensor(self, asset_class):
 
         self.env_actor_count += asset_class.num_assets
         self.env_link_count += asset_class.num_assets * asset_class.links_per_asset
