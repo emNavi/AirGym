@@ -24,7 +24,7 @@ class X152bPx4(BaseTask):
 
     def __init__(self, cfg: X152bPx4Cfg, sim_params, physics_engine, sim_device, headless):
         self.cfg = cfg
-        print("ctl mode=========== ",cfg.env.ctl_mode)
+        print("ctl mode =========== ",cfg.env.ctl_mode)
         self.ctl_mode = cfg.env.ctl_mode
         self.max_episode_length = int(self.cfg.env.episode_length_s / self.cfg.sim.dt)
         self.debug_viz = False
@@ -66,9 +66,9 @@ class X152bPx4(BaseTask):
         # choice 1 from rate ctrl and vel ctrl
         if(cfg.env.ctl_mode == "pos"):
             self.action_upper_limits = torch.tensor(
-            [3, 3, 3, 1.0], device=self.device, dtype=torch.float32)
+            [3, 3, 3, 6.0], device=self.device, dtype=torch.float32)
             self.action_lower_limits = torch.tensor(
-            [-3, -3, -3, -1.0], device=self.device, dtype=torch.float32)
+            [-3, -3, -3, -6.0], device=self.device, dtype=torch.float32)
             self.parallel_pos_control = ParallelPosControl(self.num_envs)
         elif(cfg.env.ctl_mode == "vel"):
             self.action_upper_limits = torch.tensor(
@@ -365,10 +365,13 @@ def quat_axis(q, axis=0):
 
 # like Control of a Quadrotor With Reinforcement Learning
 @torch.jit.script
-def compute_quadcopter_reward(cmd_thrusts,root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length):
+# position tracking
+def compute_quadcopter_reward(cmd_thrusts, root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length):
     # type: (Tensor,Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float) -> Tuple[Tensor, Tensor,Dict[str, Tensor]]
 
     # distance to target
+    # target_positions = torch.tensor([0, 5, 1], dtype=torch.float32, device='cuda').unsqueeze(0).expand_as(root_positions)
+    # relative_positions = root_positions - target_positions
     target_dist = torch.sqrt(root_positions[..., 0] * root_positions[..., 0] +
                              root_positions[..., 1] * root_positions[..., 1] +
                              (root_positions[..., 2]) * (root_positions[..., 2]))
@@ -379,9 +382,6 @@ def compute_quadcopter_reward(cmd_thrusts,root_positions, root_quats, root_linve
 
     vel_reward = 0.4 * (1-(1/6)*target_vel)
     ang_vel_reward =  0.2 * (1.0 - (1/6)*target_ang)
-    # vel_reward = 0.1/ (1 + 1.5*target_vel)
-    # ang_vel_reward =  0.1 / (1.0 + 6*target_ang)
-
 
     # uprightness
     ups = quat_axis(root_quats, 2)
@@ -415,7 +415,7 @@ def compute_quadcopter_reward(cmd_thrusts,root_positions, root_quats, root_linve
     item_reward_info["pos_reward"] = pos_reward
     item_reward_info["vel_reward"] = vel_reward
 
-    return reward, reset,item_reward_info
+    return reward, reset, item_reward_info
 
 
 

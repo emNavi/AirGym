@@ -8,5 +8,5 @@ import os
 
 from airgym.utils.task_registry import task_registry
 
-task_registry.register( "X152b", X152bPx4, X152bPx4Cfg())
-task_registry.register( "X152b_with_cam", X152bPx4WithCam, X152bPx4WithCamCfg())
+task_registry.register("X152b", X152bPx4, X152bPx4Cfg())
+task_registry.register("X152b_with_cam", X152bPx4WithCam, X152bPx4WithCamCfg())
