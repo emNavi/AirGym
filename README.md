@@ -69,5 +69,12 @@ pip install -e .
 1. Run the example script:
     ```bash
     cd airgym/scripts
-    python3 example.py
+    python example.py
     ```
+
+## Training
+We train the model by rl-games==1.6.1. 
+```python
+python airgym/rl_games/runner.py
+```
+Algorithm related parameters can be edited in `.yaml` files. Environment and simulator related parameters are located in ENV_config files like `X152bPx4_config.py`.
