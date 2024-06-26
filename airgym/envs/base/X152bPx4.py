@@ -17,6 +17,7 @@ from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelCon
 
 import matplotlib.pyplot as plt
 from airgym.utils.helpers import asset_class_to_AssetOptions
+from airgym.utils.rotations import quats_to_euler_angles
 import time
 
 
@@ -72,9 +73,9 @@ class X152bPx4(BaseTask):
             self.parallel_pos_control = ParallelPosControl(self.num_envs)
         elif(cfg.env.ctl_mode == "vel"):
             self.action_upper_limits = torch.tensor(
-                [3, 3, 3, 1], device=self.device, dtype=torch.float32)
+                [6, 6, 6, 1], device=self.device, dtype=torch.float32)
             self.action_lower_limits = torch.tensor(
-                [-3, -3, -3, -1], device=self.device, dtype=torch.float32)
+                [-6, -6, -6, -1], device=self.device, dtype=torch.float32)
             self.parallel_vel_control = ParallelVelControl(self.num_envs)
 
         elif(cfg.env.ctl_mode == "atti"):
@@ -113,6 +114,9 @@ class X152bPx4(BaseTask):
         self.thrusts = torch.zeros((self.num_envs, 4, 3), dtype=torch.float32, device=self.device)
         self.thrust_cmds_damp = torch.zeros((self.num_envs, 4), dtype=torch.float32, device=self.device)
         self.thrust_rot_damp = torch.zeros((self.num_envs, 4), dtype=torch.float32, device=self.device)
+
+        # set target states
+        self.target_states = self.cfg.env.target_state.repeat(self.num_envs, 1)
 
         if self.viewer:
             cam_pos_x, cam_pos_y, cam_pos_z = self.cfg.viewer.pos[0], self.cfg.viewer.pos[1], self.cfg.viewer.pos[2]
@@ -215,6 +219,10 @@ class X152bPx4(BaseTask):
         self.root_states[env_ids] = self.initial_root_states[env_ids]
         self.root_states[env_ids,
                          0:3] = 2.0*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
+        # self.root_states[env_ids,
+        #                  0:2] = 2.0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0, 5.0], device=self.device).repeat(num_resets, 1)
+        # self.root_states[env_ids,
+        #                  3] = torch_one_rand_float(0., 1.5, (num_resets, 1), self.device).squeeze(-1)
         self.root_states[env_ids,
                          7:10] = 0.5*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
         self.root_states[env_ids,
@@ -327,6 +335,7 @@ class X152bPx4(BaseTask):
         self.obs_buf[..., 3:7] = self.root_quats
         self.obs_buf[..., 7:10] = self.root_linvels
         self.obs_buf[..., 10:13] = self.root_angvels
+        self.obs_buf -= self.target_states
         return self.obs_buf
 
     def compute_reward(self):
@@ -336,7 +345,8 @@ class X152bPx4(BaseTask):
             self.root_quats,
             self.root_linvels,
             self.root_angvels,
-            self.reset_buf, self.progress_buf, self.max_episode_length
+            self.reset_buf, self.progress_buf, self.max_episode_length, 
+            self.target_states
         )
 
 
@@ -366,22 +376,41 @@ def quat_axis(q, axis=0):
 # like Control of a Quadrotor With Reinforcement Learning
 @torch.jit.script
 # position tracking
-def compute_quadcopter_reward(cmd_thrusts, root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length):
-    # type: (Tensor,Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float) -> Tuple[Tensor, Tensor,Dict[str, Tensor]]
+def compute_quadcopter_reward(cmd_thrusts, root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length, target_states):
+    # type: (Tensor,Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float, Tensor) -> Tuple[Tensor, Tensor,Dict[str, Tensor]]
 
-    # distance to target
-    # target_positions = torch.tensor([0, 5, 1], dtype=torch.float32, device='cuda').unsqueeze(0).expand_as(root_positions)
-    # relative_positions = root_positions - target_positions
-    target_dist = torch.sqrt(root_positions[..., 0] * root_positions[..., 0] +
-                             root_positions[..., 1] * root_positions[..., 1] +
-                             (root_positions[..., 2]) * (root_positions[..., 2]))
-    pos_reward = 2 * (1.0 - (1/6)*target_dist)
+    # distance
+    target_positions = target_states[..., 0:3]
+    relative_positions = root_positions - target_positions
+    # pos_diff_h = torch.sqrt(relative_positions[..., 0] * relative_positions[..., 0] +
+    #                          relative_positions[..., 1] * relative_positions[..., 1])
+    # pos_diff_v = torch.sqrt(relative_positions[..., 2] * relative_positions[..., 2])
+    # pos_reward = 1. * (1.0 - (1/6)*pos_diff_h) + 1 * (1.0 - (1/6)*pos_diff_v)
+    pos_diff = torch.sqrt(relative_positions[..., 0] * relative_positions[..., 0] +
+                             relative_positions[..., 1] * relative_positions[..., 1] + 
+                                relative_positions[..., 2] * relative_positions[..., 2])
+    pos_reward = 2 * (1.0 - (1/6)*pos_diff)
 
-    target_vel = torch.norm(root_linvels, dim=1)
-    target_ang = torch.norm(root_angvels, dim=1)
+    # quats
+    target_quats = target_states[..., 3:7]
+    quats_relative = quat_mul(root_quats, quat_conjugate(target_quats))
+    quats_diff = torch.norm(quats_relative[..., 0:3], dim=1) + torch.sqrt((quats_relative[..., 3]-1)*(quats_relative[..., 3]-1))
+    quats_reward = 0.4 * (1 - quats_diff)
 
-    vel_reward = 0.4 * (1-(1/6)*target_vel)
-    ang_vel_reward =  0.2 * (1.0 - (1/6)*target_ang)
+    # velocity
+    # vel_diff_h = torch.norm(root_linvels[..., 0:2], dim=1)
+    # vel_diff_v = torch.abs(root_linvels[..., 2])
+    # vel_reward = 0.5 * (1-(1/6)*vel_diff_h) + 0.5 * (1-(1/6)*vel_diff_v)
+    target_linvels = target_states[..., 7:10]
+    relative_linvels = root_linvels - target_linvels
+    vel_diff = torch.norm(relative_linvels, dim=1)
+    vel_reward = 0.4 * (1-(1/6)*vel_diff)
+
+    # angular velocity
+    target_angvels = target_states[..., 10:13]
+    relative_angvels = root_angvels - target_angvels
+    ang_vel_diff = torch.norm(relative_angvels, dim=1)
+    ang_vel_reward = 0.2 * (1.0 - (1/6)*ang_vel_diff)
 
     # uprightness
     ups = quat_axis(root_quats, 2)
@@ -391,21 +420,20 @@ def compute_quadcopter_reward(cmd_thrusts, root_positions, root_quats, root_linv
     effort_reward = 0.4 * (1 - thrust_cmds).sum(-1)/4
 
     # combined reward
-    reward = ang_vel_reward + vel_reward + pos_reward + effort_reward
+    reward = ang_vel_reward + vel_reward + pos_reward + effort_reward + quats_reward
  
 
     # resets due to misbehavior
     ones = torch.ones_like(reset_buf)
     die = torch.zeros_like(reset_buf)
-    # die = torch.where(target_dist > 10.0, ones, die)
 
     # resets due to episode length
     reset = torch.where(progress_buf >= max_episode_length - 1, ones, die)
-    reset = torch.where(torch.norm(root_positions, dim=1) > 6.0, ones, reset)
+    reset = torch.where(torch.norm(relative_positions, dim=1) > 6, ones, reset)
     reset = torch.where(torch.norm(root_linvels, dim=1) > 6.0, ones, reset)
 
-    reset = torch.where(root_positions[..., 2] < -3, ones, reset)
-    reset = torch.where(root_positions[..., 2] > 3, ones, reset)
+    reset = torch.where(root_positions[..., 2] < -2, ones, reset)
+    reset = torch.where(root_positions[..., 2] > 2, ones, reset)
 
     reset = torch.where(ups[..., 2] < 0.0, ones, reset) # orient_z 小于0 = 飞行器朝下了
     

@@ -50,14 +50,14 @@ def update_cfg_from_args(env_cfg, args):
             try:
                 env_cfg.env.ctl_mode = args.ctl_mode
             except AttributeError:
-                print('ctl_mode is not exist')
+                print('ctrl_mode is not exist')
             try:
                 env_cfg.seed = args.seed
             except AttributeError:
                 print('seed is not exist')
             
             # random seed
-            
+                
     return env_cfg
 
 def get_args(additional_parameters=[]):
