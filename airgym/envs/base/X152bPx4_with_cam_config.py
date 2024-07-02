@@ -12,6 +12,7 @@ BOUNDARY_SEMANTIC_ID = 8
 
 class X152bPx4WithCamCfg(BaseConfig):
     seed = 1
+    controller_test = False
     class env:
         ctl_mode = "pos"
         num_envs = 4 # must be a square number

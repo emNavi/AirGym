@@ -64,12 +64,13 @@ This project provides a super realistic dynamics and RL framework for Sim2Real t
 git clone git@github.com:FP-Flight/AirGym.git
 cd AirGym/
 pip install -e .
+
 ```
 ### 4. Test the installation
 1. Run the example script:
     ```bash
     cd airgym/scripts
-    python example.py
+    python example.py --controller_test
     ```
 
 ## Training

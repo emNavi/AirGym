@@ -189,7 +189,6 @@ class X152bPx4WithCam(BaseTask):
         self.camera_handles = []
         self.camera_tensors = []
 
-
         # Set Camera Properties
         camera_props = gymapi.CameraProperties()
         camera_props.enable_tensors = True
@@ -501,7 +500,6 @@ class X152bPx4WithCam(BaseTask):
             self.root_angvels,
             self.reset_buf, self.progress_buf, self.max_episode_length
         )
-
 
 ###=========================jit functions=========================###
 #####################################################################

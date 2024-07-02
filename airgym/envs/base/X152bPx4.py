@@ -4,7 +4,6 @@ import os
 import torch
 import xml.etree.ElementTree as ET
 
-
 from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
 
 from isaacgym import gymutil, gymtorch, gymapi
@@ -61,7 +60,6 @@ class X152bPx4(BaseTask):
         self.initial_root_states = self.root_states.clone()
         self.counter = 0
 
-        
         # controller
         self.cmd_thrusts = torch.zeros((self.num_envs, 4))
         # choice 1 from rate ctrl and vel ctrl
@@ -335,7 +333,8 @@ class X152bPx4(BaseTask):
         self.obs_buf[..., 3:7] = self.root_quats
         self.obs_buf[..., 7:10] = self.root_linvels
         self.obs_buf[..., 10:13] = self.root_angvels
-        self.obs_buf -= self.target_states
+        if not self.cfg.controller_test:
+            self.obs_buf -= self.target_states
         return self.obs_buf
 
     def compute_reward(self):

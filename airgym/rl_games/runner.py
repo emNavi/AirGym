@@ -82,6 +82,7 @@ def get_args():
 
     custom_parameters = [
         {"name": "--seed", "type": int, "default": 0, "required": False, "help":  "Random seed, if larger than 0 will overwrite the value in yaml config."},
+        
         {"name": "--tf", "required": False, "help": "run tensorflow runner", "action": 'store_true'},
         {"name": "--train", "required": False, "help": "train network", "action": 'store_true'},
         {"name": "--play", "required": False, "help": "play(test) network", "action": 'store_true'},
