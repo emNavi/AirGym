@@ -76,6 +76,6 @@ pip install -e .
 ## Training
 We train the model by rl-games==1.6.1. 
 ```python
-python airgym/rl_games/runner.py
+python airgym/rl_games/runner.py --headless
 ```
 Algorithm related parameters can be edited in `.yaml` files. Environment and simulator related parameters are located in ENV_config files like `X152bPx4_config.py`.

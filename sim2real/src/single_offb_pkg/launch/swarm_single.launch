@@ -1,0 +1,9 @@
+<launch>
+    <arg name = "drone_id" default = "1"/>
+    <arg name = "ctrl_mode" default = "mpCtrl"/>
+    <node name = "uav_ctrl" pkg = "single_offb_pkg" type = "uav_ctrl" output = "screen">
+        <remap from="~pos_cmd" to="/drone_$(arg drone_id)_planning/pos_cmd"/>
+        <param name ="drone_id" value="$(arg drone_id)"/>
+        <param name ="ctrl_mode" value="$(arg ctrl_mode)"/>
+    </node>
+</launch>

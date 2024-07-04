@@ -6,3 +6,8 @@ runs/
 *.egg-info/
 
 */__pycache__/
+
+build
+devel
+logs
+.catkin_tools

@@ -8,7 +8,7 @@ class X152bPx4Cfg(BaseConfig):
     seed = 1
     controller_test = False
     class env:
-        ctl_mode = "pos"
+        ctl_mode = "vel"
         target_state = torch.tensor([0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0], dtype=torch.float32, device='cuda')
         num_envs = 256
         num_observations = 13

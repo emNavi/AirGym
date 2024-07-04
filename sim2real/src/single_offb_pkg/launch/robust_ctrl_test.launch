@@ -1,0 +1,5 @@
+<launch>
+    <node name = "robust_ctrl_node" pkg = "single_offb_pkg" type = "robust_ctrl_node" output = "screen">
+  </node>
+
+</launch>

@@ -1,0 +1,24 @@
+<!-- <launch>
+    <arg name = "drone_id" default = "1"/>
+    <node name = "pub_pva" pkg = "single_offb_pkg" type = "pub_pva" output = "screen">
+        <remap from="~pos_cmd" to="/drone_$(arg drone_id)_planning/pos_cmd"/>
+        <param name ="drone_id" value="$(arg drone_id)"/>
+    </node>
+</launch>
+ -->
+
+<launch>
+    <arg name = "drone_id" default = "1"/>
+    <arg name = "num_of_uav" default = "3"/>
+
+    <arg name = "height" default = "1"/>
+    <arg name = "radius" default = "1.5"/>
+
+    <node name = "mission_ctrl" pkg = "single_offb_pkg" type = "mission_ctrl" output = "screen">
+      <remap from="~pos_cmd" to="/drone_$(arg drone_id)_planning/pos_cmd"/>
+      <param name = "drone_id" type = "int" value = "$(arg drone_id)"/>
+      <param name = "num_of_uav" type = "int" value = "$(arg num_of_uav)"/>
+      <param name = "radius" type = "double" value = "$(arg radius)"/>
+      <param name = "height" type = "double" value = "$(arg height)"/>
+  </node>
+</launch>
