@@ -4,10 +4,10 @@ from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Pose, PoseWithCovariance, Twist, TwistWithCovariance, Point, Quaternion, Vector3
 
 def random_state_gen():
-    pose = Pose(Point(random.uniform(-10, 10), random.uniform(-10, 10), random.uniform(-10, 10)), 
+    pose = Pose(Point(random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1)), 
                 Quaternion(random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1)))
-    twist = Twist(Vector3(random.uniform(-10, 10), random.uniform(-10, 10), random.uniform(-10, 10)), 
-                  Vector3(random.uniform(-10, 10), random.uniform(-10, 10), random.uniform(-10, 10)))
+    twist = Twist(Vector3(random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1)), 
+                  Vector3(random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1)))
     
     odom = Odometry()
     odom.header.stamp = rospy.Time.now()

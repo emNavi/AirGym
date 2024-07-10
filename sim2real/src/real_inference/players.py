@@ -12,6 +12,8 @@ import time
 import rospy
 from geometry_msgs.msg import *
 from mavros_msgs.msg import *
+from nav_msgs.msg import Odometry
+
 
 class CpuPlayerContinuous(PpoPlayerContinuous):
     def __init__(self, params):
@@ -20,7 +22,7 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
         # initialize
         rospy.init_node('onboard_computing_node', anonymous=True)
 
-        self.obs_sub = rospy.Subscriber('', String, self.callback)
+        self.obs_sub = rospy.Subscriber('/random_states', Odometry, self.callback)
         ctl_mode = self.env_config.get('ctl_mode')
         if ctl_mode == 'pos':
             self.action_pub = rospy.Publisher('/airgym/cmd/pose', PoseStamped, queue_size=2000)
@@ -114,11 +116,20 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
             self.init_rnn()
             need_init_rnn = False
 
+        self.is_tensor_obses = True
+
     def callback(self, data):
         # Process the incoming message
-        rospy.loginfo(f"Obs reveived: {data.data}")
+        rospy.loginfo(f"Obs reveived: ")
         
-        real_obs = data.data
+        pose = data.pose.pose
+        pose_tensor = torch.tensor([pose.position.x, pose.position.y, pose.position.z], device=self.device)
+        quat_tensor = torch.tensor([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w], device=self.device)
+        twist = data.twist.twist
+        linvel_tensor = torch.tensor([twist.linear.x, twist.linear.y, twist.linear.z], device=self.device)
+        angvel_tensor = torch.tensor([twist.angular.x, twist.angular.y, twist.angular.z], device=self.device)
+        real_obs = torch.cat((pose_tensor, quat_tensor, linvel_tensor, angvel_tensor)).unsqueeze(0)
+
         action = self.inference(real_obs)
 
         # Create the output message
@@ -145,6 +156,24 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
         return action
     
     def run(self):
+        # initialize
+        n_games = self.games_num
+        n_game_life = self.n_game_life
+        n_games = n_games * n_game_life
+
+        self.wait_for_checkpoint()
+
+        need_init_rnn = self.is_rnn
+
+        obses = self.env_reset(self.env)
+        batch_size = 1
+        batch_size = self.get_batch_size(obses, batch_size)
+
+        if need_init_rnn:
+            self.init_rnn()
+            need_init_rnn = False
+
+        # get into loop
         while not rospy.is_shutdown():
             rospy.spin()
             self.rate.sleep()

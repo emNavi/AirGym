@@ -94,7 +94,7 @@ class X152bPx4(BaseTask):
             self.action_lower_limits = torch.tensor(
                 [0, 0, 0, 0], device=self.device, dtype=torch.float32)
         else:
-            print("Mode error")
+            print("Mode Error!")
         # parameters for the X152b
         self.target_positions = torch.zeros((self.num_envs, 3), device=self.device, dtype=torch.float32)
         self.target_positions[:, 2] = 1
