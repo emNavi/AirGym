@@ -8,6 +8,10 @@ def random_state_gen():
                 Quaternion(random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1)))
     twist = Twist(Vector3(random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1)), 
                   Vector3(random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1)))
+    # pose = Pose(Point(random.uniform(1, 1), random.uniform(1, 1), random.uniform(1, 1)), 
+    #             Quaternion(random.uniform(1, 1), random.uniform(1, 1), random.uniform(1, 1), random.uniform(1, 1)))
+    # twist = Twist(Vector3(random.uniform(1, 1), random.uniform(1, 1), random.uniform(1, 1)), 
+    #               Vector3(random.uniform(1, 1), random.uniform(1, 1), random.uniform(1, 1)))
     
     odom = Odometry()
     odom.header.stamp = rospy.Time.now()

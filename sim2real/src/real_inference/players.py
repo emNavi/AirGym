@@ -14,6 +14,25 @@ from geometry_msgs.msg import *
 from mavros_msgs.msg import *
 from nav_msgs.msg import Odometry
 
+# for PositionTarget
+IGNORE_PX=1
+IGNORE_PY=2
+IGNORE_PZ=4
+IGNORE_VX=8
+IGNORE_VY=16
+IGNORE_VZ=32
+IGNORE_AFX=64
+IGNORE_AFY=128
+IGNORE_AFZ=256
+FORCE=512
+IGNORE_YAW=1024
+IGNORE_YAW_RATE=2048
+# for AttitudeTarget
+IGNORE_ROLL_RATE=1
+IGNORE_PITCH_RATE=2
+IGNORE_YAW_RATE_=4
+IGNORE_THRUST=64
+IGNORE_ATTITUDE=128
 
 class CpuPlayerContinuous(PpoPlayerContinuous):
     def __init__(self, params):
@@ -23,87 +42,9 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
         rospy.init_node('onboard_computing_node', anonymous=True)
 
         self.obs_sub = rospy.Subscriber('/random_states', Odometry, self.callback)
-        ctl_mode = self.env_config.get('ctl_mode')
-        if ctl_mode == 'pos':
-            self.action_pub = rospy.Publisher('/airgym/cmd/pose', PoseStamped, queue_size=2000)
-            # # ----- msgs type ----- #
-            #     std_msgs/Header header
-            #     uint32 seq
-            #     time stamp
-            #     string frame_id
-            #     geometry_msgs/Pose pose
-            #     geometry_msgs/Point position
-            #         float64 x
-            #         float64 y
-            #         float64 z
-            #     geometry_msgs/Quaternion orientation
-            #         float64 x
-            #         float64 y
-            #         float64 z
-            #         float64 w
-
-            # Set the rate for publishing messages
-            self.rate = rospy.Rate(50)  # 10hz
-        elif ctl_mode == 'vel':
-            self.action_pub = rospy.Publisher('/airgym/cmd/vel', Twist, queue_size=2000)
-            # # ----- msgs type ----- #
-            #     geometry_msgs/Vector3 linear
-            #     float64 x
-            #     float64 y
-            #     float64 z
-            #     geometry_msgs/Vector3 angular
-            #     float64 x
-            #     float64 y
-            #     float64 z
-            # Set the rate for publishing messages
-            self.rate = rospy.Rate(50)  # 10hz
-        elif ctl_mode == 'atti':
-            self.action_pub = rospy.Publisher('/airgym/cmd/atti', PoseStamped, queue_size=2000)
-            # # ----- msgs type ----- #
-            #     std_msgs/Header header
-            #     uint32 seq
-            #     time stamp
-            #     string frame_id
-            #     geometry_msgs/Pose pose
-            #     geometry_msgs/Point position
-            #         float64 x
-            #         float64 y
-            #         float64 z
-            #     geometry_msgs/Quaternion orientation
-            #         float64 x
-            #         float64 y
-            #         float64 z
-            #         float64 w
-            # Set the rate for publishing messages
-            self.rate = rospy.Rate(50)  # 10hz
-        elif ctl_mode == 'rate':
-            self.action_pub = rospy.Publisher('/airgym/cmd/rate', TwistStamped, queue_size=2000)
-            # # ----- msgs type ----- #
-            #     std_msgs/Header header
-            #     uint32 seq
-            #     time stamp
-            #     string frame_id
-            #     geometry_msgs/Twist twist
-            #     geometry_msgs/Vector3 linear
-            #         float64 x
-            #         float64 y
-            #         float64 z
-            #     geometry_msgs/Vector3 angular
-            #         float64 x
-            #         float64 y
-            #         float64 z
-            # Set the rate for publishing messages
-            self.rate = rospy.Rate(50)  # 10hz
-        else: # prop
-            self.action_pub = rospy.Publisher('/airgym/cmd/thrust', Thrust, queue_size=2000)
-            # # ----- msgs type ----- #
-            #     std_msgs/Header header
-            #     uint32 seq
-            #     time stamp
-            #     string frame_id
-            #     float32 thrust
-            # Set the rate for publishing messages
-            self.rate = rospy.Rate(50)  # 10hz
+        ctl_mode = self.ctl_mode = self.env_config.get('ctl_mode')
+        self.action_pub = rospy.Publisher('/airgym/cmd', PositionTarget, queue_size=2000)
+        self.rate = rospy.Rate(50)  # 10hz
 
         # env settings
         self.has_masks = False
@@ -120,7 +61,7 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
 
     def callback(self, data):
         # Process the incoming message
-        rospy.loginfo(f"Obs reveived: ")
+        rospy.loginfo(f"Obs reveived...")
         
         pose = data.pose.pose
         pose_tensor = torch.tensor([pose.position.x, pose.position.y, pose.position.z], device=self.device)
@@ -133,11 +74,39 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
         action = self.inference(real_obs)
 
         # Create the output message
-        output_msg = String()
-        output_msg.data = f"Processed: {data.data}"
+        if self.ctl_mode == "pos":
+            output_msg = PositionTarget()
+            output_msg.position.x = action[0][0].cpu().numpy()
+            output_msg.position.y = action[0][1].cpu().numpy()
+            output_msg.position.z = action[0][2].cpu().numpy()
+            output_msg.yaw = action[0][3].cpu().numpy()
+            output_msg.type_mask = IGNORE_VX | IGNORE_VY | IGNORE_VZ | IGNORE_AFX | IGNORE_AFY | IGNORE_AFZ | FORCE | IGNORE_YAW_RATE
+        elif self.ctl_mode == "vel":
+            output_msg = PositionTarget()
+            output_msg.velocity.x = action[0][0].cpu().numpy()
+            output_msg.velocity.y = action[0][1].cpu().numpy()
+            output_msg.velocity.z = action[0][2].cpu().numpy()
+            output_msg.yaw = action[0][3].cpu().numpy()
+            output_msg.type_mask = IGNORE_PX | IGNORE_PY | IGNORE_PZ | IGNORE_AFX | IGNORE_AFY | IGNORE_AFZ | FORCE | IGNORE_YAW_RATE
+        elif self.ctl_mode == "atti": # body_rate stores angular
+            output_msg = AttitudeTarget()
+            output_msg.body_rate.x = action[0][0].cpu().numpy()
+            output_msg.body_rate.y = action[0][1].cpu().numpy()
+            output_msg.body_rate.z = action[0][2].cpu().numpy()
+            output_msg.thrust = action[0][3].cpu().numpy()
+            output_msg.type_mask = IGNORE_ROLL_RATE | IGNORE_PITCH_RATE | IGNORE_YAW_RATE_
+        elif self.ctl_mode == "rate":
+            output_msg = AttitudeTarget()
+            output_msg.body_rate.x = action[0][0].cpu().numpy()
+            output_msg.body_rate.y = action[0][1].cpu().numpy()
+            output_msg.body_rate.z = action[0][2].cpu().numpy()
+            output_msg.thrust = action[0][3].cpu().numpy()
+            output_msg.type_mask = IGNORE_ATTITUDE
+        else:
+            pass
         
         # Publish the message
-        self.publisher.publish(output_msg)
+        self.action_pub.publish(output_msg)
 
     def inference(self, real_obses):
         if self.has_masks:
