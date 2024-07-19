@@ -10,8 +10,6 @@ sys.path.insert(0, airgym_dir)
 
 from airgym.envs import *
 
-import gym
-from gym import spaces
 from argparse import Namespace
 
 from rl_games.torch_runner import Runner

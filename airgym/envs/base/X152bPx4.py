@@ -114,7 +114,7 @@ class X152bPx4(BaseTask):
         self.thrust_rot_damp = torch.zeros((self.num_envs, 4), dtype=torch.float32, device=self.device)
 
         # set target states
-        self.target_states = self.cfg.env.target_state.repeat(self.num_envs, 1)
+        self.target_states = torch.tensor(self.cfg.env.target_state, device=self.device).repeat(self.num_envs, 1)
 
         if self.viewer:
             cam_pos_x, cam_pos_y, cam_pos_z = self.cfg.viewer.pos[0], self.cfg.viewer.pos[1], self.cfg.viewer.pos[2]
