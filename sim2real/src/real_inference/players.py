@@ -76,31 +76,31 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
         # Create the output message
         if self.ctl_mode == "pos":
             output_msg = PositionTarget()
-            output_msg.position.x = action[0][0].cpu().numpy()
-            output_msg.position.y = action[0][1].cpu().numpy()
-            output_msg.position.z = action[0][2].cpu().numpy()
-            output_msg.yaw = action[0][3].cpu().numpy()
+            output_msg.position.x = action[0].cpu().numpy()
+            output_msg.position.y = action[1].cpu().numpy()
+            output_msg.position.z = action[2].cpu().numpy()
+            output_msg.yaw = action[3].cpu().numpy()
             output_msg.type_mask = IGNORE_VX | IGNORE_VY | IGNORE_VZ | IGNORE_AFX | IGNORE_AFY | IGNORE_AFZ | FORCE | IGNORE_YAW_RATE
         elif self.ctl_mode == "vel":
             output_msg = PositionTarget()
-            output_msg.velocity.x = action[0][0].cpu().numpy()
-            output_msg.velocity.y = action[0][1].cpu().numpy()
-            output_msg.velocity.z = action[0][2].cpu().numpy()
-            output_msg.yaw = action[0][3].cpu().numpy()
+            output_msg.velocity.x = action[0].cpu().numpy()
+            output_msg.velocity.y = action[1].cpu().numpy()
+            output_msg.velocity.z = action[2].cpu().numpy()
+            output_msg.yaw = action[3].cpu().numpy()
             output_msg.type_mask = IGNORE_PX | IGNORE_PY | IGNORE_PZ | IGNORE_AFX | IGNORE_AFY | IGNORE_AFZ | FORCE | IGNORE_YAW_RATE
         elif self.ctl_mode == "atti": # body_rate stores angular
             output_msg = AttitudeTarget()
-            output_msg.body_rate.x = action[0][0].cpu().numpy()
-            output_msg.body_rate.y = action[0][1].cpu().numpy()
-            output_msg.body_rate.z = action[0][2].cpu().numpy()
-            output_msg.thrust = action[0][3].cpu().numpy()
+            output_msg.body_rate.x = action[0].cpu().numpy()
+            output_msg.body_rate.y = action[1].cpu().numpy()
+            output_msg.body_rate.z = action[2].cpu().numpy()
+            output_msg.thrust = action[3].cpu().numpy()
             output_msg.type_mask = IGNORE_ROLL_RATE | IGNORE_PITCH_RATE | IGNORE_YAW_RATE_
         elif self.ctl_mode == "rate":
             output_msg = AttitudeTarget()
-            output_msg.body_rate.x = action[0][0].cpu().numpy()
-            output_msg.body_rate.y = action[0][1].cpu().numpy()
-            output_msg.body_rate.z = action[0][2].cpu().numpy()
-            output_msg.thrust = action[0][3].cpu().numpy()
+            output_msg.body_rate.x = action[0].cpu().numpy()
+            output_msg.body_rate.y = action[1].cpu().numpy()
+            output_msg.body_rate.z = action[2].cpu().numpy()
+            output_msg.thrust = action[3].cpu().numpy()
             output_msg.type_mask = IGNORE_ATTITUDE
         else:
             pass
@@ -116,33 +116,16 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
         else:
             action = self.get_action(real_obses, self.is_deterministic)
         
-        sim_obses, _, done, _ = self.env_step(self.env, action)
-
         if self.render_env:
             self.env.render(mode='human')
             time.sleep(self.render_sleep)
-        
         return action
     
     def run(self):
-        # initialize
-        n_games = self.games_num
-        n_game_life = self.n_game_life
-        n_games = n_games * n_game_life
-
-        self.wait_for_checkpoint()
-
-        need_init_rnn = self.is_rnn
-
-        obses = self.env_reset(self.env)
-        batch_size = 1
-        batch_size = self.get_batch_size(obses, batch_size)
-
-        if need_init_rnn:
-            self.init_rnn()
-            need_init_rnn = False
-
         # get into loop
         while not rospy.is_shutdown():
             rospy.spin()
             self.rate.sleep()
+
+    def env_step(self, env, actions):
+        return super().env_step(env, actions)

@@ -21,7 +21,7 @@ from airgym.rl_games.runner import AirGymRLGPUEnv
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 
 
-env_configurations.register('X152b', {'env_creator': lambda **kwargs : task_registry.make_env('X152b',args=Namespace(**kwargs)),
+env_configurations.register('X152b', {'env_creator': lambda **kwargs : task_registry.make_env('inference',args=Namespace(**kwargs)),
         'vecenv_type': 'AirGym-RLGPU'})
 
 vecenv.register('AirGym-RLGPU',
