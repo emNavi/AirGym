@@ -2,8 +2,6 @@ import numpy as np
 import os
 import yaml
 
-import isaacgym
-
 from airgym.envs import *
 from airgym.utils import task_registry
 
@@ -78,7 +76,15 @@ vecenv.register('AirGym-RLGPU',
 
 
 def get_args():
-    from isaacgym import gymutil
+    try:
+        from isaacgym import gymutil
+        print("isaacgym imported successful.")
+    except ImportError:
+        print("isaacgym cannot be imported. Trying to import from sim2real.")
+        try:
+            from sim2real.src.real_inference.isaacgym_utils import gymutil
+        except ImportError:
+            print("isaacgym_utils imported successful from sim2real.")
 
     custom_parameters = [
         {"name": "--seed", "type": int, "default": 0, "required": False, "help":  "Random seed, if larger than 0 will overwrite the value in yaml config."},

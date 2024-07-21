@@ -3,8 +3,6 @@ import os
 class inference():
     def __init__(self, cfg, sim_params, physics_engine, sim_device, headless) -> None:
         self.sim_params = sim_params
-        self.dt = self.sim_params.dt
-        print("dt:", self.dt)
         self.device = 'cpu'
 
         self.num_envs = cfg.env.num_envs

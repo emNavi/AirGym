@@ -6,6 +6,7 @@ channels:
 dependencies:
   - python=3.8
   - numpy
+  - matplotlib
   - pyyaml==6.0.1
   - empy=3.3.4
   - catkin_pkg=1.0.0

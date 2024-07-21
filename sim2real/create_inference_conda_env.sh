@@ -41,6 +41,9 @@ pushd "${ROOT_DIR}"
         exit 1
     fi
 
+    # install airgym package
+    pip install -e ..
+
 popd
 
 echo "SUCCESS"

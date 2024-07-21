@@ -1,11 +1,19 @@
 import os
 import random
 
-from isaacgym import gymapi
-from isaacgym.torch_utils import quat_from_euler_xyz
+try:
+    from isaacgym import gymapi
+    print("isaacgym imported successful.")
+except ImportError:
+    print("isaacgym cannot be imported. Trying to import from sim2real.")
+    try:
+        from sim2real.src.real_inference.isaacgym_utils import gymapi
+    except ImportError:
+        print("isaacgym_utils imported successful from sim2real.")
+# from isaacgym.torch_utils import quat_from_euler_xyz
 
 import torch
-import pytorch3d.transforms as p3d_transforms
+# import pytorch3d.transforms as p3d_transforms
             
 
 def asset_class_to_AssetOptions(asset_class):

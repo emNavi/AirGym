@@ -1,7 +1,6 @@
 import numpy as np
 import os
 import yaml
-import isaacgym
 
 import sys
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -28,7 +27,7 @@ vecenv.register('AirGym-RLGPU',
                 lambda config_name, num_actors, **kwargs: AirGymRLGPUEnv(config_name, num_actors, **kwargs))
 
 def get_args():
-    from isaacgym import gymutil
+    from utils import gymutil
 
     custom_parameters = [
         {"name": "--seed", "type": int, "default": 0, "required": False, "help":  "Random seed, if larger than 0 will overwrite the value in yaml config."},

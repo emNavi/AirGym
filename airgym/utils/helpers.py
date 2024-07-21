@@ -1,5 +1,21 @@
-from isaacgym import gymapi
-from isaacgym import gymutil
+try:
+    from isaacgym import gymapi
+    print("isaacgym imported successful.")
+except ImportError:
+    print("isaacgym cannot be imported. Trying to import from sim2real.")
+    try:
+        from sim2real.src.real_inference.utils import gymapi
+    except ImportError:
+        print("isaacgym_utils imported successful from sim2real.")
+try:
+    from isaacgym import gymutil
+    print("isaacgym imported successful.")
+except ImportError:
+    print("isaacgym cannot be imported. Trying to import from sim2real.")
+    try:
+        from sim2real.src.real_inference.utils import gymutil
+    except ImportError:
+        print("isaacgym_utils imported successful from sim2real.")
 
 def class_to_dict(obj) -> dict:
     if not  hasattr(obj,"__dict__"):

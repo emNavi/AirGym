@@ -30,8 +30,10 @@ params:
         scale: 2
   config:
     env_name: X152b
+    device_name: cpu
     env_config:
       num_envs: 4096
+      sim_device: cpu
       
     name: ppo_X152b
     reward_shaper:

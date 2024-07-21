@@ -1,5 +1,4 @@
 from rl_games.common.player import BasePlayer
-from rl_games.algos_torch import torch_ext
 from rl_games.algos_torch.running_mean_std import RunningMeanStd
 from rl_games.algos_torch.players import PpoPlayerContinuous
 from rl_games.common.tr_helpers import unsqueeze_obs
@@ -13,6 +12,8 @@ import rospy
 from geometry_msgs.msg import *
 from mavros_msgs.msg import *
 from nav_msgs.msg import Odometry
+
+from utils import torch_ext
 
 # for PositionTarget
 IGNORE_PX=1
@@ -37,6 +38,7 @@ IGNORE_ATTITUDE=128
 class CpuPlayerContinuous(PpoPlayerContinuous):
     def __init__(self, params):
         super().__init__(params)
+        print("Running on", self.device)
 
         # initialize
         rospy.init_node('onboard_computing_node', anonymous=True)
@@ -58,6 +60,16 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
             need_init_rnn = False
 
         self.is_tensor_obses = True
+
+    def restore(self, fn):
+        checkpoint = torch_ext.load_checkpoint(fn)
+        self.model.load_state_dict(checkpoint['model'])
+        if self.normalize_input and 'running_mean_std' in checkpoint:
+            self.model.running_mean_std.load_state_dict(checkpoint['running_mean_std'])
+
+        env_state = checkpoint.get('env_state', None)
+        if self.env is not None and env_state is not None:
+            self.env.set_env_state(env_state)
 
     def callback(self, data):
         # Process the incoming message
