@@ -1,11 +1,14 @@
+#!/home/emnavi/miniconda3/envs/inference/bin/python
+
 import numpy as np
 import os
 import yaml
 
 import sys
-current_dir = os.path.dirname(os.path.abspath(__file__))
-airgym_dir = os.path.abspath(os.path.join(current_dir, "../../.."))
+script_dir = os.path.dirname(os.path.realpath(__file__))
+airgym_dir = os.path.abspath(os.path.join(script_dir, "../../.."))
 sys.path.insert(0, airgym_dir)
+yaml_path = os.path.join(script_dir, 'config.yml')
 
 from airgym.envs import *
 
@@ -14,7 +17,7 @@ from argparse import Namespace
 from rl_games.torch_runner import Runner
 from rl_games.common import env_configurations, vecenv
 
-from sim2real.src.real_inference.players import *
+from sim2real.src.real_inference.src.players import *
 from airgym.rl_games.runner import AirGymRLGPUEnv
 
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
@@ -27,7 +30,7 @@ vecenv.register('AirGym-RLGPU',
                 lambda config_name, num_actors, **kwargs: AirGymRLGPUEnv(config_name, num_actors, **kwargs))
 
 def get_args():
-    from utils import gymutil
+    from sim2real.src.real_inference.src.utils import gymutil
 
     custom_parameters = [
         {"name": "--seed", "type": int, "default": 0, "required": False, "help":  "Random seed, if larger than 0 will overwrite the value in yaml config."},
@@ -101,12 +104,13 @@ class RealRunner(Runner):
 
 
 if __name__ == '__main__':
+    print("Python version:", sys.version)
     args = vars(get_args())
 
     config_name = args['file']
     args['play'] = True
 
-    print('Loading config: ', config_name)
+    print('Loading config:', config_name)
     with open(config_name, 'r') as stream:
         config = yaml.safe_load(stream)
     

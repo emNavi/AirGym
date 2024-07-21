@@ -1,3 +1,5 @@
+#!/home/emnavi/miniconda3/envs/inference/bin/python
+
 import rospy
 import random
 from nav_msgs.msg import Odometry

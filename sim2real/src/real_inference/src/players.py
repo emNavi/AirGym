@@ -1,3 +1,5 @@
+#!/home/emnavi/miniconda3/envs/inference/bin/python
+
 from rl_games.common.player import BasePlayer
 from rl_games.algos_torch.running_mean_std import RunningMeanStd
 from rl_games.algos_torch.players import PpoPlayerContinuous
@@ -13,7 +15,7 @@ from geometry_msgs.msg import *
 from mavros_msgs.msg import *
 from nav_msgs.msg import Odometry
 
-from utils import torch_ext
+from sim2real.src.real_inference.src.utils import torch_ext
 
 # for PositionTarget
 IGNORE_PX=1

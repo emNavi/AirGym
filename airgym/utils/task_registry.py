@@ -94,8 +94,8 @@ class TaskRegistry():
         sim_params = {"sim": class_to_dict(env_cfg.sim)}
         try:
             sim_params = parse_sim_params(args, sim_params)
-        except AttributeError:
-            print("sim_params is not required in real robot inferencing.")
+        except NameError:
+            print("Ignore! sim_params is not required in real robot inferencing.")
             sim_params = None
         env = task_class(   cfg=env_cfg,
                             sim_params=sim_params,
