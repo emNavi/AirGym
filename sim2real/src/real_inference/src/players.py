@@ -51,7 +51,17 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
         self.obs_sub = rospy.Subscriber('/processed_data', Float64MultiArray, self.callback)
         self.target_sub = rospy.Subscriber('/target_state', Float64MultiArray, self._callback)
         ctl_mode = self.ctl_mode = self.env_config.get('ctl_mode')
-        self.action_pub = rospy.Publisher('/airgym/cmd', PositionTarget, queue_size=2000)
+        
+        if ctl_mode == "pos":
+            self.action_pub = rospy.Publisher('/airgym/cmd', PositionTarget, queue_size=2000)
+        elif ctl_mode == "vel":
+            self.action_pub = rospy.Publisher('/airgym/cmd', PositionTarget, queue_size=2000)
+        elif ctl_mode == "atti":
+            self.action_pub = rospy.Publisher('/airgym/cmd', AttitudeTarget, queue_size=2000)
+        elif ctl_mode == "rate":
+            self.action_pub = rospy.Publisher('/airgym/cmd', AttitudeTarget, queue_size=2000)
+        else:
+            pass
 
         # 初始化频率相关变量
         self.last_time = time.time()
