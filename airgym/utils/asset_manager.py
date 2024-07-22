@@ -8,8 +8,10 @@ except ImportError:
     print("isaacgym cannot be imported. Trying to import from sim2real.")
     try:
         from sim2real.src.real_inference.isaacgym_utils import gymapi
+        print("gymutil imported successful from sim2real.")
     except ImportError:
-        print("isaacgym_utils imported successful from sim2real.")
+        print("Error! gymutil cannot be imported.")
+
 # from isaacgym.torch_utils import quat_from_euler_xyz
 
 import torch

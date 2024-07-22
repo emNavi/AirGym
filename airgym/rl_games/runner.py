@@ -2,6 +2,17 @@ import numpy as np
 import os
 import yaml
 
+try:
+    from isaacgym import gymutil
+    print("isaacgym imported successful.")
+except ImportError:
+    print("isaacgym cannot be imported. Trying to import from sim2real.")
+    try:
+        from sim2real.src.real_inference.isaacgym_utils import gymutil
+        print("gymutil imported successful from sim2real.")
+    except ImportError:
+        print("Error! gymutil cannot be imported.")
+
 from airgym.envs import *
 from airgym.utils import task_registry
 
@@ -76,15 +87,6 @@ vecenv.register('AirGym-RLGPU',
 
 
 def get_args():
-    try:
-        from isaacgym import gymutil
-        print("isaacgym imported successful.")
-    except ImportError:
-        print("isaacgym cannot be imported. Trying to import from sim2real.")
-        try:
-            from sim2real.src.real_inference.isaacgym_utils import gymutil
-        except ImportError:
-            print("isaacgym_utils imported successful from sim2real.")
 
     custom_parameters = [
         {"name": "--seed", "type": int, "default": 0, "required": False, "help":  "Random seed, if larger than 0 will overwrite the value in yaml config."},
@@ -107,6 +109,7 @@ def get_args():
         {"name": "--headless", "action": "store_true", "default": False, "help": "Force display off at all times"},
         {"name": "--horovod", "action": "store_true", "default": False, "help": "Use horovod for multi-gpu training"},
         {"name": "--rl_device", "type": str, "default": "cuda:0", "help": 'Device used by the RL algorithm, (cpu, gpu, cuda:0, cuda:1 etc..)'},
+        {"name": "--ctl_mode", "required": True, "type": str, "help": 'Specify the control mode and the options are: pos, vel, atti, rate, prop'},
         ]
         
     # parse arguments
