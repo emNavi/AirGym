@@ -11,5 +11,3 @@ dependencies:
   - empy=3.3.4
   - catkin_pkg=1.0.0
   - rospkg
-  - rl_games=1.6.1
-  - pytorch=2.0.0

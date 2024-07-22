@@ -3,22 +3,17 @@ try:
     print("isaacgym imported successful.")
 except ImportError:
     print("isaacgym cannot be imported. Trying to import from sim2real.")
-    try:
-        from sim2real.src.real_inference.utils import gymapi
-        print("gymutil imported successful from sim2real.")
-    except ImportError:
-        print("Error! gymutil cannot be imported.")
+    from sim2real.src.real_inference.utils import gymapi
+    print("gymutil imported successful from sim2real.")
+
 
 try:
     from isaacgym import gymutil
     print("isaacgym imported successful.")
 except ImportError:
     print("isaacgym cannot be imported. Trying to import from sim2real.")
-    try:
-        from sim2real.src.real_inference.utils import gymutil
-        print("gymutil imported successful from sim2real.")
-    except ImportError:
-        print("Error! gymutil cannot be imported.")
+    from sim2real.src.real_inference.utils import gymutil
+    print("gymutil imported successful from sim2real.")
 
 
 def class_to_dict(obj) -> dict:

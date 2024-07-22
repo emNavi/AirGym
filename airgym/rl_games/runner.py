@@ -7,11 +7,9 @@ try:
     print("isaacgym imported successful.")
 except ImportError:
     print("isaacgym cannot be imported. Trying to import from sim2real.")
-    try:
-        from sim2real.src.real_inference.isaacgym_utils import gymutil
-        print("gymutil imported successful from sim2real.")
-    except ImportError:
-        print("Error! gymutil cannot be imported.")
+    from sim2real.src.real_inference.utils import gymutil
+    print("gymutil imported successful from sim2real.")
+
 
 from airgym.envs import *
 from airgym.utils import task_registry
