@@ -1,11 +1,14 @@
 <launch>
-  <!-- 设置参数 -->
   <arg name="checkpoint" default="$(find real_inference)/src/nn/ppo_X152b_vel.pth"/>
   <arg name="ctl_mode" default="vel"/>
+  <arg name="file" default="$(find real_inference)/src/X152b_inference.yaml"/>
+  <arg name="num_envs" default="1"/>
 
+  
   <param name="checkpoint" value="$(arg checkpoint)"/>
   <param name="ctl_mode" value="$(arg ctl_mode)"/>
+  <param name="file" value="$(arg file)"/>
+  <param name="num_envs" value="$(arg num_envs)"/>
 
-  <!-- 启动节点 -->
-  <node name="real_runner" pkg="real_inference" type="real_runner.py" output="screen"/>
+  <node name="real_runner" pkg="real_inference" type="real_runner.py" output="screen"></node>
 </launch>

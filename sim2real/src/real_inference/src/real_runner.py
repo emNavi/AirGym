@@ -38,7 +38,7 @@ def get_args():
         
         {"name": "--tf", "required": False, "help": "run tensorflow runner", "action": 'store_true'},
         {"name": "--train", "required": False, "help": "train network", "action": 'store_true'},
-        {"name": "--play", "required": False, "help": "play(test) network", "action": 'store_true'},
+        {"name": "--play", "required": True, "help": "play(test) network", "action": 'store_true'},
         {"name": "--checkpoint", "type": str, "required": False, "help": "path to checkpoint"},
         {"name": "--file", "type": str, "default": yaml_path, "required": False, "help": "path to config"},
         {"name": "--num_envs", "type": int, "default": "1", "help": "Number of environments to create. Overrides config file if provided."},

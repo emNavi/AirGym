@@ -24,6 +24,7 @@ class VrpnProcessor:
         # 初始化频率相关变量
         self.last_time = time.time()
         self.message_count = 0
+        self.frequency = 0
 
     def twist_callback(self, data):
         self.twist_data = data
@@ -67,8 +68,8 @@ class VrpnProcessor:
             self.message_count += 1
             current_time = time.time()
             if current_time - self.last_time >= 1.0:  # 每秒计算一次频率
-                frequency = self.message_count / (current_time - self.last_time)
-                rospy.loginfo(f"Publishing frequency: {frequency} Hz")
+                self.frequency = self.message_count / (current_time - self.last_time)
+                rospy.loginfo(f"VRPN state frequency: {self.frequency} Hz")
                 self.message_count = 0
                 self.last_time = current_time
 

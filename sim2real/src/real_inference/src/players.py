@@ -14,6 +14,7 @@ import rospy
 from geometry_msgs.msg import *
 from mavros_msgs.msg import *
 from nav_msgs.msg import Odometry
+from std_msgs.msg import Float64MultiArray
 
 from sim2real.src.real_inference.src.utils import torch_ext
 
@@ -45,10 +46,17 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
         # initialize
         rospy.init_node('onboard_computing_node', anonymous=True)
 
-        self.obs_sub = rospy.Subscriber('/random_states', Odometry, self.callback)
+        self.target_state = torch.tensor((13), device=self.device)
+
+        self.obs_sub = rospy.Subscriber('/processed_data', Float64MultiArray, self.callback)
+        self.target_sub = rospy.Subscriber('/target_state', Float64MultiArray, self._callback)
         ctl_mode = self.ctl_mode = self.env_config.get('ctl_mode')
         self.action_pub = rospy.Publisher('/airgym/cmd', PositionTarget, queue_size=2000)
-        self.rate = rospy.Rate(50)  # 10hz
+
+        # 初始化频率相关变量
+        self.last_time = time.time()
+        self.message_count = 0
+        self.frequency = 0
 
         # env settings
         self.has_masks = False
@@ -73,19 +81,24 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
         if self.env is not None and env_state is not None:
             self.env.set_env_state(env_state)
 
+    def _callback(self, data):
+        s = data.data
+        self.target_state = torch.tensor(data.data, device=self.device)
+        # self.target_state = torch.tensor([s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[10], s[11], s[12]], 
+        #                                  device=self.device)
+
     def callback(self, data):
         # Process the incoming message
-        rospy.loginfo(f"Obs reveived...")
-        
-        pose = data.pose.pose
-        pose_tensor = torch.tensor([pose.position.x, pose.position.y, pose.position.z], device=self.device)
-        quat_tensor = torch.tensor([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w], device=self.device)
-        twist = data.twist.twist
-        linvel_tensor = torch.tensor([twist.linear.x, twist.linear.y, twist.linear.z], device=self.device)
-        angvel_tensor = torch.tensor([twist.angular.x, twist.angular.y, twist.angular.z], device=self.device)
+        state = data.data
+        pose_tensor = torch.tensor([state[0], state[1], state[2]], device=self.device)
+        quat_tensor = torch.tensor([state[3], state[4], state[5], state[6]], device=self.device)
+        linvel_tensor = torch.tensor([state[7], state[8], state[9]], device=self.device)
+        angvel_tensor = torch.tensor([state[10], state[11], state[12]], device=self.device)
         real_obs = torch.cat((pose_tensor, quat_tensor, linvel_tensor, angvel_tensor)).unsqueeze(0)
 
-        action = self.inference(real_obs)
+        # print(real_obs)
+        action = self.inference(real_obs - self.target_state)
+        # print(action)
 
         # Create the output message
         if self.ctl_mode == "pos":
@@ -121,6 +134,15 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
         
         # Publish the message
         self.action_pub.publish(output_msg)
+
+        # 更新频率检测
+        self.message_count += 1
+        current_time = time.time()
+        if current_time - self.last_time >= 1.0:  # 每秒计算一次频率
+            self.frequency = self.message_count / (current_time - self.last_time)
+            rospy.loginfo(f"CMD frequency: {self.frequency} Hz")
+            self.message_count = 0
+            self.last_time = current_time
 
     def inference(self, real_obses):
         if self.has_masks:

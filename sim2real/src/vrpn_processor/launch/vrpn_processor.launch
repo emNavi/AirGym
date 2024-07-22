@@ -1,0 +1,9 @@
+<launch>
+    <!-- Include vrpn_client launch file with arguments -->
+  <include file="$(find vrpn_client_ros)/launch/sample.launch">
+    <arg name="server" value="10.42.0.230"/>
+  </include>
+
+  <!-- Launch vrpn_processor node -->
+  <node name="vrpn_processor" pkg="vrpn_processor" type="vrpn_processor.py" output="screen"/>
+</launch>
