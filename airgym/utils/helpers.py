@@ -3,7 +3,7 @@ try:
     print("isaacgym imported successful.")
 except ImportError:
     print("isaacgym cannot be imported. Trying to import from sim2real.")
-    from sim2real.src.real_inference.utils import gymapi
+    from sim2real.src.real_inference.src.utils import gymapi
     print("gymutil imported successful from sim2real.")
 
 
@@ -12,7 +12,7 @@ try:
     print("isaacgym imported successful.")
 except ImportError:
     print("isaacgym cannot be imported. Trying to import from sim2real.")
-    from sim2real.src.real_inference.utils import gymutil
+    from sim2real.src.real_inference.src.utils import gymutil
     print("gymutil imported successful from sim2real.")
 
 
