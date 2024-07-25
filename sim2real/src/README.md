@@ -4,9 +4,10 @@
 sudo apt install ros-noetic-mavros-extras
 ```
 
-## ego_planner 实机使用
+## 环境配置
+
 ```bash
-roslaunch control_for_gym uav_ctrl.launch
+pip install rl_games==1.6.1
 ```
 
 ### Eigen 库找不到

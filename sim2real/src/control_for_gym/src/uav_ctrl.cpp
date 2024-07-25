@@ -25,8 +25,9 @@
 
 mavros_msgs::CommandBool arm_cmd;
 ros::ServiceClient set_mode_client, arming_client;
-ros::Publisher local_accel_pub, local_pos_pub, err_pub;
-CtrlFSM fsm;
+ros::Publisher local_raw_pub, local_position_pub, local_linear_vel_pub;
+ros::Publisher err_pub;
+ros::Publisher vision_pose_pub;
 
 
 mavros_msgs::State current_state;
@@ -34,43 +35,10 @@ geometry_msgs::PoseStamped cur_pos;
 geometry_msgs::TwistStamped cur_vel;
 std_msgs::Float32MultiArray takeoff_cmd;
 std_msgs::Float32MultiArray land_cmd;
-ros::Publisher vision_pose_pub;
+CtrlFSM fsm;
 
 int wait_count = 0;
 
-
-void publish_ctrl_msg(const mavros_msgs::PositionTarget::ConstPtr &msg)
-{
-
-        ROS_INFO("gym go");
-        local_accel_pub.publish(msg);
-
-    // mpCtrl.coordinate_frame = mpCtrl.FRAME_LOCAL_NED;
-
-    // geometry_msgs::PoseStamped exp_pos;
-    // exp_pos.pose.position = pva_yaw.position;
-    // geometry_msgs::TwistStamped exp_vel;
-    // exp_vel.twist.linear = pva_yaw.velocity;
-
-
-    // mpCtrl.type_mask = mpCtrl.IGNORE_YAW_RATE;
-    // mpCtrl.position = pva_yaw.position;
-    // mpCtrl.velocity = pva_yaw.velocity;
-    // mpCtrl.acceleration_or_force = pva_yaw.acceleration;
-    // mpCtrl.yaw = pva_yaw.yaw;
-}
-
-// void publish_err_msg()
-// {
-//     std_msgs::Float32MultiArray err_msgs;
-//     err_msgs.data = {static_cast<float>(cur_pos.pose.position.x - pva_yaw.position.x),
-//                      static_cast<float>(cur_pos.pose.position.y - pva_yaw.position.y),
-//                      static_cast<float>(cur_pos.pose.position.z - pva_yaw.position.z),
-//                      static_cast<float>(cur_vel.twist.linear.x - pva_yaw.velocity.x),
-//                      static_cast<float>(cur_vel.twist.linear.y - pva_yaw.velocity.y),
-//                      static_cast<float>(cur_vel.twist.linear.z - pva_yaw.velocity.z)};
-//     err_pub.publish(err_msgs);
-// }
 
 // callback begin************************
 void state_cb(const mavros_msgs::State::ConstPtr &msg)
@@ -93,10 +61,18 @@ void pva_yaw_cb(const mavros_msgs::PositionTarget::ConstPtr &msg)
     fsm.update_cmd_update_time(ros::Time::now());
     if (fsm.now_state == CtrlFSM::RUNNING)
     {
-        publish_ctrl_msg(msg);
-
+        local_raw_pub.publish(msg);
     }
 }
+void local_linear_vel_cb(const geometry_msgs::Twist::ConstPtr &msg)
+{
+    fsm.update_cmd_update_time(ros::Time::now());
+    if (fsm.now_state == CtrlFSM::RUNNING)
+    {
+        local_linear_vel_pub.publish(msg);
+    }
+}
+
 void vrpn_cb(const geometry_msgs::PoseStamped::ConstPtr &msg)
 {    // 创建一个新的 PoseStamped 消息
     geometry_msgs::PoseStamped modified_msg;
@@ -199,20 +175,32 @@ int main(int argc, char **argv)
     std::cout << "ctrl_mode " << ctrl_mode << std::endl;
     std::cout << "drone id " << drone_id << std::endl;
     fsm.Init_FSM();
+    // get state
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>("/mavros/state", 10, state_cb);
     ros::Subscriber pos_sub = nh.subscribe<geometry_msgs::PoseStamped>("/mavros/local_position/pose", 10, pos_cb);
     ros::Subscriber vel_sub = nh.subscribe<geometry_msgs::TwistStamped>("/mavros/local_position/velocity_local", 10, vel_cb);
-    ros::Subscriber pva_yaw_sub = nh.subscribe<mavros_msgs::PositionTarget>("pos_cmd", 10, pva_yaw_cb);
+    
+    // vrpn - vision_pose
+    ros::Subscriber vrpn_pose = nh.subscribe<geometry_msgs::PoseStamped>("/vrpn_client_node/drone_7/pose", 10, vrpn_cb);
+    vision_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", 10);
+    //
+
+    // direct command
+    ros::Subscriber  pva_yaw_sub= nh.subscribe<mavros_msgs::PositionTarget>("pos_cmd", 10, pva_yaw_cb);
+    ros::Subscriber local_linear_vel_sub = nh.subscribe<geometry_msgs::Twist>("vel_cmd", 10, local_linear_vel_cb);
+
+    local_raw_pub = nh.advertise<mavros_msgs::PositionTarget>("/mavros/setpoint_raw/local", 10);
+    local_linear_vel_pub = nh.advertise<geometry_msgs::Twist>("/mavros/setpoint_velocity/cmd_vel_unstamped", 10);
+    local_position_pub = nh.advertise<geometry_msgs::PoseStamped>("/mavros/setpoint_position/local", 10);
+    
+    //
     ros::Subscriber takeoff_cmd_sub = nh.subscribe<std_msgs::Float32MultiArray>("/swarm_takeoff", 10, boost::bind(takeoff_cmd_cb, _1, drone_id));
     ros::Subscriber land_cmd_sub = nh.subscribe<std_msgs::Float32MultiArray>("/swarm_land", 10, boost::bind(land_cmd_cb, _1, drone_id));
-    ros::Subscriber vrpn_pose = nh.subscribe<geometry_msgs::PoseStamped>("/vrpn_client_node/drone_7/pose", 10, vrpn_cb);
+    
 
     arming_client = nh.serviceClient<mavros_msgs::CommandBool>("/mavros/cmd/arming");
     set_mode_client = nh.serviceClient<mavros_msgs::SetMode>("/mavros/set_mode");
-    vision_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", 10);
 
-    local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>("/mavros/setpoint_position/local", 10);
-    local_accel_pub = nh.advertise<mavros_msgs::PositionTarget>("/mavros/setpoint_raw/local", 10);
     err_pub = nh.advertise<std_msgs::Float32MultiArray>("/errors", 10);
 
     ros::Rate rate(ROS_RATE);
@@ -233,9 +221,16 @@ int main(int argc, char **argv)
     pose.pose.position.x = 0;
     pose.pose.position.y = 0;
     pose.pose.position.z = TAKEOFF_HEIGHT;
+
+    geometry_msgs::Twist linear_vel_msg;
+    linear_vel_msg.linear.x = 0;
+    linear_vel_msg.linear.y = 0;
+    linear_vel_msg.linear.z = 0; 
     for (int i = 100; ros::ok() && i > 0; --i)
     {
-        local_pos_pub.publish(pose);
+        // local_position_pub.publish(pose);
+        local_linear_vel_pub.publish(linear_vel_msg);
+
         ros::spinOnce();
         rate.sleep();
     }
@@ -281,7 +276,9 @@ int main(int argc, char **argv)
                 ROS_INFO("SET ARM");
                 fsm.set_arm_flag(true);
             }
-            local_pos_pub.publish(pose);
+            local_linear_vel_pub.publish(linear_vel_msg);
+
+            // local_position_pub.publish(pose);
         }
         else if (fsm.now_state == CtrlFSM::TAKEOFF)
         {
@@ -293,16 +290,20 @@ int main(int argc, char **argv)
                 start_pose.pose.position.z = TAKEOFF_HEIGHT;
             }
             pose.pose = start_pose.pose;
-            local_pos_pub.publish(pose);
+            linear_vel_msg.linear.z = 0.5; 
+
+            local_linear_vel_pub.publish(linear_vel_msg);
+            // local_position_pub.publish(pose);
 
             if (abs(cur_pos.pose.position.z - TAKEOFF_HEIGHT) < 0.1)
             {
                 wait_count ++ ;
-                if(wait_count > 300)
-                {
+
+                // if(wait_count > 300)
+                // {
                 fsm.set_takeoff_over_flag(true);
                 ROS_INFO("Take off done");
-                }
+                // }
             }
         }
         else if (fsm.now_state == CtrlFSM::HOVER)
@@ -316,8 +317,18 @@ int main(int argc, char **argv)
                 start_pose.pose.position.z = cur_pos.pose.position.z;
                 start_pose.pose.orientation = cur_pos.pose.orientation;
             }
+            if((cur_pos.pose.position.z - start_pose.pose.position.z) < -0.2)
+                linear_vel_msg.linear.z = 0.2; 
+            else if((cur_pos.pose.position.z - start_pose.pose.position.z) > 0.2)
+                linear_vel_msg.linear.z = -0.2; 
+            else
+                linear_vel_msg.linear.z = -(cur_pos.pose.position.z - start_pose.pose.position.z); 
+
+
             pose.pose = start_pose.pose;
-            local_pos_pub.publish(pose);
+            local_linear_vel_pub.publish(linear_vel_msg);
+
+            // local_position_pub.publish(pose);
         }
         else if (fsm.now_state == CtrlFSM::RUNNING)
         {
