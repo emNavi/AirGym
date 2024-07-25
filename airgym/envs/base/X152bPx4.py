@@ -19,6 +19,23 @@ from airgym.utils.helpers import asset_class_to_AssetOptions
 from airgym.utils.rotations import quats_to_euler_angles
 import time
 
+import pytorch3d.transforms as T
+
+def quaternion_conjugate(q: torch.Tensor):
+    """Compute the conjugate of a quaternion."""
+    q_conj = q.clone()
+    q_conj[:, :3] = -q_conj[:, :3]
+    return q_conj
+
+def quaternion_multiply(q1: torch.Tensor, q2: torch.Tensor):
+    """Multiply two quaternions."""
+    x1, y1, z1, w1 = q1.unbind(-1)
+    x2, y2, z2, w2 = q2.unbind(-1)
+    x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
+    y = w1 * y2 + y1 * w2 + z1 * x2 - x1 * z2
+    z = w1 * z2 + z1 * w2 + x1 * y2 - y1 * x2
+    w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
+    return torch.stack((x, y, z, w), dim=-1)
 
 class X152bPx4(BaseTask):
 
@@ -116,6 +133,9 @@ class X152bPx4(BaseTask):
         # set target states
         self.target_states = torch.tensor(self.cfg.env.target_state, device=self.device).repeat(self.num_envs, 1)
 
+        self.prev_diff_euler = torch.zeros((self.num_envs, 3), device=self.device)
+        self.prev_euler = torch.zeros((self.num_envs, 3), device=self.device)
+
         if self.viewer:
             cam_pos_x, cam_pos_y, cam_pos_z = self.cfg.viewer.pos[0], self.cfg.viewer.pos[1], self.cfg.viewer.pos[2]
             cam_target_x, cam_target_y, cam_target_z = self.cfg.viewer.lookat[0], self.cfg.viewer.lookat[1], self.cfg.viewer.lookat[2]
@@ -183,6 +203,7 @@ class X152bPx4(BaseTask):
         print("\n\n\n\n\n ENVIRONMENT CREATED \n\n\n\n\n\n")
 
     def step(self, actions):
+        # print(actions)
         # step physics and render each frame
         for i in range(self.cfg.env.num_control_steps_per_env_step):
             self.pre_physics_step(actions)
@@ -215,24 +236,25 @@ class X152bPx4(BaseTask):
         num_resets = len(env_ids)
 
         self.root_states[env_ids] = self.initial_root_states[env_ids]
-        self.root_states[env_ids,
-                         0:3] = 2.0*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
-        # self.root_states[env_ids,
-        #                  0:2] = 2.0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0, 5.0], device=self.device).repeat(num_resets, 1)
-        # self.root_states[env_ids,
-        #                  3] = torch_one_rand_float(0., 1.5, (num_resets, 1), self.device).squeeze(-1)
-        self.root_states[env_ids,
+
+        self.root_states[env_ids, 0:2] = 2.0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device)
+        self.root_states[env_ids, 2] = torch_one_rand_float(-1., 1., (num_resets, 1), self.device).squeeze(-1)
+        
+        root_angle = torch.concatenate([1.0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device), 
+                                       torch.pi*torch_rand_float(-1.0, 1.0, (num_resets, 1), self.device)], dim=-1)
+        matrix = T.euler_angles_to_matrix(root_angle, 'XYZ')
+        root_quats = T.matrix_to_quaternion(matrix) # w,x,y,z
+        self.root_states[env_ids, 3:7] = root_quats[:, [1, 2, 3, 0]] #x,y,z,w
+        # print(self.root_states[env_ids, 3:7])
+
+        self.root_states[env_ids, 3] = 0.
+        self.root_states[env_ids, 4:6] = 0.0
+        self.root_states[env_ids, 6] = 1.
+
+        self.root_states[env_ids, 
                          7:10] = 0.5*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
         self.root_states[env_ids,
                          10:13] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
-        # self.root_states[env_ids,
-        #                  0:3] = .0*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
-        # self.root_states[env_ids,
-        #                  7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
-        # self.root_states[env_ids,
-        #                  10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
-        self.root_states[env_ids, 3:7] = 0
-        self.root_states[env_ids, 6] = 1.0
 
         self.gym.set_actor_root_state_tensor(self.sim, self.root_tensor)
         self.reset_buf[env_ids] = 1
@@ -329,15 +351,65 @@ class X152bPx4(BaseTask):
         self.gym.refresh_actor_root_state_tensor(self.sim)
 
     def compute_observations(self):
+        # self.obs_buf[..., 0] = -1.0130287408828735
+        # self.obs_buf[..., 1] = -0.006147405598312616
+        # self.obs_buf[..., 2] = 0.05992206931114197
+        # self.obs_buf[..., 3] = -0.0014389138230416116
+        # self.obs_buf[..., 4] = 0.011217022190239621
+        # self.obs_buf[..., 5] = 0.05841734435058519
+        # self.obs_buf[..., 6] = -0.9982282558148765
+        # self.obs_buf[..., 7] = -0.04550215125788786
+        # self.obs_buf[..., 8] = -0.00794410103266849
+        # self.obs_buf[..., 9] = 0.007463176664253193
+        # self.obs_buf[..., 10] = 2.848786607501097e-05
+        # self.obs_buf[..., 11] = -0.008395303040742874
+        # self.obs_buf[..., 12] = 0.006483586505055428
+
         self.obs_buf[..., :3] = self.root_positions
+
+        # 将四元数的w负值转换为正值
+        index = torch.where(self.root_quats[..., 3] < 0)[0]
+        self.root_quats[index] = -self.root_quats[index]
+
         self.obs_buf[..., 3:7] = self.root_quats
-        self.obs_buf[..., 7:10] = self.root_linvels
+        self.obs_buf[..., 7:10] = self.root_linvels #
         self.obs_buf[..., 10:13] = self.root_angvels
+
+        # root_quats = self.root_quats[:, [3, 0, 1, 2]]
+        # matrix = T.quaternion_to_matrix(root_quats)
+        # root_euler = T.matrix_to_euler_angles(matrix, 'XYZ')
+
+        # target_quats = self.target_states[:, 3:7][:, [3, 0, 1, 2]]
+        # target_matrix = T.quaternion_to_matrix(target_quats)
+        # target_euler = T.matrix_to_euler_angles(target_matrix, 'XYZ')
+
+        # diff_euler = target_euler - root_euler
+        # adjusted_euler = diff_euler.clone()
+        # for i in range(3):
+        #     adjusted_euler[..., i] = torch.where(adjusted_euler[..., i] > torch.pi, adjusted_euler[..., i] - 2 * torch.pi, adjusted_euler[..., i])
+        #     adjusted_euler[..., i] = torch.where(adjusted_euler[..., i] < -torch.pi, adjusted_euler[..., i] + 2 * torch.pi, adjusted_euler[..., i])
+        # print(adjusted_euler)
+
+        # print(self.obs_buf[..., 3:7])
         if not self.cfg.controller_test:
+            # self.obs_buf[..., :3] -= self.target_states[..., :3]
+            # self.obs_buf[..., 7:] -= self.target_states[..., 7:]
+            # target_conj = quaternion_conjugate(self.target_states[..., 3:7])
+            # self.obs_buf[..., 3:7] = quaternion_multiply(self.obs_buf[..., 3:7], target_conj)
+
+            # self.obs_buf[..., :3] -= self.target_states[..., :3]
+            # self.obs_buf[..., 7:] -= self.target_states[..., 7:]
+            # self.obs_buf[..., 3:6] = adjusted_euler
+            # self.obs_buf[..., 6] = 0.
+
             self.obs_buf -= self.target_states
+
+        # print(self.obs_buf[..., 3:7])
+        # print(self.target_states)
         return self.obs_buf
 
     def compute_reward(self):
+        # print(self.root_quats)
         self.rew_buf[:], self.reset_buf[:] ,self.item_reward_info= compute_quadcopter_reward(
             self.cmd_thrusts,
             self.root_positions,
@@ -381,25 +453,28 @@ def compute_quadcopter_reward(cmd_thrusts, root_positions, root_quats, root_linv
     # distance
     target_positions = target_states[..., 0:3]
     relative_positions = root_positions - target_positions
-    # pos_diff_h = torch.sqrt(relative_positions[..., 0] * relative_positions[..., 0] +
-    #                          relative_positions[..., 1] * relative_positions[..., 1])
-    # pos_diff_v = torch.sqrt(relative_positions[..., 2] * relative_positions[..., 2])
-    # pos_reward = 1. * (1.0 - (1/6)*pos_diff_h) + 1 * (1.0 - (1/6)*pos_diff_v)
-    pos_diff = torch.sqrt(relative_positions[..., 0] * relative_positions[..., 0] +
-                             relative_positions[..., 1] * relative_positions[..., 1] + 
-                                relative_positions[..., 2] * relative_positions[..., 2])
-    pos_reward = 2 * (1.0 - (1/6)*pos_diff)
+    pos_diff_h = torch.sqrt(relative_positions[..., 0] * relative_positions[..., 0] +
+                             relative_positions[..., 1] * relative_positions[..., 1])
+    pos_diff_v = torch.sqrt(relative_positions[..., 2] * relative_positions[..., 2])
+    pos_reward = 1.5 * (1.0 - (1/2)*pos_diff_h) + 1.0 * (1.0 - (1/6)*pos_diff_v)
 
-    # quats
-    target_quats = target_states[..., 3:7]
-    quats_relative = quat_mul(root_quats, quat_conjugate(target_quats))
-    quats_diff = torch.norm(quats_relative[..., 0:3], dim=1) + torch.sqrt((quats_relative[..., 3]-1)*(quats_relative[..., 3]-1))
-    quats_reward = 0.4 * (1 - quats_diff)
+    # pos_diff = torch.sqrt(relative_positions[..., 0] * relative_positions[..., 0] +
+    #                          relative_positions[..., 1] * relative_positions[..., 1] + 
+    #                             relative_positions[..., 2] * relative_positions[..., 2])
+    # pos_reward = 2 * (1.0 - (1/4)*pos_diff)
+
+    # yaw
+    target_quats = target_states[..., 3:7][:, [3, 0, 1, 2]]
+    target_matrix = T.quaternion_to_matrix(target_quats)
+    target_euler = T.matrix_to_euler_angles(target_matrix, 'XYZ')
+
+    root_matrix = T.quaternion_to_matrix(root_quats[:, [3, 0, 1, 2]])
+    root_euler = T.matrix_to_euler_angles(root_matrix, convention='XYZ')
+
+    yaw_diff = torch.abs(target_euler[..., 2] - root_euler[..., 2])
+    yaw_reward = 0.4 * (1 - yaw_diff)
 
     # velocity
-    # vel_diff_h = torch.norm(root_linvels[..., 0:2], dim=1)
-    # vel_diff_v = torch.abs(root_linvels[..., 2])
-    # vel_reward = 0.5 * (1-(1/6)*vel_diff_h) + 0.5 * (1-(1/6)*vel_diff_v)
     target_linvels = target_states[..., 7:10]
     relative_linvels = root_linvels - target_linvels
     vel_diff = torch.norm(relative_linvels, dim=1)
@@ -419,20 +494,24 @@ def compute_quadcopter_reward(cmd_thrusts, root_positions, root_quats, root_linv
     effort_reward = 0.4 * (1 - thrust_cmds).sum(-1)/4
 
     # combined reward
-    reward = ang_vel_reward + vel_reward + pos_reward + effort_reward + quats_reward
+    reward = ang_vel_reward + vel_reward + pos_reward + effort_reward + yaw_reward
  
-
     # resets due to misbehavior
     ones = torch.ones_like(reset_buf)
     die = torch.zeros_like(reset_buf)
 
     # resets due to episode length
     reset = torch.where(progress_buf >= max_episode_length - 1, ones, die)
-    reset = torch.where(torch.norm(relative_positions, dim=1) > 6, ones, reset)
-    reset = torch.where(torch.norm(root_linvels, dim=1) > 6.0, ones, reset)
-
-    reset = torch.where(root_positions[..., 2] < -2, ones, reset)
-    reset = torch.where(root_positions[..., 2] > 2, ones, reset)
+    
+    reset = torch.where(torch.norm(relative_positions, dim=1) > 2, ones, reset)
+    
+    reset = torch.where(torch.norm(relative_linvels, dim=1) > 5.0, ones, reset)
+    
+    reset = torch.where(relative_angvels[..., 2] > 0.5, ones, reset)
+    reset = torch.where(relative_angvels[..., 2] < -0.5, ones, reset)
+    
+    reset = torch.where(relative_positions[..., 2] < -1, ones, reset)
+    reset = torch.where(relative_positions[..., 2] > 1, ones, reset)
 
     reset = torch.where(ups[..., 2] < 0.0, ones, reset) # orient_z 小于0 = 飞行器朝下了
     
@@ -441,6 +520,7 @@ def compute_quadcopter_reward(cmd_thrusts, root_positions, root_quats, root_linv
     item_reward_info["effort_reward"] = effort_reward
     item_reward_info["pos_reward"] = pos_reward
     item_reward_info["vel_reward"] = vel_reward
+    item_reward_info["yaw_reward"] = yaw_reward
 
     return reward, reset, item_reward_info
 

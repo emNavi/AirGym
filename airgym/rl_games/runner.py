@@ -20,10 +20,11 @@ from argparse import Namespace
 
 from rl_games.common import env_configurations, vecenv
 
+from airgym.rl_games.utils.rlgames_utils import RLGPUAlgoObserver
+
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 #import warnings
 #warnings.filterwarnings("error")
-
 
 class ExtractObsWrapper(gym.Wrapper):
     def __init__(self, env):
@@ -166,7 +167,7 @@ if __name__ == '__main__':
 
         from rl_games.torch_runner import Runner
 
-        runner = Runner()
+        runner = Runner(RLGPUAlgoObserver())
         try:
             runner.load(config)
         except yaml.YAMLError as exc:
