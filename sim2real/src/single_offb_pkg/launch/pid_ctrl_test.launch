@@ -1,4 +1,0 @@
-<launch>
-    <node name = "pid_ctrl_test" pkg = "single_offb_pkg" type = "pid_ctrl" output = "screen">
-  </node>
-</launch>

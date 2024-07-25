@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>single_offb_pkg</name>
+  <name>control_for_gym</name>
   <version>0.0.0</version>
   <description>The offb_pkg package</description>
 

@@ -18,6 +18,11 @@ from std_msgs.msg import Float64MultiArray
 
 from sim2real.src.real_inference.src.utils import torch_ext
 
+FRAME_LOCAL_NED=1
+FRAME_LOCAL_OFFSET_NED=7
+FRAME_BODY_NED=8
+FRAME_BODY_OFFSET_NED=9
+
 # for PositionTarget
 IGNORE_PX=1
 IGNORE_PY=2
@@ -48,14 +53,15 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
 
         self.target_state = torch.tensor((13), device=self.device)
 
-        self.obs_sub = rospy.Subscriber('/processed_data', Float64MultiArray, self.callback)
+        self.obs_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.callback)
         self.target_sub = rospy.Subscriber('/target_state', Float64MultiArray, self._callback)
         ctl_mode = self.ctl_mode = self.env_config.get('ctl_mode')
         
         if ctl_mode == "pos":
             self.action_pub = rospy.Publisher('/airgym/cmd', PositionTarget, queue_size=2000)
         elif ctl_mode == "vel":
-            self.action_pub = rospy.Publisher('/airgym/cmd', PositionTarget, queue_size=2000)
+            # self.action_pub = rospy.Publisher('/airgym/cmd', PositionTarget, queue_size=2000)
+            self.action_pub = rospy.Publisher('/airgym/cmd', Twist, queue_size=2000)
         elif ctl_mode == "atti":
             self.action_pub = rospy.Publisher('/airgym/cmd', AttitudeTarget, queue_size=2000)
         elif ctl_mode == "rate":
@@ -99,16 +105,23 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
 
     def callback(self, data):
         # Process the incoming message
-        state = data.data
-        pose_tensor = torch.tensor([state[0], state[1], state[2]], device=self.device)
-        quat_tensor = torch.tensor([state[3], state[4], state[5], state[6]], device=self.device)
-        linvel_tensor = torch.tensor([state[7], state[8], state[9]], device=self.device)
-        angvel_tensor = torch.tensor([state[10], state[11], state[12]], device=self.device)
+        pose = data.pose.pose.position
+        quat = data.pose.pose.orientation
+        linvel = data.twist.twist.linear
+        angvel = data.twist.twist.angular
+
+        pose_tensor = torch.tensor([pose.x, pose.y, pose.z], device=self.device)
+        quat_tensor = torch.tensor([quat.x, quat.y, quat.z, quat.w], device=self.device)
+        linvel_tensor = torch.tensor([linvel.x, linvel.y, linvel.z], device=self.device)
+        angvel_tensor = torch.tensor([angvel.x, angvel.y, angvel.z], device=self.device)
+
         real_obs = torch.cat((pose_tensor, quat_tensor, linvel_tensor, angvel_tensor)).unsqueeze(0)
 
         # print(real_obs)
+        # print(self.target_state)
+        # print(real_obs - self.target_state)
         action = self.inference(real_obs - self.target_state)
-        # print(action)
+        print(action)
 
         # Create the output message
         if self.ctl_mode == "pos":
@@ -119,12 +132,27 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
             output_msg.yaw = action[3].cpu().numpy()
             output_msg.type_mask = IGNORE_VX | IGNORE_VY | IGNORE_VZ | IGNORE_AFX | IGNORE_AFY | IGNORE_AFZ | FORCE | IGNORE_YAW_RATE
         elif self.ctl_mode == "vel":
-            output_msg = PositionTarget()
-            output_msg.velocity.x = action[0].cpu().numpy()
-            output_msg.velocity.y = action[1].cpu().numpy()
-            output_msg.velocity.z = action[2].cpu().numpy()
-            output_msg.yaw = action[3].cpu().numpy()
-            output_msg.type_mask = IGNORE_PX | IGNORE_PY | IGNORE_PZ | IGNORE_AFX | IGNORE_AFY | IGNORE_AFZ | FORCE | IGNORE_YAW_RATE
+            # output_msg = PositionTarget()
+            # output_msg.coordinate_frame = FRAME_LOCAL_NED
+            # # output_msg.velocity.x = action[0].cpu().numpy()
+            # # output_msg.velocity.y = action[1].cpu().numpy()
+            # # output_msg.velocity.z = action[2].cpu().numpy()
+            # # output_msg.yaw = action[3].cpu().numpy()
+            # output_msg.velocity.x = 0
+            # output_msg.velocity.y = -0.1
+            # output_msg.velocity.z = 1
+            # output_msg.yaw = 0
+            # output_msg.type_mask = IGNORE_PX | IGNORE_PY | IGNORE_PZ | IGNORE_AFX | IGNORE_AFY | IGNORE_AFZ | FORCE | IGNORE_YAW_RATE
+
+            output_msg = Twist()
+            # output_msg.twist.linear.x = action[0].cpu().numpy()
+            # output_msg.twist.linear.y = action[1].cpu().numpy()
+            # output_msg.twist.linear.z = action[2].cpu().numpy()
+
+            output_msg.linear.x = 0
+            output_msg.linear.y = 0
+            output_msg.linear.z = -0.5
+            
         elif self.ctl_mode == "atti": # body_rate stores angular
             output_msg = AttitudeTarget()
             output_msg.body_rate.x = action[0].cpu().numpy()

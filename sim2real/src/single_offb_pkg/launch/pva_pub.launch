@@ -1,8 +1,0 @@
-<launch>
-    <arg name = "drone_id" default = "1"/>
-    <node name = "pub_pva" pkg = "single_offb_pkg" type = "pub_pva" output = "screen">
-        <remap from="~pos_cmd" to="/drone_$(arg drone_id)_planning/pos_cmd"/>
-        <param name ="drone_id" value="$(arg drone_id)"/>
-    </node>
-
-</launch>

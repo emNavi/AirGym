@@ -11,3 +11,5 @@ build
 devel
 logs
 .catkin_tools
+*.bag
+*.bag.active

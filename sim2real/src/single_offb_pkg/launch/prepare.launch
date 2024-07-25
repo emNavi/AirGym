@@ -1,7 +1,0 @@
-<launch>
-    <arg name = "drone_id" default = "1"/>
-    <node name = "swarm_single_node" pkg = "single_offb_pkg" type = "mp_ctrl" output = "screen">
-        <remap from="~pos_cmd" to="/drone_$(arg drone_id)_planning/pos_cmd"/>
-        <param name ="drone_id" value="$(arg drone_id)"/>
-    </node>
-</launch>
