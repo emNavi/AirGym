@@ -88,9 +88,9 @@ class X152bPx4(BaseTask):
             self.parallel_pos_control = ParallelPosControl(self.num_envs)
         elif(cfg.env.ctl_mode == "vel"):
             self.action_upper_limits = torch.tensor(
-                [6, 6, 6, 1], device=self.device, dtype=torch.float32)
+                [6, 6, 6, 6], device=self.device, dtype=torch.float32)
             self.action_lower_limits = torch.tensor(
-                [-6, -6, -6, -1], device=self.device, dtype=torch.float32)
+                [-6, -6, -6, -6], device=self.device, dtype=torch.float32)
             self.parallel_vel_control = ParallelVelControl(self.num_envs)
 
         elif(cfg.env.ctl_mode == "atti"):
@@ -240,11 +240,11 @@ class X152bPx4(BaseTask):
 
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
-        self.root_states[env_ids, 0:2] = 2.0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device)
-        self.root_states[env_ids, 2] = torch_one_rand_float(-1., 1., (num_resets, 1), self.device).squeeze(-1)
+        self.root_states[env_ids, 0:2] = 2.0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) # 2.0
+        self.root_states[env_ids, 2] = 2.0*torch_one_rand_float(-1., 1., (num_resets, 1), self.device).squeeze(-1) # 1
         
-        root_angle = torch.concatenate([.1*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), 
-                                       0.2*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1)
+        root_angle = torch.concatenate([.1*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .1
+                                       0.2*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2
         matrix = T.euler_angles_to_matrix(root_angle, 'XYZ')
         root_quats = T.matrix_to_quaternion(matrix) # w,x,y,z
         self.root_states[env_ids, 3:7] = root_quats[:, [1, 2, 3, 0]] #x,y,z,w
@@ -255,9 +255,9 @@ class X152bPx4(BaseTask):
         # self.root_states[env_ids, 6] = 1.
 
         self.root_states[env_ids, 
-                         7:10] = 0.5*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
+                         7:10] = 0.5*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.5
         self.root_states[env_ids,
-                         10:13] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device)
+                         10:13] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.2
 
         self.gym.set_actor_root_state_tensor(self.sim, self.root_tensor)
         self.reset_buf[env_ids] = 1
@@ -335,7 +335,7 @@ class X152bPx4(BaseTask):
         # # clear actions for reset envs
         self.thrusts[reset_env_ids] = 0
         # # spin spinning rotors
-        prop_rot = ((self.cmd_thrusts**2)*0.2).to('cuda')
+        prop_rot = ((self.cmd_thrusts)*0.2).to('cuda')
 
         # prop_rot = self.thrust_cmds_damp * self.prop_max_rot
         self.torques[:, 1, 2] = -prop_rot[:, 0]
@@ -414,7 +414,7 @@ class X152bPx4(BaseTask):
         self.int_pos_error[..., 1:] = self.int_pos_error[..., :-1]
         self.int_pos_error[..., 0] = pos_diff_h + pos_diff_v
 
-        pos_reward = 1.5 * (1.0 - (1/3)*pos_diff_h) + 1 * (1.0 - (1/6)*pos_diff_v) 
+        pos_reward = 1.3 * (1.0 - (1/3)*pos_diff_h) + 1 * (1.0 - (1/6)*pos_diff_v) 
         pos_error_reward = - 0.1 * self.int_pos_error.sum(-1)
         pos_reward += pos_error_reward
 
@@ -463,15 +463,15 @@ class X152bPx4(BaseTask):
         # resets due to episode length
         reset = torch.where(progress_buf >= max_episode_length - 1, ones, die)
         
-        reset = torch.where(torch.norm(relative_positions, dim=1) > 2, ones, reset)
+        reset = torch.where(torch.norm(relative_positions, dim=1) > 4, ones, reset)
         
-        reset = torch.where(torch.norm(relative_linvels, dim=1) > 5.0, ones, reset)
+        reset = torch.where(torch.norm(relative_linvels, dim=1) > 6.0, ones, reset)
         
-        reset = torch.where(relative_angvels[..., 2] > 0.5, ones, reset)
-        reset = torch.where(relative_angvels[..., 2] < -0.5, ones, reset)
+        reset = torch.where(relative_angvels[..., 2] > 17.5, ones, reset)
+        reset = torch.where(relative_angvels[..., 2] < -17.5, ones, reset)
         
-        reset = torch.where(relative_positions[..., 2] < -1, ones, reset)
-        reset = torch.where(relative_positions[..., 2] > 1, ones, reset)
+        reset = torch.where(relative_positions[..., 2] < -2, ones, reset)
+        reset = torch.where(relative_positions[..., 2] > 2, ones, reset)
 
         reset = torch.where(ups[..., 2] < 0.0, ones, reset) # orient_z 小于0 = 飞行器朝下了
         
