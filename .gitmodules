@@ -1,0 +1,3 @@
+[submodule "sim2real/src/control_for_gym"]
+	path = sim2real/src/control_for_gym
+	url = https://github.com/emNavi/control_for_gym.git
