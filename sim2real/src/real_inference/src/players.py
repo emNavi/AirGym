@@ -43,6 +43,28 @@ IGNORE_YAW_RATE_=4
 IGNORE_THRUST=64
 IGNORE_ATTITUDE=128
 
+def quaternion_to_matrix(quat: torch.Tensor):
+    """Convert a quaternion to a rotation matrix.
+    
+    Args:
+        quat (Tensor): a tensor of shape (4,) representing the quaternion (w, x, y, z).
+    
+    Returns:
+        Tensor: a tensor of shape (3, 3) representing the rotation matrix.
+    """
+    w, x, y, z = quat
+    xx, yy, zz = x * x, y * y, z * z
+    xy, xz, yz = x * y, x * z, y * z
+    wx, wy, wz = w * x, w * y, w * z
+    
+    matrix = torch.tensor([
+        [1 - 2 * (yy + zz), 2 * (xy - wz), 2 * (xz + wy)],
+        [2 * (xy + wz), 1 - 2 * (xx + zz), 2 * (yz - wx)],
+        [2 * (xz - wy), 2 * (yz + wx), 1 - 2 * (xx + yy)]
+    ], device=quat.device)
+    
+    return matrix
+
 class CpuPlayerContinuous(PpoPlayerContinuous):
     def __init__(self, params):
         super().__init__(params)
@@ -51,7 +73,7 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
         # initialize
         rospy.init_node('onboard_computing_node', anonymous=True)
 
-        self.target_state = torch.tensor((13), device=self.device)
+        self.target_state = torch.zeros((18), device=self.device)
 
         self.obs_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.callback)
         self.target_sub = rospy.Subscriber('/target_state', Float64MultiArray, self._callback)
@@ -115,7 +137,12 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
         linvel_tensor = torch.tensor([linvel.x, linvel.y, linvel.z], device=self.device)
         angvel_tensor = torch.tensor([angvel.x, angvel.y, angvel.z], device=self.device)
 
-        real_obs = torch.cat((pose_tensor, quat_tensor, linvel_tensor, angvel_tensor)).unsqueeze(0)
+        root_matrix = quaternion_to_matrix(quat_tensor[[3, 0, 1, 2]]).flatten()
+        # print(quat_tensor)
+        # print(root_matrix)
+        assert root_matrix.shape[0] == 9
+
+        real_obs = torch.cat((root_matrix, pose_tensor, linvel_tensor, angvel_tensor)).unsqueeze(0)
 
         # print(real_obs)
         # print(self.target_state)
@@ -145,13 +172,13 @@ class CpuPlayerContinuous(PpoPlayerContinuous):
             # output_msg.type_mask = IGNORE_PX | IGNORE_PY | IGNORE_PZ | IGNORE_AFX | IGNORE_AFY | IGNORE_AFZ | FORCE | IGNORE_YAW_RATE
 
             output_msg = Twist()
-            # output_msg.twist.linear.x = action[0].cpu().numpy()
-            # output_msg.twist.linear.y = action[1].cpu().numpy()
-            # output_msg.twist.linear.z = action[2].cpu().numpy()
+            output_msg.linear.x = action[0].cpu().numpy()
+            output_msg.linear.y = action[1].cpu().numpy()
+            output_msg.linear.z = action[2].cpu().numpy()
 
-            output_msg.linear.x = 0
-            output_msg.linear.y = 0
-            output_msg.linear.z = -0.5
+            # output_msg.linear.x = 0
+            # output_msg.linear.y = 0
+            # output_msg.linear.z = -0.5
             
         elif self.ctl_mode == "atti": # body_rate stores angular
             output_msg = AttitudeTarget()
