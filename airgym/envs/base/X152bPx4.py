@@ -21,6 +21,9 @@ import time
 
 import pytorch3d.transforms as T
 
+import rospy
+from std_msgs.msg import Float64MultiArray
+
 def quaternion_conjugate(q: torch.Tensor):
     """Compute the conjugate of a quaternion."""
     q_conj = q.clone()
@@ -133,9 +136,11 @@ class X152bPx4(BaseTask):
         # set target states
         self.target_states = torch.tensor(self.cfg.env.target_state, device=self.device).repeat(self.num_envs, 1)
 
-        self.prev_diff_euler = torch.zeros((self.num_envs, 3), device=self.device)
-        self.prev_euler = torch.zeros((self.num_envs, 3), device=self.device)
+        # actions
+        self.actions = torch.zeros((self.num_envs, self.num_actions), device=self.device)
+        self.pre_actions = torch.zeros((self.num_envs, self.num_actions), device=self.device)
 
+        # reward integration buffers
         self.int_pos_error = torch.zeros((self.num_envs, 10), device=self.device)
         self.int_yaw_error = torch.zeros((self.num_envs, 10), device=self.device)
 
@@ -147,6 +152,10 @@ class X152bPx4(BaseTask):
             cam_ref_env = self.cfg.viewer.ref_env
             
             self.gym.viewer_camera_look_at(self.viewer, None, cam_pos, cam_target)
+
+        # test actions
+        rospy.init_node('ctl_onboard', anonymous=True)
+        self.pub = rospy.Publisher('/action', Float64MultiArray, queue_size=10)
 
     def create_sim(self):
         self.sim = self.gym.create_sim(
@@ -269,6 +278,8 @@ class X152bPx4(BaseTask):
         self.int_pos_error[env_ids] = 0
         self.int_yaw_error[env_ids] = 0
 
+        self.pre_actions[env_ids] = 0
+
     def pre_physics_step(self, _actions):
         # resets
         if self.counter % 250 == 0:
@@ -282,7 +293,7 @@ class X152bPx4(BaseTask):
         self.actions = tensor_clamp(
             actions, self.action_lower_limits, self.action_upper_limits)
         actions_cpu = self.actions.cpu().numpy()
-
+        
         # tensor [n,4]
         obs_buf_cpu = self.root_states.cpu().numpy()
         root_pos_cpu = self.root_states[..., 0:3].cpu().numpy()
@@ -378,8 +389,10 @@ class X152bPx4(BaseTask):
         # print(self.root_matrix)
         self.obs_buf[..., 0:9] = self.root_matrix
         self.obs_buf[..., 9:12] = self.root_positions
-        self.obs_buf[..., 12:15] = self.root_linvels #
+        self.obs_buf[..., 12:15] = self.root_linvels
         self.obs_buf[..., 15:18] = self.root_angvels
+
+        self.add_noise()
 
         # print(self.obs_buf[..., 3:7])
         if not self.cfg.controller_test:
@@ -389,9 +402,22 @@ class X152bPx4(BaseTask):
         # print(self.target_states)
         return self.obs_buf
 
+    def add_noise(self):
+        matrix_noise = 2e-4 *torch_rand_float(-1.0, 1.0, (self.num_envs, 9), self.device)
+        pos_noise = 5e-4 *torch_rand_float(-1.0, 1.0, (self.num_envs, 3), self.device)
+        linvels_noise = 5e-3 *torch_rand_float(-1.0, 1.0, (self.num_envs, 3), self.device)
+        angvels_noise = 5e-5 *torch_rand_float(-1.0, 1.0, (self.num_envs, 3), self.device)
+
+        self.obs_buf[..., 0:9] += matrix_noise
+        self.obs_buf[..., 9:12] += pos_noise
+        self.obs_buf[..., 12:15] += linvels_noise
+        self.obs_buf[..., 15:18] += angvels_noise
+
     def compute_reward(self):
         # print(self.root_quats)
         self.rew_buf[:], self.reset_buf[:] ,self.item_reward_info= self.compute_quadcopter_reward(
+            self.actions,
+            self.pre_actions,
             self.cmd_thrusts,
             self.root_positions,
             self.root_quats,
@@ -400,10 +426,21 @@ class X152bPx4(BaseTask):
             self.reset_buf, self.progress_buf, self.max_episode_length, 
             self.target_states
         )
-
-    def compute_quadcopter_reward(self, cmd_thrusts, root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length, target_states):
-        # type: (Tensor,Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float, Tensor) -> Tuple[Tensor, Tensor,Dict[str, Tensor]]
+        action_data = Float64MultiArray()
+        action_data.data = [self.actions[0,0].item(),self.actions[0,1].item(),self.actions[0,2].item(),self.actions[0,3].item()]
+        self.pub.publish(action_data)
         
+        # update prev_actions
+        self.pre_actions = self.actions.clone()
+
+    def compute_quadcopter_reward(self, actions, pre_actions, cmd_thrusts, root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length, target_states):
+        # type: (Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float, Tensor) -> Tuple[Tensor, Tensor,Dict[str, Tensor]]
+        
+        # continous action
+        action_diff = actions - pre_actions
+        continous_action_reward = -0.2 * torch.sqrt(action_diff.pow(2).sum(-1))
+        # print(continous_action_reward.shape)
+
         # distance
         target_positions = target_states[..., 9:12]
         relative_positions = root_positions - target_positions
@@ -454,7 +491,7 @@ class X152bPx4(BaseTask):
         effort_reward = 0.4 * (1 - thrust_cmds).sum(-1)/4
 
         # combined reward
-        reward = ang_vel_reward + vel_reward + pos_reward + effort_reward + yaw_reward
+        reward = continous_action_reward + ang_vel_reward + vel_reward + pos_reward + effort_reward + yaw_reward
     
         # resets due to misbehavior
         ones = torch.ones_like(reset_buf)
@@ -483,6 +520,7 @@ class X152bPx4(BaseTask):
         item_reward_info["yaw_reward"] = yaw_reward
         item_reward_info["pos_error_reward"] = pos_error_reward
         item_reward_info["yaw_error_reward"] = yaw_error_reward
+        item_reward_info["continous_action_reward"] = continous_action_reward
 
         return reward, reset, item_reward_info
 
