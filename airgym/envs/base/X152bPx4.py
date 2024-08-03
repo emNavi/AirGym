@@ -403,10 +403,10 @@ class X152bPx4(BaseTask):
         return self.obs_buf
 
     def add_noise(self):
-        matrix_noise = 2e-4 *torch_rand_float(-1.0, 1.0, (self.num_envs, 9), self.device)
-        pos_noise = 5e-4 *torch_rand_float(-1.0, 1.0, (self.num_envs, 3), self.device)
-        linvels_noise = 5e-3 *torch_rand_float(-1.0, 1.0, (self.num_envs, 3), self.device)
-        angvels_noise = 5e-5 *torch_rand_float(-1.0, 1.0, (self.num_envs, 3), self.device)
+        matrix_noise = 1e-3 *torch_normal_float((self.num_envs, 9), self.device)
+        pos_noise = 5e-3 *torch_normal_float((self.num_envs, 3), self.device)
+        linvels_noise = 2e-2 *torch_normal_float((self.num_envs, 3), self.device)
+        angvels_noise = 4e-1 *torch_normal_float((self.num_envs, 3), self.device)
 
         self.obs_buf[..., 0:9] += matrix_noise
         self.obs_buf[..., 9:12] += pos_noise
@@ -547,3 +547,8 @@ def quat_axis(q, axis=0):
     basis_vec = torch.zeros(q.shape[0], 3, device=q.device)
     basis_vec[:, axis] = 1
     return quat_rotate(q, basis_vec)
+
+@torch.jit.script
+def torch_normal_float(shape, device):
+    # type: (Tuple[int, int], str) -> Tensor
+    return torch.randn(*shape, device=device)
