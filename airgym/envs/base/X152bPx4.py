@@ -496,7 +496,7 @@ class X152bPx4(BaseTask):
         target_angvels = target_states[..., 10:13]
         relative_angvels = root_angvels - target_angvels
         ang_vel_diff = torch.norm(relative_angvels, dim=1)
-        ang_vel_reward = 0.2 * (1.0 - (1/6)*ang_vel_diff)
+        ang_vel_reward = 0.18 * (1.0 - (1/6)*ang_vel_diff)
 
         # uprightness
         ups = quat_axis(root_quats, 2)
