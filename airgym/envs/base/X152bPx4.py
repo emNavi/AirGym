@@ -156,6 +156,11 @@ class X152bPx4(BaseTask):
         # test actions
         rospy.init_node('ctl_onboard', anonymous=True)
         self.pub = rospy.Publisher('/action', Float64MultiArray, queue_size=10)
+        self.sub = rospy.Subscriber('/target_state', Float64MultiArray, self.callback)
+    
+    def callback(self, data):
+        self.target_state = torch.tensor(data.data, device=self.device)
+        self.target_states = self.target_state.repeat(self.num_envs, 1)
 
     def create_sim(self):
         self.sim = self.gym.create_sim(
@@ -443,7 +448,7 @@ class X152bPx4(BaseTask):
 
         # distance
         target_positions = target_states[..., 9:12]
-        relative_positions = root_positions - target_positions
+        relative_positions = target_positions - root_positions
         pos_diff_h = torch.sqrt(relative_positions[..., 0] * relative_positions[..., 0] +
                                 relative_positions[..., 1] * relative_positions[..., 1])
         pos_diff_v = torch.sqrt(relative_positions[..., 2] * relative_positions[..., 2])
@@ -475,7 +480,17 @@ class X152bPx4(BaseTask):
         target_linvels = target_states[..., 7:10]
         relative_linvels = root_linvels - target_linvels
         vel_diff = torch.norm(relative_linvels, dim=1)
-        vel_reward = 0.4 * (1-(1/6)*vel_diff)
+        vel_reward = 0.6 * (1-(1/6)*vel_diff)
+
+        # velocity direction
+        tar_direction = relative_positions / torch.norm(relative_positions, dim=1, keepdim=True)
+        vel_direction = root_linvels / torch.norm(root_linvels, dim=1, keepdim=True)
+        # vel_direction_diff = torch.sum(tar_direction * vel_direction, dim=1).abs()
+        # vel_direction_reward = 0.05 * vel_direction_diff
+        dot_product = (tar_direction * vel_direction).sum(dim=1)
+        angle_difference = torch.acos(dot_product.clamp(-1.0, 1.0)).abs()
+        vel_direction_error_reward = -0.3 * angle_difference / torch.pi
+        vel_reward += vel_direction_error_reward
 
         # angular velocity
         target_angvels = target_states[..., 10:13]
