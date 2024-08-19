@@ -485,8 +485,6 @@ class X152bPx4(BaseTask):
         # velocity direction
         tar_direction = relative_positions / torch.norm(relative_positions, dim=1, keepdim=True)
         vel_direction = root_linvels / torch.norm(root_linvels, dim=1, keepdim=True)
-        # vel_direction_diff = torch.sum(tar_direction * vel_direction, dim=1).abs()
-        # vel_direction_reward = 0.05 * vel_direction_diff
         dot_product = (tar_direction * vel_direction).sum(dim=1)
         angle_difference = torch.acos(dot_product.clamp(-1.0, 1.0)).abs()
         vel_direction_error_reward = -0.3 * angle_difference / torch.pi
