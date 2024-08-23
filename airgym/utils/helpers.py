@@ -2,8 +2,8 @@ try:
     from isaacgym import gymapi
     print("isaacgym imported successful.")
 except ImportError:
-    print("isaacgym cannot be imported. Trying to import from sim2real.")
-    from sim2real.src.real_inference.src.utils import gymapi
+    print("isaacgym cannot be imported. Trying to import from gym_utils.")
+    from airgym.utils.gym_utils import gymapi
     print("gymutil imported successful from sim2real.")
 
 
@@ -11,8 +11,8 @@ try:
     from isaacgym import gymutil
     print("isaacgym imported successful.")
 except ImportError:
-    print("isaacgym cannot be imported. Trying to import from sim2real.")
-    from sim2real.src.real_inference.src.utils import gymutil
+    print("isaacgym cannot be imported. Trying to import from gym_utils.")
+    from airgym.utils.gym_utils import gymutil
     print("gymutil imported successful from sim2real.")
 
 

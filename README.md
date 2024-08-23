@@ -1,7 +1,7 @@
 # AirGym
 > This project is inspired by Aerial Gym Simulator but greatly improves it. 
 
-This project provides a super realistic dynamics and RL framework for Sim2Real tasks of quadcopter.
+This project provides a realistic dynamics and RL framework for Sim2Real tasks of quadcopter. Drones can be trained in AirGym and then transferred to reality.
 
 ## Requirements
 1. Ubuntu 20.04 or 22.04
@@ -79,10 +79,3 @@ We train the model by rl-games==1.6.1.
 python airgym/rl_games/runner.py --headless
 ```
 Algorithm related parameters can be edited in `.yaml` files. Environment and simulator related parameters are located in ENV_config files like `X152bPx4_config.py`.
-
-## Sim2Real
-We provide a zeroshot sim2real example on velocity control level:
-For better display on ground station, run the code below, where we launch a virtual display ROS node that subscribes the Odometry rostopic from the reality and visualizes the drone inside the simulator.
-```bash
-python sim2real/src/real_inference/real_runner.py --ctl_mode vel
-```
