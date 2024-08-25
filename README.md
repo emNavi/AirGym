@@ -64,18 +64,27 @@ This project provides a realistic dynamics and RL framework for Sim2Real tasks o
 git clone git@github.com:FP-Flight/AirGym.git
 cd AirGym/
 pip install -e .
-
 ```
 ### 4. Test the installation
-1. Run the example script:
-    ```bash
-    cd airgym/scripts
-    python example.py --controller_test
-    ```
-
-## Training
-We train the model by rl-games==1.6.1. 
+Run the example script:
 ```bash
-python airgym/rl_games/runner.py --headless
+cd airgym/scripts
+python example.py --controller_test
+```
+
+## Training and Displaying
+We train the model by rl-games==1.6.1. 
+
+Training:
+```bash
+cd airgym/rl_games/
+python runner.py --headless
 ```
 Algorithm related parameters can be edited in `.yaml` files. Environment and simulator related parameters are located in ENV_config files like `X152bPx4_config.py`.
+
+Displaying:
+```bash
+cd airgym/rl_games/
+python runner.py --play --num_envs 64 --checkpoint <path-to-ckpt>
+```
+
