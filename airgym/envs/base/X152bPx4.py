@@ -24,6 +24,40 @@ import pytorch3d.transforms as T
 import rospy
 from std_msgs.msg import Float64MultiArray
 
+##---- parameters for outter loop (vel/pos) training ----##
+# C = 0.2              # for continous actions
+# P1 = 1.3             # for horizental position
+# P2 = 3               # for horizental position accuracy
+# P3 = 1               # for vertical position
+# P4 = 6               # for vertical position accuracy
+# P5 = 0.1             # for position error
+# V1 = 0.6             # for velocity
+# V2 = 6               # for velocity accuracy
+# V3 = 0.3             # for velocity direction
+# Y1 = 1             # for yaw
+# Y2 = 3             # for yaw error
+# Y3 = 0.1             # for yaw error
+# A1 = 0.18            # for rate
+# A2 = 6               # for rate accuracy
+# E = 0.4              # for energy consumption
+
+##---- parameters for inner loop (atti/rate/prop) training ----##
+C = 0.4              # for continous actions
+P1 = 1             # for horizental position
+P2 = 3               # for horizental position accuracy
+P3 = 1               # for vertical position
+P4 = 6               # for vertical position accuracy
+P5 = 0.1             # for position error
+V1 = 1             # for velocity
+V2 = 6               # for velocity accuracy
+V3 = 0.3             # for velocity direction
+Y1 = 1             # for yaw
+Y2 = 3             # for yaw accuracy
+Y3 = 0.             # for yaw error
+A1 = 1            # for rate
+A2 = 6               # for rate accuracy
+E = 0.4              # for energy consumption
+
 def quaternion_conjugate(q: torch.Tensor):
     """Compute the conjugate of a quaternion."""
     q_conj = q.clone()
@@ -153,14 +187,14 @@ class X152bPx4(BaseTask):
             
             self.gym.viewer_camera_look_at(self.viewer, None, cam_pos, cam_target)
 
-        # test actions
-        rospy.init_node('ctl_onboard', anonymous=True)
-        self.pub = rospy.Publisher('/action', Float64MultiArray, queue_size=10)
-        self.sub = rospy.Subscriber('/target_state', Float64MultiArray, self.callback)
+    #     # test ros actions
+    #     rospy.init_node('ctl_onboard', anonymous=True)
+    #     self.pub = rospy.Publisher('/action', Float64MultiArray, queue_size=10)
+    #     self.sub = rospy.Subscriber('/target_state', Float64MultiArray, self.callback)
     
-    def callback(self, data):
-        self.target_state = torch.tensor(data.data, device=self.device)
-        self.target_states = self.target_state.repeat(self.num_envs, 1)
+    # def callback(self, data):
+    #     self.target_state = torch.tensor(data.data, device=self.device)
+    #     self.target_states = self.target_state.repeat(self.num_envs, 1)
 
     def create_sim(self):
         self.sim = self.gym.create_sim(
@@ -361,7 +395,6 @@ class X152bPx4(BaseTask):
 
         self.forces[:, 1:5] = self.thrusts
 
-
         # apply actions
         self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
             self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.LOCAL_SPACE)
@@ -374,22 +407,6 @@ class X152bPx4(BaseTask):
         self.gym.refresh_actor_root_state_tensor(self.sim)
 
     def compute_observations(self):
-        # self.obs_buf[..., 0] = -0.019027119502425194
-        # self.obs_buf[..., 1] = -0.009831390343606472
-        # self.obs_buf[..., 2] = 0.06992348283529282
-        # self.obs_buf[..., 3] = -0.0057907135675935905
-        # self.obs_buf[..., 4] = 0.0016978291574337367
-        # self.obs_buf[..., 5] = 0.07463081550424097
-        # self.obs_buf[..., 6] = -0.997193044921752
-        # self.obs_buf[..., 7] = -0.04756513336404701
-        # self.obs_buf[..., 8] = -0.009666433534773386
-        # self.obs_buf[..., 9] = 0.004578271209325854
-        # self.obs_buf[..., 10] = -0.001617702073417604
-        # self.obs_buf[..., 11] = 0.0001745453191688284
-        # self.obs_buf[..., 12] = -0.00017289903189521286
-        # index = torch.where(self.obs_buf[..., 6] < 0)[0]
-        # self.obs_buf[index, 3:7] = -self.obs_buf[index, 3:7]
-
         self.root_matrix = T.quaternion_to_matrix(self.root_quats[:, [3, 0, 1, 2]]).reshape(self.num_envs, 9)
         # print(self.root_matrix)
         self.obs_buf[..., 0:9] = self.root_matrix
@@ -433,9 +450,9 @@ class X152bPx4(BaseTask):
         )
         action_data = Float64MultiArray()
         action_data.data = [self.actions[0,0].item(),self.actions[0,1].item(),self.actions[0,2].item(),self.actions[0,3].item()]
-        self.pub.publish(action_data)
+        # self.pub.publish(action_data)
         
-        # update prev_actions
+        # update prev 
         self.pre_actions = self.actions.clone()
 
     def compute_quadcopter_reward(self, actions, pre_actions, cmd_thrusts, root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length, target_states):
@@ -443,7 +460,7 @@ class X152bPx4(BaseTask):
         
         # continous action
         action_diff = actions - pre_actions
-        continous_action_reward = -0.2 * torch.sqrt(action_diff.pow(2).sum(-1))
+        continous_action_reward = - C * torch.sqrt(action_diff.pow(2).sum(-1))
         # print(continous_action_reward.shape)
 
         # distance
@@ -456,9 +473,23 @@ class X152bPx4(BaseTask):
         self.int_pos_error[..., 1:] = self.int_pos_error[..., :-1]
         self.int_pos_error[..., 0] = pos_diff_h + pos_diff_v
 
-        pos_reward = 1.3 * (1.0 - (1/3)*pos_diff_h) + 1 * (1.0 - (1/6)*pos_diff_v) 
-        pos_error_reward = - 0.1 * self.int_pos_error.sum(-1)
-        pos_reward += pos_error_reward
+        pos_reward = P1 * (1.0 - 1/P2*pos_diff_h) + P3 * (1.0 - 1/P4*pos_diff_v) 
+        pos_error_reward = - P5 * self.int_pos_error.sum(-1)
+        _pos_reward = pos_reward + pos_error_reward
+
+        # velocity
+        target_linvels = target_states[..., 12:15]
+        relative_linvels = root_linvels - target_linvels
+        vel_diff = torch.norm(relative_linvels, dim=1)
+        vel_reward = V1 * (1-(1/V2)*vel_diff)
+
+        # velocity direction
+        tar_direction = relative_positions / torch.norm(relative_positions, dim=1, keepdim=True)
+        vel_direction = root_linvels / torch.norm(root_linvels, dim=1, keepdim=True)
+        dot_product = (tar_direction * vel_direction).sum(dim=1)
+        angle_difference = torch.acos(dot_product.clamp(-1.0, 1.0)).abs()
+        vel_direction_error_reward = - V3 * angle_difference / torch.pi
+        vel_reward += vel_direction_error_reward
 
         # yaw
         target_matrix = target_states[..., 0:9].reshape(self.num_envs, 3,3)
@@ -468,43 +499,28 @@ class X152bPx4(BaseTask):
         root_euler = T.matrix_to_euler_angles(root_matrix, convention='XYZ')
 
         yaw_diff = torch.abs(target_euler[..., 2] - root_euler[..., 2])
-        yaw_reward = 0.4 * (1 - yaw_diff)
+        yaw_reward = Y1 * (1. - (1./Y2)*yaw_diff)
 
         self.int_yaw_error[..., 1:] = self.int_yaw_error[..., :-1]
         self.int_yaw_error[..., 0] = yaw_diff[..., 2]
-
-        yaw_error_reward = - 0.1 * self.int_yaw_error.sum(-1)
-        yaw_reward += yaw_error_reward
-
-        # velocity
-        target_linvels = target_states[..., 7:10]
-        relative_linvels = root_linvels - target_linvels
-        vel_diff = torch.norm(relative_linvels, dim=1)
-        vel_reward = 0.6 * (1-(1/6)*vel_diff)
-
-        # velocity direction
-        tar_direction = relative_positions / torch.norm(relative_positions, dim=1, keepdim=True)
-        vel_direction = root_linvels / torch.norm(root_linvels, dim=1, keepdim=True)
-        dot_product = (tar_direction * vel_direction).sum(dim=1)
-        angle_difference = torch.acos(dot_product.clamp(-1.0, 1.0)).abs()
-        vel_direction_error_reward = -0.3 * angle_difference / torch.pi
-        vel_reward += vel_direction_error_reward
+        yaw_error_reward = - Y3 * self.int_yaw_error.sum(-1)
+        _yaw_reward = yaw_reward + yaw_error_reward
 
         # angular velocity
-        target_angvels = target_states[..., 10:13]
+        target_angvels = target_states[..., 15:18]
         relative_angvels = root_angvels - target_angvels
-        ang_vel_diff = torch.norm(relative_angvels, dim=1)
-        ang_vel_reward = 0.18 * (1.0 - (1/6)*ang_vel_diff)
+        angvel_diff = torch.norm(relative_angvels, dim=1)
+        angvel_reward = A1 * (1.0 - (1/A2)*angvel_diff)
 
         # uprightness
         ups = quat_axis(root_quats, 2)
 
         # effort reward
         thrust_cmds = torch.clamp(cmd_thrusts, min=0.0, max=1.0).to('cuda')
-        effort_reward = 0.4 * (1 - thrust_cmds).sum(-1)/4
+        effort_reward = E * (1 - thrust_cmds).sum(-1)/4
 
         # combined reward
-        reward = continous_action_reward + ang_vel_reward + vel_reward + pos_reward + effort_reward + yaw_reward
+        reward = continous_action_reward + angvel_reward + vel_reward + _pos_reward + effort_reward + _yaw_reward
     
         # resets due to misbehavior
         ones = torch.ones_like(reset_buf)
@@ -526,7 +542,7 @@ class X152bPx4(BaseTask):
         reset = torch.where(ups[..., 2] < 0.0, ones, reset) # orient_z 小于0 = 飞行器朝下了
         
         item_reward_info = {}
-        item_reward_info["ang_vel_reward"] = ang_vel_reward
+        item_reward_info["angvel_reward"] = angvel_reward
         item_reward_info["effort_reward"] = effort_reward
         item_reward_info["pos_reward"] = pos_reward
         item_reward_info["vel_reward"] = vel_reward

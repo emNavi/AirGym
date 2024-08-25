@@ -15,7 +15,8 @@ def target_pub():
 
     # Set target state
     state = Float64MultiArray()
-    state.data = [0,0,0,0,0,0,0,0,0,1,0,  1,0,0,0,0,0,0]
+    # matrix(0-9);pos(9-12);vel(12-15);rate(15-18)
+    state.data = [1,0,0,0,1,0,0,0,1,1,0,  1,0,0,0,0,0,0]
     
     # Publish the message
     while not rospy.is_shutdown():
