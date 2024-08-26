@@ -25,38 +25,38 @@ import rospy
 from std_msgs.msg import Float64MultiArray
 
 ##---- parameters for outter loop (vel/pos) training ----##
-# C = 0.2              # for continous actions
-# P1 = 1.3             # for horizental position
-# P2 = 3               # for horizental position accuracy
-# P3 = 1               # for vertical position
-# P4 = 6               # for vertical position accuracy
-# P5 = 0.1             # for position error
-# V1 = 0.6             # for velocity
-# V2 = 6               # for velocity accuracy
-# V3 = 0.3             # for velocity direction
-# Y1 = 1             # for yaw
-# Y2 = 3             # for yaw error
-# Y3 = 0.1             # for yaw error
-# A1 = 0.18            # for rate
-# A2 = 6               # for rate accuracy
-# E = 0.4              # for energy consumption
-
-##---- parameters for inner loop (atti/rate/prop) training ----##
-C = 0.4              # for continous actions
-P1 = 1             # for horizental position
+C = 0.2              # for continous actions
+P1 = 1.3             # for horizental position
 P2 = 3               # for horizental position accuracy
 P3 = 1               # for vertical position
 P4 = 6               # for vertical position accuracy
 P5 = 0.1             # for position error
-V1 = 1             # for velocity
+V1 = 0.6             # for velocity
 V2 = 6               # for velocity accuracy
 V3 = 0.3             # for velocity direction
 Y1 = 1             # for yaw
-Y2 = 3             # for yaw accuracy
-Y3 = 0.             # for yaw error
-A1 = 1            # for rate
+Y2 = 3             # for yaw error
+Y3 = 0.1             # for yaw error
+A1 = 0.18            # for rate
 A2 = 6               # for rate accuracy
 E = 0.4              # for energy consumption
+
+##---- parameters for inner loop (atti/rate/prop) training ----##
+# C = 0.2              # for continous actions
+# P1 = 1             # for horizental position
+# P2 = 3               # for horizental position accuracy
+# P3 = 1               # for vertical position
+# P4 = 6               # for vertical position accuracy
+# P5 = 0.1             # for position error
+# V1 = 1             # for velocity
+# V2 = 6               # for velocity accuracy
+# V3 = 0.3             # for velocity direction
+# Y1 = 1             # for yaw
+# Y2 = 3             # for yaw accuracy
+# Y3 = 0.             # for yaw error
+# A1 = 0.2            # for rate
+# A2 = 6               # for rate accuracy
+# E = 0.4              # for energy consumption
 
 def quaternion_conjugate(q: torch.Tensor):
     """Compute the conjugate of a quaternion."""
@@ -131,10 +131,12 @@ class X152bPx4(BaseTask):
             self.parallel_vel_control = ParallelVelControl(self.num_envs)
 
         elif(cfg.env.ctl_mode == "atti"):
-            self.action_upper_limits = torch.tensor(
-            [1, 1, 1, 1.0], device=self.device, dtype=torch.float32)
-            self.action_lower_limits = torch.tensor(
-            [-1, -1, -1, 0.0], device=self.device, dtype=torch.float32)
+            # self.action_upper_limits = torch.tensor(
+            # [1, 1, 1, 1.0], device=self.device, dtype=torch.float32)
+            # self.action_lower_limits = torch.tensor(
+            # [-1, -1, -1, 0.0], device=self.device, dtype=torch.float32)
+            self.action_upper_limits = torch.ones((self.num_actions), device=self.device, dtype=torch.float32)
+            self.action_lower_limits = -torch.ones((self.num_actions), device=self.device, dtype=torch.float32)
             self.parallel_atti_control = ParallelAttiControl(self.num_envs)
         elif(cfg.env.ctl_mode == "rate"):
             self.action_upper_limits = torch.tensor(
@@ -331,7 +333,13 @@ class X152bPx4(BaseTask):
         actions = _actions.to(self.device)
         self.actions = tensor_clamp(
             actions, self.action_lower_limits, self.action_upper_limits)
-        actions_cpu = self.actions.cpu().numpy()
+        if self.ctl_mode == "atti":
+            actions_matrix = torch.reshape(self.actions, (self.num_envs, 3, 3))
+            actions_q = T.matrix_to_quaternion(actions_matrix)
+            actions_q = torch.where((actions_q[..., 0] < 0).unsqueeze(1), -actions_q, actions_q)
+            actions_cpu = actions_q.cpu().numpy()
+        else:
+            actions_cpu = self.actions.cpu().numpy()
         
         # tensor [n,4]
         obs_buf_cpu = self.root_states.cpu().numpy()
