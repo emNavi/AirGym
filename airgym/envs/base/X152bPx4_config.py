@@ -8,12 +8,12 @@ class X152bPx4Cfg(BaseConfig):
     seed = 1
     controller_test = False
     class env:
-        ctl_mode = "pos"
+        ctl_mode = "vel"
         target_state = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]) 
         num_envs = 256
         num_observations = 18
         get_privileged_obs = False # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned
-        num_actions = 4 # 9 for attitude
+        num_actions = 4 # 5 for attitude
         env_spacing = 1
         episode_length_s = 24 # episode length in seconds
         num_control_steps_per_env_step = 1 # number of physics steps per env step
