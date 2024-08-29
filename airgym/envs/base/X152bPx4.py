@@ -25,24 +25,7 @@ import rospy
 from std_msgs.msg import Float64MultiArray
 
 ##---- parameters for outter loop (vel/pos) training ----##
-C = 1              # for continous actions
-P1 = 1.3             # for horizental position
-P2 = 3               # for horizental position accuracy
-P3 = 1               # for vertical position
-P4 = 6               # for vertical position accuracy
-P5 = 0.1             # for position error
-V1 = 0.6             # for velocity
-V2 = 6               # for velocity accuracy
-V3 = 0.3             # for velocity direction
-Y1 = 1             # for yaw
-Y2 = 3             # for yaw error
-Y3 = 0.1             # for yaw error
-A1 = 0.18            # for rate
-A2 = 6               # for rate accuracy
-E = 0.4              # for energy consumption
-
-##---- parameters for inner loop (atti/rate/prop) training ----##
-# C = 0.2              # for continous actions
+# C = 1                # for continous actions
 # P1 = 1.3             # for horizental position
 # P2 = 3               # for horizental position accuracy
 # P3 = 1               # for vertical position
@@ -51,12 +34,31 @@ E = 0.4              # for energy consumption
 # V1 = 0.6             # for velocity
 # V2 = 6               # for velocity accuracy
 # V3 = 0.3             # for velocity direction
-# Y1 = 1             # for yaw
-# Y2 = 3             # for yaw error
+# Y1 = 1               # for yaw
+# Y2 = 3               # for yaw error
 # Y3 = 0.1             # for yaw error
 # A1 = 0.18            # for rate
 # A2 = 6               # for rate accuracy
 # E = 0.4              # for energy consumption
+
+##---- parameters for inner loop (atti/rate/prop) training ----##
+C1 = 1                # for continous actions
+C2 = 2                # for continous thrust
+TH = 1                # for thrust to overcome gravity
+P1 = 1.3             # for horizental position
+P2 = 3               # for horizental position accuracy
+P3 = 1               # for vertical position
+P4 = 6               # for vertical position accuracy
+P5 = 0.1             # for position error
+V1 = 0.6             # for velocity
+V2 = 4               # for velocity accuracy
+V3 = 0.3             # for velocity direction
+Y1 = 1               # for yaw
+Y2 = 6               # for yaw accuracy
+Y3 = 0.05             # for yaw error
+A1 = 1               # for rate
+A2 = 6               # for rate accuracy
+E = 0.4              # for energy consumption
 
 def quaternion_conjugate(q: torch.Tensor):
     """Compute the conjugate of a quaternion."""
@@ -132,17 +134,18 @@ class X152bPx4(BaseTask):
 
         elif(cfg.env.ctl_mode == "atti"):
             self.action_upper_limits = torch.tensor(
-            [1, 1, 1, 1, 1.0], device=self.device, dtype=torch.float32)
+            [1, 1, 1, 1, 1], device=self.device, dtype=torch.float32)
             self.action_lower_limits = torch.tensor(
-            [-1, -1, -1, 0., 0.0], device=self.device, dtype=torch.float32)
+            [-1, -1, -1, 0., 0.], device=self.device, dtype=torch.float32)
             # self.action_upper_limits = torch.ones((self.num_actions), device=self.device, dtype=torch.float32)
             # self.action_lower_limits = -torch.ones((self.num_actions), device=self.device, dtype=torch.float32)
+            # self.action_lower_limits[-1] = 0.
             self.parallel_atti_control = ParallelAttiControl(self.num_envs)
         elif(cfg.env.ctl_mode == "rate"):
             self.action_upper_limits = torch.tensor(
-                [8, 8, 8, 1], device=self.device, dtype=torch.float32)
+                [6, 6, 6, 1], device=self.device, dtype=torch.float32)
             self.action_lower_limits = torch.tensor(
-                [-8, -8, -8, 0], device=self.device, dtype=torch.float32)
+                [-6, -6, -6, 0], device=self.device, dtype=torch.float32)
             self.parallel_rate_control = ParallelRateControl(self.num_envs)
         elif(cfg.env.ctl_mode == "prop"):
             self.action_upper_limits = torch.tensor(
@@ -291,23 +294,16 @@ class X152bPx4(BaseTask):
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
         self.root_states[env_ids, 0:2] = 2.0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) # 2.0
-        self.root_states[env_ids, 2] = 2.0*torch_one_rand_float(-1., 1., (num_resets, 1), self.device).squeeze(-1) # 1
+        self.root_states[env_ids, 2] = 2.0*torch_one_rand_float(-1., 1., (num_resets, 1), self.device).squeeze(-1) # 2
         
         root_angle = torch.concatenate([.1*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .1
                                        0.2*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2
         matrix = T.euler_angles_to_matrix(root_angle, 'XYZ')
         root_quats = T.matrix_to_quaternion(matrix) # w,x,y,z
         self.root_states[env_ids, 3:7] = root_quats[:, [1, 2, 3, 0]] #x,y,z,w
-        # print(self.root_states[env_ids, 3:7])
 
-        # self.root_states[env_ids, 3] = 0.
-        # self.root_states[env_ids, 4:6] = 0.0
-        # self.root_states[env_ids, 6] = 1.
-
-        self.root_states[env_ids, 
-                         7:10] = 0.5*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.5
-        self.root_states[env_ids,
-                         10:13] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.2
+        self.root_states[env_ids, 7:10] = 0.5*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.5
+        self.root_states[env_ids, 10:13] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.2
 
         self.gym.set_actor_root_state_tensor(self.sim, self.root_tensor)
         self.reset_buf[env_ids] = 1
@@ -333,15 +329,13 @@ class X152bPx4(BaseTask):
         actions = _actions.to(self.device)
         self.actions = tensor_clamp(
             actions, self.action_lower_limits, self.action_upper_limits)
-        # if self.ctl_mode == "atti":
-        #     # actions_matrix = torch.reshape(self.actions, (self.num_envs, 3, 3))
-        #     # actions_q = T.matrix_to_quaternion(actions_matrix)
-        #     actions_q = self.actions[..., :-1]
-        #     actions_q = torch.where((actions_q[..., 0] < 0).unsqueeze(1), -actions_q, actions_q)
-        #     actions_axis = T.quaternion_to_axis_angle(actions_q)
-        #     actions_cpu = torch.cat((actions_axis, self.actions[..., -1].unsqueeze(-1)), dim=-1).cpu().numpy()
-        # else:
-        #     actions_cpu = self.actions.cpu().numpy()
+        if self.ctl_mode == "atti":
+            # actions_matrix = torch.reshape(self.actions[..., :-1], (self.num_envs, 3, 3))
+            # actions_q = T.matrix_to_quaternion(actions_matrix)
+            actions_axis = T.quaternion_to_axis_angle(self.actions[..., :-1])
+            actions_cpu = torch.cat((actions_axis, self.actions[..., -1].unsqueeze(-1)), dim=-1).cpu().numpy()
+        else:
+            actions_cpu = self.actions.cpu().numpy()
         actions_cpu = self.actions.cpu().numpy()
         
         # tensor [n,4]
@@ -449,6 +443,7 @@ class X152bPx4(BaseTask):
     def compute_reward(self):
         # print(self.root_quats)
         self.rew_buf[:], self.reset_buf[:] ,self.item_reward_info= self.compute_quadcopter_reward(
+            self.ctl_mode,
             self.actions,
             self.pre_actions,
             self.cmd_thrusts,
@@ -468,13 +463,17 @@ class X152bPx4(BaseTask):
         # update prev 
         self.pre_actions = self.actions.clone()
 
-    def compute_quadcopter_reward(self, actions, pre_actions, cmd_thrusts, root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length, target_states):
-        # type: (Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float, Tensor) -> Tuple[Tensor, Tensor,Dict[str, Tensor]]
+    def compute_quadcopter_reward(self, ctrl_mode, actions, pre_actions, cmd_thrusts, root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length, target_states):
+        # type: (Str, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float, Tensor) -> Tuple[Tensor, Tensor,Dict[str, Tensor]]
         
         # continous action
         action_diff = actions - pre_actions
-        continous_action_reward = - C * torch.sqrt(action_diff.pow(2).sum(-1))
-        # print(continous_action_reward.shape)
+        if ctrl_mode == "pos":
+            continous_action_reward = - C * torch.sqrt(action_diff.pow(2).sum(-1))
+        elif ctrl_mode == "atti" or "rate":
+            continous_action_reward = - C1 * torch.sqrt(action_diff[..., :-1].pow(2).sum(-1)) - C2 * torch.sqrt(action_diff[..., -1].pow(2))
+            thrust = actions[..., -1] # this thrust is the force on vertical axis
+            thrust_reward = - TH * torch.abs(0.1533 - thrust)
 
         # distance
         target_positions = target_states[..., 9:12]
@@ -533,7 +532,10 @@ class X152bPx4(BaseTask):
         effort_reward = E * (1 - thrust_cmds).sum(-1)/4
 
         # combined reward
-        reward = continous_action_reward + angvel_reward + vel_reward + _pos_reward + effort_reward + _yaw_reward
+        if ctrl_mode == "vel" or "pos":
+            reward = continous_action_reward + angvel_reward + vel_reward + _pos_reward + effort_reward + _yaw_reward
+        elif ctrl_mode == "atti" or "rate":
+            reward = continous_action_reward + angvel_reward + vel_reward + _pos_reward + effort_reward + _yaw_reward + thrust_reward
     
         # resets due to misbehavior
         ones = torch.ones_like(reset_buf)
@@ -563,6 +565,9 @@ class X152bPx4(BaseTask):
         item_reward_info["pos_error_reward"] = pos_error_reward
         item_reward_info["yaw_error_reward"] = yaw_error_reward
         item_reward_info["continous_action_reward"] = continous_action_reward
+
+        if ctrl_mode == "atti"  or "rate":
+            item_reward_info["thrust_reward"] = thrust_reward
 
         return reward, reset, item_reward_info
 
