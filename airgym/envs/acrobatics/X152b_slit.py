@@ -1,33 +1,24 @@
-import math
 import numpy as np
 import os
 import torch
 import sys
-
-
-from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
+import cv2
 
 from isaacgym import gymutil, gymtorch, gymapi
 from isaacgym.torch_utils import *
 
+from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
 from airgym.envs.base.base_task import BaseTask
-from .X152bPx4_with_cam_config import X152bPx4WithCamCfg
-
+from airgym.envs.acrobatics.X152b_slit_config import X152bSlitConfig
 from airgym.utils.asset_manager import AssetManager
-
 from airgym.utils.helpers import asset_class_to_AssetOptions
-import time
-
-import matplotlib.pyplot as plt
-from PIL import Image
-import cv2
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
 
 
-class X152bPx4WithCam(BaseTask):
+class X152bSlit(BaseTask):
 
-    def __init__(self, cfg: X152bPx4WithCamCfg, sim_params, physics_engine, sim_device, headless):
+    def __init__(self, cfg: X152bSlitConfig, sim_params, physics_engine, sim_device, headless):
         self.cfg = cfg
         print("ctl mode=========== ",cfg.env.ctl_mode)
         self.ctl_mode = cfg.env.ctl_mode
@@ -42,11 +33,9 @@ class X152bPx4WithCam(BaseTask):
 
         self.enable_onboard_cameras = self.cfg.env.enable_onboard_cameras
 
-
         self.env_asset_manager = AssetManager(self.cfg, sim_device)
         self.cam_resolution = (480,270)
         self.cam_resolution = (640,480)
-
 
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
         self.root_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
@@ -252,7 +241,6 @@ class X152bPx4WithCam(BaseTask):
 
                 loaded_asset = self.gym.load_asset(self.sim, folder_path, filename, asset_options)
 
-
                 assert not (whole_body_semantic and per_link_semantic)
                 if semantic_id < 0:
                     object_segmentation_id = self.segmentation_counter
@@ -437,8 +425,7 @@ class X152bPx4WithCam(BaseTask):
         # apply actions
         self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
             self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.LOCAL_SPACE)
-        # self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
-        #     self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.GLOBAL_SPACE)
+
         # apply propeller rotation
         # self.gym.set_joint_target_velocity(self.sim, )
 
@@ -547,6 +534,5 @@ def compute_quadcopter_reward(root_positions, root_quats, root_linvels, root_ang
     # resets due to episode length
     reset = torch.where(progress_buf >= max_episode_length - 1, ones, die)
     reset = torch.where(torch.norm(root_positions, dim=1) > 20, ones, reset)
-
 
     return reward, reset

@@ -4,7 +4,7 @@ try:
 except ImportError:
     print("isaacgym cannot be imported. Trying to import from gym_utils.")
     from airgym.utils.gym_utils import gymapi
-    print("gymutil imported successful from sim2real.")
+    print("gymutil imported successful from gym_utils.")
 
 
 try:
@@ -13,7 +13,7 @@ try:
 except ImportError:
     print("isaacgym cannot be imported. Trying to import from gym_utils.")
     from airgym.utils.gym_utils import gymutil
-    print("gymutil imported successful from sim2real.")
+    print("gymutil imported successful from gym_utils.")
 
 
 def class_to_dict(obj) -> dict:

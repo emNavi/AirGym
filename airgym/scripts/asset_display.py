@@ -49,14 +49,17 @@ if viewer is None:
     raise Exception("Failed to create viewer")
 
 # load asset
-asset_root = "../../resources/models/environment_assets"
-asset_file = "boundaries/18X18ground/model.urdf"
+# asset_root = "../../resources/robots"
+# asset_file = "X152b/model.urdf"
 
 asset_options = gymapi.AssetOptions()
 
 asset_options.vhacd_enabled = True
-asset_options.vhacd_params.resolution = 500000
-asset_options.vhacd_params.max_num_vertices_per_ch = 1
+# asset_options.vhacd_params.resolution = 500000
+# asset_options.vhacd_params.max_num_vertices_per_ch = 1
+asset_options.vhacd_params.resolution = 300000
+asset_options.vhacd_params.max_convex_hulls = 10
+asset_options.vhacd_params.max_num_vertices_per_ch = 64
 
 asset = gym.load_asset(sim, asset_root, asset_file, asset_options)
 

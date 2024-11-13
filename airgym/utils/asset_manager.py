@@ -5,16 +5,17 @@ try:
     from isaacgym import gymapi
     print("isaacgym imported successful.")
 except ImportError:
-    print("isaacgym cannot be imported. Trying to import from sim2real.")
+    print("isaacgym cannot be imported. Trying to import from gym_utils.")
     from airgym.utils.gym_utils import gymapi
-    print("gymutil imported successful from sim2real.")
+    print("gymutil imported successful from gym_utils.")
 
 
 # from isaacgym.torch_utils import quat_from_euler_xyz
 
 import torch
 # import pytorch3d.transforms as p3d_transforms
-            
+
+from .asset_register import *
 
 def asset_class_to_AssetOptions(asset_class):
     asset_options = gymapi.AssetOptions()
@@ -50,8 +51,6 @@ class AssetManager:
         self.num_envs = self.cfg.env.num_envs
         self.env_actor_count = 0
         self.env_link_count = 0
-
-        self.env_bound_count = sum(self.asset_config.include_env_bound_type.values())
         
         self.env_lower_bound_min = torch.tensor(self.asset_config.env_lower_bound_min, device=self.device, requires_grad=False)
         self.env_lower_bound_max = torch.tensor(self.asset_config.env_lower_bound_max, device=self.device, requires_grad=False)
@@ -61,21 +60,12 @@ class AssetManager:
         self.env_lower_bound_diff = self.env_lower_bound_max - self.env_lower_bound_min
         self.env_upper_bound_diff = self.env_upper_bound_max - self.env_upper_bound_min
 
-        self.asset_type_to_dict_map = {
-            "thin": self.cfg.thin_asset_params,
-            "trees": self.cfg.tree_asset_params,
-            "objects": self.cfg.object_asset_params,
-            "cubes": self.cfg.cube_asset_params,
-            "flags": self.cfg.flag_asset_params,
-            "left_wall": self.cfg.left_wall,
-            "right_wall": self.cfg.right_wall,
-            "back_wall": self.cfg.back_wall,
-            "front_wall": self.cfg.front_wall,
-            "bottom_wall": self.cfg.bottom_wall,
-            "top_wall": self.cfg.top_wall,
-            "8X18ground": self.cfg.ground,
-            "18X18ground": self.cfg.ground,
-            }
+        # initialize the environmental bounds for randomization
+        self.env_lower_bound = self.env_lower_bound_min.repeat(self.num_envs, 1)
+        self.env_upper_bound = self.env_upper_bound_max.repeat(self.num_envs, 1)
+        self.env_bound_diff = torch.zeros((self.num_envs,3), device=self.device, requires_grad=False)
+
+        self.asset_type_to_dict_map = self.asset_config.asset_type_to_dict_map
         
         self.load_asset_tensors()
         self.randomize_pose()
@@ -93,7 +83,7 @@ class AssetManager:
         min_state_tensor = torch.tensor((asset_class.min_position_ratio + asset_class.min_euler_angles), dtype=torch.float, device=self.device).expand(asset_class.num_assets,-1)
         max_state_tensor = torch.tensor((asset_class.max_position_ratio + asset_class.max_euler_angles), dtype=torch.float, device=self.device).expand(asset_class.num_assets,-1)
         specified_state_tensor = torch.tensor((asset_class.specified_position + asset_class.specified_euler_angle), dtype=torch.float, device=self.device).expand(asset_class.num_assets,-1)
-
+        
         # If the whole global asset pose tensor is not defined, define it and then append more copies to it
         if self.asset_pose_tensor is None:
             self.asset_pose_tensor = asset_tensor
@@ -117,16 +107,16 @@ class AssetManager:
         for asset_key, include_asset in self.asset_config.include_asset_type.items():
             if not include_asset:
                 continue
-            print("Adding asset type: {}".format(asset_key))
+            print("Adding assets group: {}".format(asset_key))
             asset_class = self.asset_type_to_dict_map[asset_key]
             self._add_asset_2_tensor(asset_class)
                 
-        for env_bound_key, include_asset in self.asset_config.include_env_bound_type.items():
+        for asset_key, include_asset in self.asset_config.include_specific_asset.items():
             if not include_asset:
                 continue
-            print("Adding environment bound type: {}".format(env_bound_key))
-            env_bound_class = self.asset_type_to_dict_map[env_bound_key]
-            self._add_asset_2_tensor(env_bound_class)
+            print("Adding specific assets: {}".format(asset_key))
+            asset_class = self.asset_type_to_dict_map[asset_key]
+            self._add_asset_2_tensor(asset_class)
         
         if self.asset_pose_tensor is None:
             return
@@ -160,8 +150,6 @@ class AssetManager:
 
             folder_path = os.path.join(
                 self.asset_config.folder_path, asset_key)
-
-                
             file_list = self.randomly_select_asset_files(
                 folder_path, asset_class.num_assets)
 
@@ -178,12 +166,12 @@ class AssetManager:
                     "color": color
                 }
                 asset_list.append(asset_dict)
-    
-        # adding environment bounds to be loaded as assets
-        for env_bound_key, include_asset in self.asset_config.include_env_bound_type.items():
+        
+        for asset_key, include_asset in self.asset_config.include_specific_asset.items():
             if not include_asset:
                 continue
-            asset_class = self.asset_type_to_dict_map[env_bound_key]
+            assert "/" in asset_key, "The asset_key should be a specific asset!"
+            asset_class = self.asset_type_to_dict_map[asset_key]
             asset_options = asset_class_to_AssetOptions(asset_class)
 
             semantic_masked_links = asset_class.semantic_mask_link_list
@@ -193,17 +181,32 @@ class AssetManager:
             link_semantic_label = asset_class.set_semantic_mask_per_link
             if not (body_semantic_label or link_semantic_label):
                 semantic_id = -1
+
             # "Only one of body_semantic_label and link_semantic_label can be True"
             assert not (body_semantic_label and link_semantic_label)
 
             color = asset_class.color
 
-            # print("Initializing with key: {}".format(env_bound_key))
-            folder_path = os.path.join(self.asset_config.folder_path, "boundaries")
-            if os.path.isdir(os.path.join(folder_path, env_bound_key)):
-                file_list = [os.path.join(env_bound_key, "model.urdf")]*asset_class.num_assets
+            assert asset_class.num_assets == 1, "Only one asset can be loaded if the asset_key is a specific asset!"
+            # assert hasattr(asset_class, "specified_position") and \
+            #     all(v > -900 for v in asset_class.specified_position) and \
+            #         all(v > -900 for v in asset_class.specified_euler_angle), \
+            #             "The specified position and angular must be defined for the specific asset!"
+            
+            asset_type = asset_key.split("/")[0]
+            asset_key = asset_key.split("/")[-1]
+            folder_path = os.path.join(
+                self.asset_config.folder_path, asset_type, asset_key)
+            file_list = []
+
+            file_name_list = [f for f in os.listdir(folder_path)]
+            if os.path.exists(folder_path + ".urdf"):
+                file_list.append(folder_path + ".urdf")
             else:
-                file_list = [env_bound_key + ".urdf"]*asset_class.num_assets
+                for f in file_name_list:
+                    if f.endswith('.urdf'):
+                        file_list.append(f)
+                assert len(file_list) == 1, f"{len(file_list)} urdf file is added! Only one urdf file should be present in the folder!"
 
             for file_name in file_list:
                 asset_dict = {

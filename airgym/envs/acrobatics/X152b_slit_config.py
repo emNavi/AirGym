@@ -4,7 +4,7 @@ from airgym.utils import asset_register
 import numpy as np
 from airgym import AIRGYM_ROOT_DIR
 
-class X152bPx4WithCamCfg(BaseConfig):
+class X152bSlitConfig(BaseConfig):
     seed = 1
     controller_test = False
     class env:
@@ -89,8 +89,8 @@ class X152bPx4WithCamCfg(BaseConfig):
             "thin": False,
             "trees": False,
             "objects": False, 
-            "cubes": True,
-            "flags": True,
+            "cubes": False,
+            "flags": False,
         }
         
         include_specific_asset = {
@@ -100,8 +100,9 @@ class X152bPx4WithCamCfg(BaseConfig):
             "boundaries/back_wall": False,
             "boundaries/right_wall": False, 
             "boundaries/bottom_wall": False, 
-            "boundaries/8X18ground": False,
-            "boundaries/18X18ground": True,
+            "boundaries/8X18ground": True,
+            "boundaries/18X18ground": False,
+            "cubes/1X4": True,
         }
 
         env_lower_bound_min = [-4.0, -8.0, 0.0] # lower bound for the environment space
@@ -149,6 +150,11 @@ class X152bPx4WithCamCfg(BaseConfig):
         class back_wall(asset_register.back_wall):
             num_assets = 1
 
+        class cube1X4_asset_params(asset_register.cube_asset_params):
+            num_assets = 1
+            specified_position = [1.0, 0.0, 0.0] # if > -900, use this value instead of randomizing the ratios
+            specified_euler_angle = [0.0, 0.0, 0.0] # if > -900, use this value instead of randomizing
+
         asset_type_to_dict_map = {
             "thin": thin_asset_params,
             "trees": tree_asset_params,
@@ -163,5 +169,6 @@ class X152bPx4WithCamCfg(BaseConfig):
             "boundaries/top_wall": top_wall,
             "boundaries/8X18ground": ground,
             "boundaries/18X18ground": ground,
+            "cubes/1X4": cube1X4_asset_params
             }
  

@@ -6,9 +6,9 @@ try:
     from isaacgym import gymutil
     print("isaacgym imported successful.")
 except ImportError:
-    print("isaacgym cannot be imported. Trying to import from sim2real.")
+    print("isaacgym cannot be imported. Trying to import from gym_utils.")
     from airgym.utils.gym_utils import gymutil
-    print("gymutil imported successful from sim2real.")
+    print("gymutil imported successful from gym_utils.")
 
 
 from airgym.envs import *
