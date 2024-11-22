@@ -6,20 +6,25 @@ from airgym import AIRGYM_ROOT_DIR
 
 class X152bSlitConfig(BaseConfig):
     seed = 1
-    controller_test = False
     class env:
-        ctl_mode = "pos"
+        ctl_mode = "vel"
         num_envs = 4 # must be a square number
-        num_observations = 13
+        num_observations = 18
         headless = True
         get_privileged_obs = True # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned
         num_actions = 4
         env_spacing = 10  # not used with heightfields/trimeshes
-        episode_length_s = 10 # episode length in seconds
-        num_control_steps_per_env_step = 10 # number of control & physics steps between camera renders
-        enable_onboard_cameras = True # enable onboard cameras
+        num_actions = 5 if ctl_mode == "atti" else 4
+        episode_length_s = 8 # episode length in seconds
+        num_control_steps_per_env_step = 1 # number of control & physics steps between camera renders
+        enable_onboard_cameras = False # enable onboard cameras
         reset_on_collision = True # reset environment when contact force on quadrotor is above a threshold
         create_ground_plane = True # create a ground plane
+
+        control_lists = [(0, 0, 1), 
+                         (2, 1, 1),
+                         (4,-1, 1),
+                         (6, 1, 1)]
 
     class viewer:
         ref_env = 0
@@ -27,7 +32,7 @@ class X152bSlitConfig(BaseConfig):
         lookat = [0, 0, 0]  # [m]
 
     class sim:
-        dt =  0.005 #0.01
+        dt =  0.01 #0.01
         substeps = 1
         gravity = [0., 0. , -9.81]  # [m/s^2]
         up_axis = 1  # 0 is y, 1 is z
@@ -44,25 +49,6 @@ class X152bSlitConfig(BaseConfig):
             max_gpu_contact_pairs = 2**23 #2**24 -> needed for 8000 envs and more
             default_buffer_size_multiplier = 5
             contact_collection = 1 # 0: never, 1: last sub-step, 2: all sub-steps (default=2)
-
-    class control:
-        """
-        Control parameters
-        controller:
-            lee_position_control: command_actions = [x, y, z, yaw] in environment frame scaled between -1 and 1
-            lee_velocity_control: command_actions = [vx, vy, vz, yaw_rate] in vehicle frame scaled between -1 and 1
-            lee_attitude_control: command_actions = [thrust, roll, pitch, yaw_rate] in vehicle frame scaled between -1 and 1
-        kP: gains for position
-        kV: gains for velocity
-        kR: gains for attitude
-        kOmega: gains for angular velocity
-        """
-        controller = "lee_velocity_control" # or "lee_velocity_control" or "lee_attitude_control"
-        kP = [0.8, 0.8, 1.0] # used for lee_position_control only
-        kV = [0.5, 0.5, 0.4] # used for lee_position_control, lee_velocity_control only
-        kR = [3.0, 3.0, 1.0] # used for lee_position_control, lee_velocity_control and lee_attitude_control
-        kOmega = [0.5, 0.5, 1.20] # used for lee_position_control, lee_velocity_control and lee_attitude_control
-        scale_input =[2.0, 1.0, 1.0, np.pi/4.0] # scale the input to the controller from -1 to 1 for each dimension
 
     class asset_config:
         """
@@ -102,7 +88,7 @@ class X152bSlitConfig(BaseConfig):
             "boundaries/bottom_wall": False, 
             "boundaries/8X18ground": True,
             "boundaries/18X18ground": False,
-            "cubes/1X4": True,
+            # "cubes/1X4": True,
         }
 
         env_lower_bound_min = [-4.0, -8.0, 0.0] # lower bound for the environment space

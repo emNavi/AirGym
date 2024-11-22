@@ -42,7 +42,7 @@ params:
     gamma: 0.99
     tau: 0.95
     ppo: True
-    learning_rate: 1e-4
+    learning_rate: 3e-4
     lr_schedule: adaptive
     kl_threshold: 0.008
     save_best_after: 10
@@ -54,12 +54,12 @@ params:
     clip_value: False
     num_actors: 4096 #4096
     horizon_length: 24
-    minibatch_size: 16384 #8192
+    minibatch_size: 2048 #8192
     mini_epochs: 5
     critic_coef: 2
     normalize_input: True
     bounds_loss_coef: 0.0001
-    max_epochs: 500 #2000 #10000
+    max_epochs: 2000 #2000 #10000
     normalize_value: True
     use_diagnostics: True
     value_bootstrap: True

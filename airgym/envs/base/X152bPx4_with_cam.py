@@ -196,9 +196,7 @@ class X152bPx4WithCam(BaseTask):
         camera_props.height = self.cam_resolution[1]
         camera_props.far_plane = 15.0
         camera_props.horizontal_fov = 87.0
-
-        camera_props.horizontal_fov = 50.7 
-
+        
         # local camera transform
         local_transform = gymapi.Transform()
         # position of the camera relative to the body

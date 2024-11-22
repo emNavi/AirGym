@@ -77,8 +77,11 @@ class AirGymRLGPUEnv(vecenv.IVecEnv):
         return info
     
 
-
+# register the environment
 env_configurations.register('X152b', {'env_creator': lambda **kwargs : task_registry.make_env('X152b',args=Namespace(**kwargs)),
+        'vecenv_type': 'AirGym-RLGPU'})
+
+env_configurations.register('X152b_slit', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_slit',args=Namespace(**kwargs)),
         'vecenv_type': 'AirGym-RLGPU'})
 
 vecenv.register('AirGym-RLGPU',
