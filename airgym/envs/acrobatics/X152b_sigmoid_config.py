@@ -4,10 +4,10 @@ from airgym.utils import asset_register
 import numpy as np
 from airgym import AIRGYM_ROOT_DIR
 
-class X152bSlitConfig(BaseConfig):
+class X152bSigmoidConfig(BaseConfig):
     seed = 1
     class env:
-        ctl_mode = "pos"
+        ctl_mode = "prop"
         num_envs = 4 # must be a square number
         num_observations = 18
         headless = True
@@ -20,6 +20,11 @@ class X152bSlitConfig(BaseConfig):
         enable_onboard_cameras = False # enable onboard cameras
         reset_on_collision = True # reset environment when contact force on quadrotor is above a threshold
         create_ground_plane = True # create a ground plane
+
+        control_lists = [(-1, 0, 1), 
+                         (2, 1, 1),
+                         (4,-1, 1),
+                         (6, 1, 1)]
 
     class viewer:
         ref_env = 0

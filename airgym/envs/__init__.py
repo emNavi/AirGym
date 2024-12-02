@@ -21,3 +21,10 @@ try:
     task_registry.register("X152b_slit", X152bSlit, X152bSlitConfig())
 except ImportError:
     print("Warning! X152bSlit or X152bSlitConfig cannot be imported. Ignore if using on real robot inference.")
+
+try:
+    from .acrobatics.X152b_sigmoid_config import X152bSigmoidConfig
+    from .acrobatics.X152b_sigmoid import X152bSigmoid
+    task_registry.register("X152b_sigmoid", X152bSigmoid, X152bSigmoidConfig())
+except ImportError:
+    print("Warning! X152bSigmoid or X152bSigmoidConfig cannot be imported. Ignore if using on real robot inference.")

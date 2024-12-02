@@ -84,6 +84,9 @@ env_configurations.register('X152b', {'env_creator': lambda **kwargs : task_regi
 env_configurations.register('X152b_slit', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_slit',args=Namespace(**kwargs)),
         'vecenv_type': 'AirGym-RLGPU'})
 
+env_configurations.register('X152b_sigmoid', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_sigmoid',args=Namespace(**kwargs)),
+        'vecenv_type': 'AirGym-RLGPU'})
+
 vecenv.register('AirGym-RLGPU',
                 lambda config_name, num_actors, **kwargs: AirGymRLGPUEnv(config_name, num_actors, **kwargs))
 
@@ -168,7 +171,7 @@ if __name__ == '__main__':
     
         config = update_config(config, args)
 
-        from rl_games.torch_runner import Runner
+        from custom_runner.custom_torch_runner import CustomRunner as Runner
 
         runner = Runner(RLGPUAlgoObserver())
         try:

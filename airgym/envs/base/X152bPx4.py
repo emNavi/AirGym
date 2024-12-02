@@ -196,7 +196,12 @@ class X152bPx4(BaseTask):
         # rospy.init_node('ctl_onboard', anonymous=True)
         # self.pub = rospy.Publisher('/action', Float64MultiArray, queue_size=10)
         # self.sub = rospy.Subscriber('/target_state', Float64MultiArray, self.callback)
-    
+        
+        if self.cfg.use_tcn:
+            self.tcn_seqs_len = self.cfg.tcn_seqs_len
+            self.obs_seqs_buf = torch.zeros(
+                (self.num_envs, self.tcn_seqs_len, self.cfg.env.num_observations), device=self.device, dtype=torch.float32)
+
     def callback(self, data):
         self.target_state = torch.tensor(data.data, device=self.device)
         self.target_states = self.target_state.repeat(self.num_envs, 1)
@@ -280,6 +285,11 @@ class X152bPx4(BaseTask):
         self.time_out_buf = self.progress_buf > self.max_episode_length
         self.extras["time_outs"] = self.time_out_buf
         self.extras["item_reward_info"] = self.item_reward_info
+        
+        if self.cfg.use_tcn: # use TCN
+            self.obs_seqs_buf = torch.cat(
+                (self.obs_seqs_buf[:, 1:], self.obs_buf.unsqueeze(1)), dim=1)
+            return self.obs_seqs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
         return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def reset(self):
@@ -316,6 +326,9 @@ class X152bPx4(BaseTask):
         self.int_yaw_error[env_ids] = 0
 
         self.pre_actions[env_ids] = 0
+
+        if self.cfg.use_tcn:
+            self.obs_seqs_buf[env_ids] = 0
 
     def pre_physics_step(self, _actions):
         # resets

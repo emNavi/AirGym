@@ -10,7 +10,7 @@ from isaacgym import gymutil, gymtorch, gymapi
 from isaacgym.torch_utils import *
 from airgym.envs.base.base_task import BaseTask
 import airgym.utils.rotations as rot_utils
-from airgym.envs.acrobatics.X152b_slit_config import X152bSlitConfig
+from airgym.envs.acrobatics.X152b_sigmoid_config import X152bSigmoidConfig
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
 
@@ -37,9 +37,9 @@ def quaternion_multiply(q1: torch.Tensor, q2: torch.Tensor):
     w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
     return torch.stack((x, y, z, w), dim=-1)
 
-class X152bSlit(BaseTask):
+class X152bSigmoid(BaseTask):
 
-    def __init__(self, cfg: X152bSlitConfig, sim_params, physics_engine, sim_device, headless):
+    def __init__(self, cfg: X152bSigmoidConfig, sim_params, physics_engine, sim_device, headless):
         self.cfg = cfg
         print("ctl mode =========== ",cfg.env.ctl_mode)
         self.ctl_mode = cfg.env.ctl_mode
@@ -136,6 +136,10 @@ class X152bSlit(BaseTask):
         # actions
         self.actions = torch.zeros((self.num_envs, self.num_actions), device=self.device)
         self.pre_actions = torch.zeros((self.num_envs, self.num_actions), device=self.device)
+
+        # control list and target flag
+        self.control_lists_tensor = torch.tensor(self.cfg.env.control_lists).to(self.device)
+        self.flag = torch.ones(self.num_envs, device=self.device)
 
         # reward integration buffers
         self.int_pos_error = torch.zeros((self.num_envs, 10), device=self.device)
@@ -244,7 +248,7 @@ class X152bSlit(BaseTask):
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
         self.root_states[env_ids, 0] = 1.0*torch_rand_float(.0, .0, (num_resets, 1), self.device).squeeze(-1) # 2.0
-        self.root_states[env_ids, 1] = 1.0*torch_rand_float(-0.0, -0.0, (num_resets, 1), self.device).squeeze(-1) # 2.0
+        self.root_states[env_ids, 1] = 1.0*torch_rand_float(-1.0, -1.0, (num_resets, 1), self.device).squeeze(-1) # 2.0
         self.root_states[env_ids, 2] = 1.0*torch_one_rand_float(1., 1., (num_resets, 1), self.device).squeeze(-1) # 2
         
         root_angle = torch.concatenate([0.*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .1
@@ -268,6 +272,8 @@ class X152bSlit(BaseTask):
 
         self.pre_actions[env_ids] = 0
         self.pre_root_positions[env_ids] = 0
+
+        self.flag[env_ids] = 1
 
     def pre_physics_step(self, _actions):
         # resets
@@ -402,30 +408,108 @@ class X152bSlit(BaseTask):
         # update prev
         self.pre_actions = self.actions.clone()
         self.pre_root_positions = self.root_positions.clone()
-
-    def atti_alignment(self, root_positions, root_quats):
-        root_quats = root_quats / torch.norm(root_quats, dim=-1, keepdim=True).clamp(min=1e-8)
-        roll = torch.atan2(
-            2 * (root_quats[..., 3] * root_quats[..., 0] + root_quats[..., 1] * root_quats[..., 2]), 
-            1 - 2 * (root_quats[..., 0]**2 + root_quats[..., 1]**2))
-        
-        roll_reward = - 1 * (roll - torch.pi)**2
-        roll_reward = torch.where((root_positions[..., 0] > 1.9) & (root_positions[..., 0] < 2.1), roll_reward, 0)
-        
-        return roll_reward
     
-    def guidance_reward(self, root_positions, pre_root_positions, root_angvels):
-        target = torch.tensor([6, 0, 1], device=self.device).repeat(self.num_envs, 1)
-        r = torch.norm(target-pre_root_positions, dim=-1) - torch.norm(target-root_positions, dim=-1)
-        # print(r)
+    def guidance_reward(self, root_positions, root_linvels):
+        cur_target = self.control_lists_tensor[self.flag.int()]
+        # target = torch.tensor([3, 0, 0], device=self.device).repeat(self.num_envs, 1)
+        tar_direction = cur_target - root_positions
+        r = torch.sum(tar_direction * root_linvels, dim=-1)
         return r
+    
+    # def guidance_reward(self, root_positions, pre_root_positions, root_angvels):
+    #     cur_target = self.control_lists_tensor[self.flag.int()]
+    #     r = torch.norm(cur_target-pre_root_positions, dim=-1) - torch.norm(cur_target-root_positions, dim=-1) - 0.01 * torch.norm(root_angvels, dim=-1)
+    #     return r
+
+    def tracking_reward(self, root_positions, root_linvels):
+        '''
+        Three trajectories:
+        x1 = 6*t
+        y1 = -36*t**3 + 10*t - 1
+        z1 = 1
+
+        x2 = 6*t + 2
+        y2 = 72*t**3 - 36*t**2 - 2*t + 1
+        z2 = 1
+
+        x3 = 6*t + 4
+        y3 = -36*t**3 + 36*t**2 - 2*t - 1
+        z3 = 1
+        '''
+
+        cond1 = root_positions[..., 0] < self.cfg.env.control_lists[1][0]
+        cond2 = (root_positions[..., 0] >= self.cfg.env.control_lists[1][0]) & (root_positions[..., 0] < self.cfg.env.control_lists[2][0])
+        cond3 = root_positions[..., 0] >= self.cfg.env.control_lists[2][0]
+
+        t = torch.zeros_like(root_positions[..., 0])
+        t = torch.where(cond1, root_positions[..., 0] / 6, t)
+        t = torch.where(cond2, (root_positions[..., 0] - 2) / 6, t)
+        t = torch.where(cond3, (root_positions[..., 0] - 4) / 6, t)
+
+        #------------------------- position -------------------------#
+        px1, py1, pz1 = 6 * t, -36 * t**3 + 10 * t - 1, torch.full_like(t, 1)
+        px2, py2, pz2 = 6 * t + 2, 72 * t**3 - 36 * t**2 - 2 * t + 1, torch.full_like(t, 1)
+        px3, py3, pz3 = 6 * t + 4, -36 * t**3 + 36 * t**2 - 2 * t - 1, torch.full_like(t, 1)
+
+        # Combine the segments
+        px = torch.where(cond1, px1, torch.where(cond2, px2, px3))
+        py = torch.where(cond1, py1, torch.where(cond2, py2, py3))
+        pz = torch.where(cond1, pz1, torch.where(cond2, pz2, pz3))
+
+        # Combine into pose tensor
+        pos = torch.stack((px, py, pz), dim=-1)
+        pos_dist = torch.norm(root_positions - pos, dim=-1)
+        pos_reward = 1.0 - pos_dist/6
+
+        #------------------------- velocity -------------------------#
+        vx1, vy1, vz1 = 6, -108 * t**2 + 10, torch.full_like(t, 0)
+        vx2, vy2, vz2 = 6, 216 * t**2 - 72 * t - 2, torch.full_like(t, 0)
+        vx3, vy3, vz3 = 6, -108 * t**2 + 72 * t - 2, torch.full_like(t, 0)
+
+        # Combine the segments
+        vx = torch.where(cond1, vx1, torch.where(cond2, vx2, vx3))
+        vy = torch.where(cond1, vy1, torch.where(cond2, vy2, vy3))
+        vz = torch.where(cond1, vz1, torch.where(cond2, vz2, vz3))
+
+        # Combine into velocity tensor
+        vel = torch.stack((vx, vy, vz), dim=-1)
+        vel_dist = torch.norm(root_linvels - vel, dim=-1)
+        vel_reward = 1 - vel_dist/6
+
+        # print("pos_reward:", pos_reward[0], "vel_reward:", vel_reward[0])
+
+        return 1.0 * pos_reward + 0.05 * vel_reward, pos_dist
+    
+    def update_flag(self):
+        # check whether the agent has reached the current target. if yes, flag += 1 and turn to the next target
+        cur_target = self.control_lists_tensor[self.flag.int()]
+        self.flag = torch.where(torch.norm(self.root_positions - cur_target, dim=-1) < 0.2, self.flag+1, self.flag)
+        
+        # nxt_target = self.control_lists_tensor[self.flag.int()+1]
+        # tar_vel = nxt_target - self.root_positions
+        # cosin_theta = torch.sum(tar_vel * self.root_linvels, dim=-1) / (torch.norm(tar_vel, dim=-1) * torch.norm(self.root_linvels, dim=-1) + 1e-8)
+        # cosin_theta = torch.clamp(cosin_theta, -1., 1.)
+        # r = .05 * cosin_theta
+        # return r
+
+        return 0.1 * torch.where(torch.norm(self.root_positions - cur_target, dim=-1) < 0.2, 
+                           torch.ones(self.num_envs, dtype=torch.float32, device=self.device), 
+                           torch.zeros(self.num_envs, dtype=torch.float32, device=self.device))
 
     def compute_quadcopter_reward(self, root_positions, pre_root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length):
-        reward = 0.5 * self.atti_alignment(root_positions, root_quats) + self.guidance_reward(root_positions, pre_root_positions, root_angvels)
+        
+        reward, dist = self.tracking_reward(root_positions, root_linvels)
+
+        # guidance_reward = self.guidance_reward(root_positions, pre_root_positions, root_angvels)
+        # # print("guidance_reward:", guidance_reward[0])
+        flag_reward = self.update_flag()
+        # # print("flag_reward:", self.flag[0], flag_reward[0])
+        # reward = guidance_reward
 
         # resets due to misbehavior
         ones = torch.ones_like(reset_buf)
         die = torch.zeros_like(reset_buf)
+        # die = torch.where(target_dist > 10.0, ones, die)
 
         # resets due to episode length
         reset = torch.where(progress_buf >= max_episode_length - 1, ones, die)

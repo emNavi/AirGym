@@ -9,7 +9,7 @@ params:
   load_checkpoint: False
 
   network:
-    name: actor_critic
+    name: tcn #actor_critic
     separate: False
     space:
       continuous:
@@ -28,11 +28,21 @@ params:
       initializer:
         name: default
         scale: 2
+    tcn:
+      tcn_seqs_len: 25
+      hidden_dim: 32
+      output_dim: 24
+      kernel_size: 3
+      num_layers: 2
+      initializer:
+        name: default
+        scale: 2
+
   config:
     env_name: X152b
     env_config:
       num_envs: 4096
-      
+    
     name: ppo_X152b
     reward_shaper:
       # min_val: -1
