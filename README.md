@@ -3,6 +3,10 @@
 
 This project provides a realistic dynamics and RL framework for Sim2Real tasks of quadcopter. Drones can be trained in AirGym and then transferred to reality.
 
+We also build a randomly generated environment for drone training. One demo is shown below:
+![Demo Video](doc/airgym_demo.gif)
+
+
 ## Requirements
 1. Ubuntu 20.04 or 22.04
 1. [Conda](https://www.anaconda.com/download) or [Miniconda ](https://docs.conda.io/en/latest/miniconda.html)
