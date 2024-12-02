@@ -1,5 +1,5 @@
 # AirGym
-> This project is inspired by Aerial Gym Simulator but greatly improves it. 
+> This project is based on Aerial Gym Simulator licensed(https://github.com/ntnu-arl/aerial_gym_simulator) under the BSD 3-Clause License. It has been modified and greatly improved by emNavi Technology.
 
 This project provides a realistic dynamics and RL framework for Sim2Real tasks of quadcopter. Drones can be trained in AirGym and then transferred to reality.
 
