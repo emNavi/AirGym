@@ -1,13 +1,17 @@
-from airgym.envs.base.base_config import BaseConfig
+from airgym.envs.base.X152bPx4 import X152bPx4Cfg
 from airgym.utils import asset_register
 
 import numpy as np
 from airgym import AIRGYM_ROOT_DIR
 
-class X152bSigmoidConfig(BaseConfig):
+class X152bSigmoidConfig(X152bPx4Cfg):
     seed = 1
+    controller_test = False
+    use_tcn = True # if use TCN
+    tcn_seqs_len = 25 # if use TCN
+
     class env:
-        ctl_mode = "prop"
+        ctl_mode = "rate"
         num_envs = 4 # must be a square number
         num_observations = 18
         headless = True
@@ -15,7 +19,7 @@ class X152bSigmoidConfig(BaseConfig):
         num_actions = 4
         env_spacing = 10  # not used with heightfields/trimeshes
         num_actions = 5 if ctl_mode == "atti" else 4
-        episode_length_s = 8 # episode length in seconds
+        episode_length_s = 16 # episode length in seconds
         num_control_steps_per_env_step = 1 # number of control & physics steps between camera renders
         enable_onboard_cameras = False # enable onboard cameras
         reset_on_collision = True # reset environment when contact force on quadrotor is above a threshold
@@ -25,11 +29,6 @@ class X152bSigmoidConfig(BaseConfig):
                          (2, 1, 1),
                          (4,-1, 1),
                          (6, 1, 1)]
-
-    class viewer:
-        ref_env = 0
-        pos = [-5, -5, 4]  # [m]
-        lookat = [0, 0, 0]  # [m]
 
     class sim:
         dt =  0.01 #0.01
