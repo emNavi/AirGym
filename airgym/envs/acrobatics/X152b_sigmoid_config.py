@@ -9,7 +9,7 @@ class X152bSigmoidConfig(X152bPx4Cfg):
     controller_test = False
     use_tcn = True # if use TCN
     tcn_seqs_len = 25 # if use TCN
-
+ 
     class env:
         ctl_mode = "rate"
         num_envs = 4 # must be a square number

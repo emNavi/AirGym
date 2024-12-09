@@ -1,7 +1,7 @@
 params:  
   seed: 8
   algo:
-    name: a2c_continuous
+    name: a2c_continuous # tcn_a2c_continuous
 
   model:
     name: continuous_a2c_logstd
@@ -9,7 +9,7 @@ params:
   load_checkpoint: False
 
   network:
-    name: tcn #actor_critic
+    name: actor_critic #tcn
     separate: False
     space:
       continuous:

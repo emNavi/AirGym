@@ -8,7 +8,7 @@ from airgym import AIRGYM_ROOT_DIR
 class X152bPx4Cfg(BaseConfig):
     seed = 1
     controller_test = False
-    use_tcn = True # if use TCN
+    use_tcn = False # if use TCN
     tcn_seqs_len = 25 # if use TCN
 
     class env:
