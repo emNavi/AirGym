@@ -13,10 +13,10 @@ def sample_command(args):
     print("Number of environments", env_cfg.env.num_envs)
     command_actions = torch.zeros((env_cfg.env.num_envs, env_cfg.env.num_actions))
     
-    command_actions[:, 0] = 6
+    command_actions[:, 0] = 0
     command_actions[:, 1] = 0
-    command_actions[:, 2] = 1
-    command_actions[:, 3] = 0
+    command_actions[:, 2] = 0
+    command_actions[:, 3] = 0.1533
     
     # w,x,y,z
     # command_actions[:, 0] = 1

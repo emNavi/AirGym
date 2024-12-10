@@ -22,7 +22,7 @@ params:
           val: 0
         fixed_sigma: True
     mlp:
-      units: [64,128,64] #[256,128,64]
+      units: [64,256,128,64] #[64,128,64]
       d2rl: False
       activation: elu
       initializer:

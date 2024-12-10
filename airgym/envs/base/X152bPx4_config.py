@@ -12,7 +12,7 @@ class X152bPx4Cfg(BaseConfig):
     tcn_seqs_len = 25 # if use TCN
 
     class env:
-        ctl_mode = "vel"
+        ctl_mode = "rate"
         target_state = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1,    0, 0, 0,    0, 0, 0, 0, 0, 0]) 
         num_envs = 256
         num_observations = 18
