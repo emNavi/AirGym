@@ -16,7 +16,7 @@ def sample_command(args):
     command_actions[:, 0] = 0
     command_actions[:, 1] = 0
     command_actions[:, 2] = 0
-    command_actions[:, 3] = 0.1533
+    command_actions[:, 3] = 0
     
     # w,x,y,z
     # command_actions[:, 0] = 1

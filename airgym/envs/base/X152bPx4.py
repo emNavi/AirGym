@@ -28,14 +28,14 @@ from std_msgs.msg import Float64MultiArray
 # C1 = 1                # for continous actions
 # C2 = 0               # not used
 # TH = 0               # not used
-# P1 = 1.3             # for horizental position
+# P1 = 2             # for horizental position
 # P2 = 3               # for horizental position accuracy
 # P3 = 1               # for vertical position
 # P4 = 6               # for vertical position accuracy
-# P5 = 0.1             # for position error
-# V1 = 0.6             # for velocity
+# P5 = 0.2             # for position error
+# V1 = 1             # for velocity
 # V2 = 6               # for velocity accuracy
-# V3 = 0.3             # for velocity direction
+# V3 = 0.5             # for velocity direction
 # Y1 = 1               # for yaw
 # Y2 = 3               # for yaw accuracy
 # Y3 = 0.1             # for yaw error
@@ -44,20 +44,20 @@ from std_msgs.msg import Float64MultiArray
 # E = 0.4              # for energy consumption
 
 ##---- parameters for inner loop (atti/rate/prop) training ----##
-C1 = 1                # for continous actions
-C2 = 2                # for continous thrust
+C1 = 1.2                # for continous actions
+C2 = 1.2                # for continous thrust
 TH = 1                # for thrust to overcome gravity
 P1 = 1              # for horizental position
 P2 = 6               # for horizental position accuracy
 P3 = 1               # for vertical position
 P4 = 6               # for vertical position accuracy
-P5 = 0.1             # for position error
+P5 = 1               # for position error
 V1 = 1               # for velocity
 V2 = 4               # for velocity accuracy
-V3 = 0.3             # for velocity direction
-Y1 = 1               # for yaw
-Y2 = 6               # for yaw accuracy
-Y3 = 0.               # for yaw error
+V3 = 0.5             # for velocity direction
+Y1 = 1.5               # for yaw
+Y2 = torch.pi        # for yaw accuracy
+Y3 = 0.3               # for yaw error
 A1 = 1               # for rate
 A2 = 6               # for rate accuracy
 E = 0.4              # for energy consumption
@@ -77,6 +77,13 @@ def quaternion_multiply(q1: torch.Tensor, q2: torch.Tensor):
     z = w1 * z2 + z1 * w2 + x1 * y2 - y1 * x2
     w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
     return torch.stack((x, y, z, w), dim=-1)
+
+def compute_yaw_diff(a: torch.Tensor, b: torch.Tensor):
+    """Compute the difference between two sets of Euler angles. a & b in [-pi, pi]"""
+    diff = b - a
+    diff = torch.where(diff < -torch.pi, diff + 2*torch.pi, diff)
+    diff = torch.where(diff > torch.pi, diff - 2*torch.pi, diff)
+    return diff
 
 class X152bPx4(BaseTask):
 
@@ -133,15 +140,11 @@ class X152bPx4(BaseTask):
             self.action_lower_limits = torch.tensor(
                 [-6, -6, -6, -6], device=self.device, dtype=torch.float32)
             self.parallel_vel_control = ParallelVelControl(self.num_envs)
-
-        elif(cfg.env.ctl_mode == "atti"):
+        elif(cfg.env.ctl_mode == "atti"): # w, x, y, z, thrust
             self.action_upper_limits = torch.tensor(
             [1, 1, 1, 1, 1], device=self.device, dtype=torch.float32)
             self.action_lower_limits = torch.tensor(
-            [0, -1, -1, -1, 0.], device=self.device, dtype=torch.float32)
-            # self.action_upper_limits = torch.ones((self.num_actions), device=self.device, dtype=torch.float32)
-            # self.action_lower_limits = -torch.ones((self.num_actions), device=self.device, dtype=torch.float32)
-            # self.action_lower_limits[-1] = 0.
+            [-1, -1, -1, -1, 0.], device=self.device, dtype=torch.float32)
             self.parallel_atti_control = ParallelAttiControl(self.num_envs)
         elif(cfg.env.ctl_mode == "rate"):
             self.action_upper_limits = torch.tensor(
@@ -266,7 +269,6 @@ class X152bPx4(BaseTask):
         print("\n\n\n\n\n ENVIRONMENT CREATED \n\n\n\n\n\n")
 
     def step(self, actions):
-        # print(actions)
         # step physics and render each frame
         for i in range(self.cfg.env.num_control_steps_per_env_step):
             self.pre_physics_step(actions)
@@ -305,17 +307,28 @@ class X152bPx4(BaseTask):
 
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
+        # randomize root states
         self.root_states[env_ids, 0:2] = 2.0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) # 2.0
         self.root_states[env_ids, 2] = 2.0*torch_one_rand_float(-1., 1., (num_resets, 1), self.device).squeeze(-1) # 2
-        
+        # self.root_states[env_ids, 0] = 0 # debug
+        # self.root_states[env_ids, 1] = 0 # debug
+        # self.root_states[env_ids, 2] = 0 # debug
+
+        # randomize root orientation
         root_angle = torch.concatenate([0.1*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .1
                                        0.2*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2
+        # root_angle = torch.concatenate([0.*torch.ones((num_resets, 1), device=self.device), # debug
+        #                                 0.*torch.ones((num_resets, 1), device=self.device), # debug
+        #                                 0.8*torch.pi*torch.ones((num_resets, 1), device=self.device)], dim=-1) # debug
         matrix = T.euler_angles_to_matrix(root_angle, 'XYZ')
         root_quats = T.matrix_to_quaternion(matrix) # w,x,y,z
         self.root_states[env_ids, 3:7] = root_quats[:, [1, 2, 3, 0]] #x,y,z,w
 
+        # randomize root linear and angular velocities
         self.root_states[env_ids, 7:10] = 0.5*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.5
         self.root_states[env_ids, 10:13] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.2
+        # self.root_states[env_ids, 7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # debug
+        # self.root_states[env_ids, 10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # debug
 
         self.gym.set_actor_root_state_tensor(self.sim, self.root_tensor)
         self.reset_buf[env_ids] = 1
@@ -342,24 +355,22 @@ class X152bPx4(BaseTask):
         if len(reset_env_ids) > 0:
             self.reset_idx(reset_env_ids)
         actions = _actions.to(self.device)
-        if self.cfg.env.ctl_mode == "atti":
-            assert actions[..., 0].any() >= 0, "w in q must be positive!"
+
+        # debugging
+        # if self.cfg.env.ctl_mode == "atti":
+        #     print("actions:", actions[0])
+            # assert torch.all(actions[..., 0] >= 0), "w in q must be positive!"
+        
         self.actions = tensor_clamp(
             actions, self.action_lower_limits, self.action_upper_limits)
-        # print(self.actions)
-        # if self.ctl_mode == "atti":
-        #     actions_q = actions[..., :-1]
-        #     actions_cpu = torch.cat((actions_q, self.actions[..., -1].unsqueeze(-1)), dim=-1).cpu().numpy()
-        # else:
-        #     actions_cpu = self.actions.cpu().numpy()
+        
         actions_cpu = self.actions.cpu().numpy()
-        # print(actions_cpu[...,-1])
         
         #--------------- input state for pid controller. tensor [n,4] --------#
         obs_buf_cpu = self.root_states.cpu().numpy()
         # pos
         root_pos_cpu = self.root_states[..., 0:3].cpu().numpy()
-        # quat
+        # quat. if w is negative, then set it to positive. x,y,z,w
         self.root_states[..., 3:7] = torch.where(self.root_states[..., 6:7] < 0, 
                                                  -self.root_states[..., 3:7], 
                                                  self.root_states[..., 3:7])
@@ -445,12 +456,9 @@ class X152bPx4(BaseTask):
 
         self.add_noise()
 
-        # print(self.obs_buf[..., 3:7])
         if not self.cfg.controller_test:
             self.obs_buf -= self.target_states
 
-        # print(self.obs_buf[..., 3:7])
-        # print(self.target_states)
         return self.obs_buf
 
     def add_noise(self):
@@ -465,7 +473,6 @@ class X152bPx4(BaseTask):
         self.obs_buf[..., 15:18] += angvels_noise
 
     def compute_reward(self):
-        # print(self.root_quats)
         self.rew_buf[:], self.reset_buf[:] ,self.item_reward_info= self.compute_quadcopter_reward(
             self.ctl_mode,
             self.actions,
@@ -486,18 +493,18 @@ class X152bPx4(BaseTask):
         
         # update prev 
         self.pre_actions = self.actions.clone()
-
+    
     def compute_quadcopter_reward(self, ctrl_mode, actions, pre_actions, cmd_thrusts, root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length, target_states):
         # type: (Str, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float, Tensor) -> Tuple[Tensor, Tensor,Dict[str, Tensor]]
         
         # continous action
         action_diff = actions - pre_actions
         if ctrl_mode == "pos" or ctrl_mode == 'vel':
-            continous_action_reward = - C1 * torch.sqrt(action_diff.pow(2).sum(-1))
+            continous_action_reward =  C1 * (1 - torch.sqrt(action_diff.pow(2).sum(-1))/5)
         else:
-            continous_action_reward = - C1 * torch.sqrt(action_diff[..., :-1].pow(2).sum(-1)) - C2 * torch.sqrt(action_diff[..., -1].pow(2))
+            continous_action_reward = C1 * (1- torch.sqrt(action_diff[..., :-1].pow(2).sum(-1))/5) + C2 * (1-torch.sqrt(action_diff[..., -1].pow(2))/5)
             thrust = actions[..., -1] # this thrust is the force on vertical axis
-            thrust_reward = - TH * torch.abs(0.1533 - thrust)
+            thrust_reward = TH * (1-torch.abs(0.1533 - thrust))
 
         # distance
         target_positions = target_states[..., 9:12]
@@ -510,7 +517,7 @@ class X152bPx4(BaseTask):
         self.int_pos_error[..., 0] = pos_diff_h + pos_diff_v
 
         pos_reward = P1 * (1.0 - 1/P2*pos_diff_h) + P3 * (1.0 - 1/P4*pos_diff_v) 
-        pos_error_reward = - P5 * self.int_pos_error.sum(-1)
+        pos_error_reward = P5 * (1-self.int_pos_error.sum(-1) / 35)
         _pos_reward = pos_reward + pos_error_reward
 
         # velocity
@@ -524,8 +531,8 @@ class X152bPx4(BaseTask):
         vel_direction = root_linvels / torch.norm(root_linvels, dim=1, keepdim=True)
         dot_product = (tar_direction * vel_direction).sum(dim=1)
         angle_difference = torch.acos(dot_product.clamp(-1.0, 1.0)).abs()
-        vel_direction_error_reward = - V3 * angle_difference / torch.pi
-        vel_reward += vel_direction_error_reward
+        vel_direction_error_reward = V3 * (1 - angle_difference / torch.pi)
+        _vel_reward = vel_reward + vel_direction_error_reward
 
         # yaw
         target_matrix = target_states[..., 0:9].reshape(self.num_envs, 3,3)
@@ -534,12 +541,12 @@ class X152bPx4(BaseTask):
         root_matrix = T.quaternion_to_matrix(root_quats[:, [3, 0, 1, 2]])
         root_euler = T.matrix_to_euler_angles(root_matrix, convention='XYZ')
 
-        yaw_diff = torch.abs(target_euler[..., 2] - root_euler[..., 2])
+        yaw_diff = torch.abs(compute_yaw_diff(target_euler[..., 2], root_euler[..., 2]))
         yaw_reward = Y1 * (1. - (1./Y2)*yaw_diff)
 
         self.int_yaw_error[..., 1:] = self.int_yaw_error[..., :-1]
-        self.int_yaw_error[..., 0] = yaw_diff[..., 2]
-        yaw_error_reward = - Y3 * self.int_yaw_error.sum(-1)
+        self.int_yaw_error[..., 0] = yaw_diff
+        yaw_error_reward = Y3 * (1 - self.int_yaw_error.sum(-1)/(torch.pi*10))
         _yaw_reward = yaw_reward + yaw_error_reward
 
         # angular velocity
@@ -556,21 +563,22 @@ class X152bPx4(BaseTask):
         effort_reward = E * (1 - thrust_cmds).sum(-1)/4
 
         # combined reward
-        if ctrl_mode == "vel" or "pos":
-            reward = continous_action_reward + angvel_reward + vel_reward + _pos_reward + effort_reward + _yaw_reward
-        elif ctrl_mode == "atti" or "rate":
-            reward = continous_action_reward + angvel_reward + vel_reward + _pos_reward + effort_reward + _yaw_reward + thrust_reward
-    
+        if ctrl_mode == "vel" or ctrl_mode == "pos":
+            reward = continous_action_reward + angvel_reward + _vel_reward + _pos_reward + effort_reward + _yaw_reward
+        elif ctrl_mode == "atti" or ctrl_mode == "rate":
+            reward = continous_action_reward + angvel_reward + _vel_reward + _pos_reward + effort_reward + _yaw_reward + thrust_reward
+        else:
+            reward = continous_action_reward + angvel_reward + _vel_reward + _pos_reward + effort_reward + _yaw_reward
+        
+        # reward = continous_action_reward + _pos_reward + effort_reward
+
         # resets due to misbehavior
         ones = torch.ones_like(reset_buf)
         die = torch.zeros_like(reset_buf)
 
-        # resets due to a negative w in quaternions
-        reset = torch.where(actions[:, 0] < 0, ones, die)
-
         # resets due to episode length
         reset = torch.where(progress_buf >= max_episode_length - 1, ones, die)
-        
+
         reset = torch.where(torch.norm(relative_positions, dim=1) > 4, ones, reset)
         
         reset = torch.where(torch.norm(relative_linvels, dim=1) > 6.0, ones, reset)
@@ -582,14 +590,19 @@ class X152bPx4(BaseTask):
         reset = torch.where(relative_positions[..., 2] > 2, ones, reset)
 
         reset = torch.where(ups[..., 2] < 0.0, ones, reset) # orient_z 小于0 = 飞行器朝下了
+
+        # resets due to a negative w in quaternions
+        if ctrl_mode == "atti":
+            reset = torch.where(actions[..., 0] < 0, ones, reset)
         
         item_reward_info = {}
         item_reward_info["angvel_reward"] = angvel_reward
         item_reward_info["effort_reward"] = effort_reward
         item_reward_info["pos_reward"] = pos_reward
-        item_reward_info["vel_reward"] = vel_reward
-        item_reward_info["yaw_reward"] = yaw_reward
         item_reward_info["pos_error_reward"] = pos_error_reward
+        item_reward_info["vel_reward"] = vel_reward
+        item_reward_info["vel_direction_error_reward"] = vel_direction_error_reward
+        item_reward_info["yaw_reward"] = yaw_reward
         item_reward_info["yaw_error_reward"] = yaw_error_reward
         item_reward_info["continous_action_reward"] = continous_action_reward
 
@@ -597,7 +610,6 @@ class X152bPx4(BaseTask):
             item_reward_info["thrust_reward"] = thrust_reward
 
         return reward, reset, item_reward_info
-    
 
 
     # #---------------------- Original Reward Function ----------------------#

@@ -11,7 +11,7 @@ class X152bSigmoidConfig(X152bPx4Cfg):
     tcn_seqs_len = 25 # if use TCN
  
     class env:
-        ctl_mode = "rate"
+        ctl_mode = "atti"
         num_envs = 4 # must be a square number
         num_observations = 18
         headless = True

@@ -97,7 +97,7 @@ class X152bSigmoid(X152bPx4):
             self.action_upper_limits = torch.tensor(
             [1, 1, 1, 1, 1], device=self.device, dtype=torch.float32)
             self.action_lower_limits = torch.tensor(
-            [0, -1, -1, -1, 0.], device=self.device, dtype=torch.float32)
+            [-1, -1, -1, -1, 0.], device=self.device, dtype=torch.float32)
             # self.action_upper_limits = torch.ones((self.num_actions), device=self.device, dtype=torch.float32)
             # self.action_lower_limits = -torch.ones((self.num_actions), device=self.device, dtype=torch.float32)
             # self.action_lower_limits[-1] = 0.
