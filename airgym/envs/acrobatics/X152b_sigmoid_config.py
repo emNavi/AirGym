@@ -7,11 +7,11 @@ from airgym import AIRGYM_ROOT_DIR
 class X152bSigmoidConfig(X152bPx4Cfg):
     seed = 1
     controller_test = False
-    use_tcn = True # if use TCN
+    use_tcn = False # if use TCN
     tcn_seqs_len = 25 # if use TCN
  
     class env:
-        ctl_mode = "atti"
+        ctl_mode = "rate"
         num_envs = 4 # must be a square number
         num_observations = 18
         headless = True
@@ -24,11 +24,6 @@ class X152bSigmoidConfig(X152bPx4Cfg):
         enable_onboard_cameras = False # enable onboard cameras
         reset_on_collision = True # reset environment when contact force on quadrotor is above a threshold
         create_ground_plane = True # create a ground plane
-
-        control_lists = [(-1, 0, 1), 
-                         (2, 1, 1),
-                         (4,-1, 1),
-                         (6, 1, 1)]
 
     class sim:
         dt =  0.01 #0.01

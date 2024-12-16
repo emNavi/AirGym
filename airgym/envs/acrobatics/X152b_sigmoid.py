@@ -62,7 +62,7 @@ class X152bSigmoid(X152bPx4):
 
         self.root_states = self.vec_root_tensor[:, 0, :]
         self.root_positions = self.root_states[..., 0:3]
-        self.root_quats = self.root_states[..., 3:7]
+        self.root_quats = self.root_states[..., 3:7] # x,y,z,w
         self.root_linvels = self.root_states[..., 7:10]
         self.root_angvels = self.root_states[..., 10:13]
 
@@ -92,15 +92,11 @@ class X152bSigmoid(X152bPx4):
             self.action_lower_limits = torch.tensor(
                 [-6, -6, -6, -6], device=self.device, dtype=torch.float32)
             self.parallel_vel_control = ParallelVelControl(self.num_envs)
-
         elif(cfg.env.ctl_mode == "atti"):
             self.action_upper_limits = torch.tensor(
             [1, 1, 1, 1, 1], device=self.device, dtype=torch.float32)
             self.action_lower_limits = torch.tensor(
             [-1, -1, -1, -1, 0.], device=self.device, dtype=torch.float32)
-            # self.action_upper_limits = torch.ones((self.num_actions), device=self.device, dtype=torch.float32)
-            # self.action_lower_limits = -torch.ones((self.num_actions), device=self.device, dtype=torch.float32)
-            # self.action_lower_limits[-1] = 0.
             self.parallel_atti_control = ParallelAttiControl(self.num_envs)
         elif(cfg.env.ctl_mode == "rate"):
             self.action_upper_limits = torch.tensor(
@@ -137,10 +133,6 @@ class X152bSigmoid(X152bPx4):
         self.actions = torch.zeros((self.num_envs, self.num_actions), device=self.device)
         self.pre_actions = torch.zeros((self.num_envs, self.num_actions), device=self.device)
 
-        # control list and target flag
-        self.control_lists_tensor = torch.tensor(self.cfg.env.control_lists).to(self.device)
-        self.flag = torch.ones(self.num_envs, device=self.device)
-
         # reward integration buffers
         self.int_pos_error = torch.zeros((self.num_envs, 10), device=self.device)
         self.int_yaw_error = torch.zeros((self.num_envs, 10), device=self.device)
@@ -160,24 +152,37 @@ class X152bSigmoid(X152bPx4):
             self.tcn_seqs_len = self.cfg.tcn_seqs_len
             self.obs_seqs_buf = torch.zeros(
                 (self.num_envs, self.tcn_seqs_len, self.cfg.env.num_observations), device=self.device, dtype=torch.float32)
+        
+        # define trajectory
+        self.trajectory_setup()
 
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
 
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
-        self.root_states[env_ids, 0] = 1.0*torch_rand_float(.0, .0, (num_resets, 1), self.device).squeeze(-1) # 2.0
-        self.root_states[env_ids, 1] = 1.0*torch_rand_float(-1.0, -1.0, (num_resets, 1), self.device).squeeze(-1) # 2.0
-        self.root_states[env_ids, 2] = 1.0*torch_one_rand_float(1., 1., (num_resets, 1), self.device).squeeze(-1) # 2
-        
+        # randomize root states
+        self.root_states[env_ids, 0:2] = .2*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + self.control_lists_tensor[0, 0:2]
+        self.root_states[env_ids, 2] = .0*torch_one_rand_float(-1., 1., (num_resets, 1), self.device).squeeze(-1) + self.control_lists_tensor[0, 2]
+        # self.root_states[env_ids, 0] = 0 # debug
+        # self.root_states[env_ids, 1] = 0 # debug
+        # self.root_states[env_ids, 2] = 0 # debug
+
+        # randomize root orientation
         root_angle = torch.concatenate([0.*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .1
                                        0.*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2
+        # root_angle = torch.concatenate([0.*torch.ones((num_resets, 1), device=self.device), # debug
+        #                                 0.*torch.ones((num_resets, 1), device=self.device), # debug
+        #                                 0.8*torch.pi*torch.ones((num_resets, 1), device=self.device)], dim=-1) # debug
         matrix = T.euler_angles_to_matrix(root_angle, 'XYZ')
         root_quats = T.matrix_to_quaternion(matrix) # w,x,y,z
         self.root_states[env_ids, 3:7] = root_quats[:, [1, 2, 3, 0]] #x,y,z,w
 
+        # randomize root linear and angular velocities
         self.root_states[env_ids, 7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.5
         self.root_states[env_ids, 10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.2
+        # self.root_states[env_ids, 7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # debug
+        # self.root_states[env_ids, 10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # debug
 
         self.gym.set_actor_root_state_tensor(self.sim, self.root_tensor)
         self.reset_buf[env_ids] = 1
@@ -193,6 +198,9 @@ class X152bSigmoid(X152bPx4):
         self.pre_root_positions[env_ids] = 0
 
         self.flag[env_ids] = 1
+
+        if self.cfg.use_tcn:
+            self.obs_seqs_buf[env_ids] = 0
 
     def compute_observations(self):
         self.root_matrix = T.quaternion_to_matrix(self.root_quats[:, [3, 0, 1, 2]]).reshape(self.num_envs, 9)
@@ -227,16 +235,33 @@ class X152bSigmoid(X152bPx4):
         cur_target = self.control_lists_tensor[self.flag.int()]
         # target = torch.tensor([3, 0, 0], device=self.device).repeat(self.num_envs, 1)
         tar_direction = cur_target - root_positions
-        r = torch.sum(tar_direction * root_linvels, dim=-1)
-        return r
+        root_linvels_norm = root_linvels / (torch.norm(root_linvels, dim=-1, keepdim=True) + 1e-8)
+        tar_direction_norm = tar_direction / (torch.norm(tar_direction, dim=-1, keepdim=True) + 1e-8)
+        cos_angle = torch.clamp(torch.sum(tar_direction_norm*root_linvels_norm, dim=-1), -1., 1.) # (-1, 1)
+        reward = (cos_angle + 1.0) / 2.0  # 将余弦值映射到 [0, 1]
+        return reward
     
+    # reward setting in UZH nature paper
     # def guidance_reward(self, root_positions, pre_root_positions, root_angvels):
     #     cur_target = self.control_lists_tensor[self.flag.int()]
     #     r = torch.norm(cur_target-pre_root_positions, dim=-1) - torch.norm(cur_target-root_positions, dim=-1) - 0.01 * torch.norm(root_angvels, dim=-1)
     #     return r
 
+    def trajectory_setup(self):
+        #####################################################################################
+        #-------------------- control list definition and target flag ----------------------#
+        #####################################################################################
+        control_lists = [(0, -1, 1), 
+                         (2, 1, 1),
+                         (4,-1, 1),
+                         (6, 1, 1)]
+        self.control_lists_tensor = torch.tensor(control_lists).to(self.device)
+        self.flag = torch.ones(self.num_envs, device=self.device)
+
     def tracking_reward(self, root_positions, root_linvels):
         '''
+        Cubic spline trajectory
+        control lists: [(0, -1, 1), (2, 1, 1), (4, -1, 1), (6, 1, 1)]
         Three trajectories:
         x1 = 6*t
         y1 = -36*t**3 + 10*t - 1
@@ -251,9 +276,9 @@ class X152bSigmoid(X152bPx4):
         z3 = 1
         '''
 
-        cond1 = root_positions[..., 0] < self.cfg.env.control_lists[1][0]
-        cond2 = (root_positions[..., 0] >= self.cfg.env.control_lists[1][0]) & (root_positions[..., 0] < self.cfg.env.control_lists[2][0])
-        cond3 = root_positions[..., 0] >= self.cfg.env.control_lists[2][0]
+        cond1 = root_positions[..., 0] < self.control_lists_tensor[1][0]
+        cond2 = (root_positions[..., 0] >= self.control_lists_tensor[1][0]) & (root_positions[..., 0] < self.control_lists_tensor[2][0])
+        cond3 = root_positions[..., 0] >= self.control_lists_tensor[2][0]
 
         t = torch.zeros_like(root_positions[..., 0])
         t = torch.where(cond1, root_positions[..., 0] / 6, t)
@@ -315,22 +340,26 @@ class X152bSigmoid(X152bPx4):
         reward, dist = self.tracking_reward(root_positions, root_linvels)
 
         # guidance_reward = self.guidance_reward(root_positions, pre_root_positions, root_angvels)
-        # # print("guidance_reward:", guidance_reward[0])
+        guidance_reward = self.guidance_reward(root_positions, pre_root_positions)
+        # print("guidance_reward:", guidance_reward[0])
         flag_reward = self.update_flag()
-        # # print("flag_reward:", self.flag[0], flag_reward[0])
-        # reward = guidance_reward
+        # print("flag_reward:", self.flag[0], flag_reward[0])
+        reward = guidance_reward + flag_reward
 
         # resets due to misbehavior
         ones = torch.ones_like(reset_buf)
         die = torch.zeros_like(reset_buf)
-        # die = torch.where(target_dist > 10.0, ones, die)
 
         # resets due to episode length
         reset = torch.where(progress_buf >= max_episode_length - 1, ones, die)
-        # reset = torch.where(dist > 1.0, ones, reset)
+        reset = torch.where(dist > 1.0, ones, reset)
 
         reset = torch.where(root_positions[..., 2] < 0.5, ones, reset)
         reset = torch.where(root_positions[..., 2] > 1.5, ones, reset)
+
+        # resets due to a negative w in quaternions
+        # if ctrl_mode == "atti":
+        #     reset = torch.where(actions[..., 0] < 0, ones, reset)
         
         item_reward_info = {}
         # item_reward_info["guidance_reward"] = guidance_reward
