@@ -39,7 +39,7 @@ params:
     #     scale: 2
 
   config:
-    env_name: X152b
+    env_name: X152b_sigmoid
     env_config:
       num_envs: 4096
     

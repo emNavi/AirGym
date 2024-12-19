@@ -13,7 +13,7 @@ class X152bSigmoidConfig(X152bPx4Cfg):
     class env:
         ctl_mode = "rate"
         num_envs = 4 # must be a square number
-        num_observations = 18
+        num_observations = 18 + 3
         headless = True
         get_privileged_obs = True # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned
         num_actions = 4
@@ -82,7 +82,7 @@ class X152bSigmoidConfig(X152bPx4Cfg):
             "boundaries/bottom_wall": False, 
             "boundaries/8X18ground": True,
             "boundaries/18X18ground": False,
-            # "cubes/1X4": True,
+            "cubes/1X4": True,
         }
 
         env_lower_bound_min = [-4.0, -8.0, 0.0] # lower bound for the environment space
@@ -93,6 +93,7 @@ class X152bSigmoidConfig(X152bPx4Cfg):
         # assets definitions
         class X152b(asset_register.X152b):
             num_assets = 1
+            collision_mask = 1
         
         class thin_asset_params(asset_register.thin_asset_params):
             num_assets = 10
@@ -111,6 +112,9 @@ class X152bSigmoidConfig(X152bPx4Cfg):
 
         class ground(asset_register.ground):
             num_assets = 1
+            collision_mask = 1
+            specified_position = [[-0, -0, 0.05]]
+            specified_euler_angle = [[0.0, 0.0, 0.0]]
 
         class left_wall(asset_register.left_wall):
             num_assets = 1
@@ -130,10 +134,18 @@ class X152bSigmoidConfig(X152bPx4Cfg):
         class back_wall(asset_register.back_wall):
             num_assets = 1
 
+        ## cubes
         class cube1X4_asset_params(asset_register.cube_asset_params):
-            num_assets = 1
-            specified_position = [1.0, 0.0, 0.0] # if > -900, use this value instead of randomizing the ratios
-            specified_euler_angle = [0.0, 0.0, 0.0] # if > -900, use this value instead of randomizing
+            num_assets = 4
+            collision_mask = 1
+            specified_position = [[0.0, 0.0, 0.0],
+                                  [2.0, 0.0, 0.0],
+                                  [4.0, 0.0, 0.0],
+                                  [6.0, 0.0, 0.0]] # if > -900, use this value instead of randomizing the ratios
+            specified_euler_angle = [[0.0, 0.0, 0.0],
+                                     [0.0, 0.0, 0.0],
+                                     [0.0, 0.0, 0.0],
+                                     [0.0, 0.0, 0.0]] # if > -900, use this value instead of randomizing
 
         asset_type_to_dict_map = {
             "thin": thin_asset_params,

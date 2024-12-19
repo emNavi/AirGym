@@ -11,6 +11,7 @@ from isaacgym.torch_utils import *
 from airgym.envs.base.X152bPx4 import X152bPx4
 import airgym.utils.rotations as rot_utils
 from airgym.envs.acrobatics.X152b_sigmoid_config import X152bSigmoidConfig
+from airgym.utils.asset_manager import AssetManager
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
 
@@ -52,10 +53,18 @@ class X152bSigmoid(X152bPx4):
         self.sim_device_id = sim_device
         self.headless = headless
 
+        self.env_asset_manager = AssetManager(self.cfg, sim_device)
+
         super(X152bPx4, self).__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
         self.root_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
 
-        bodies_per_env = self.robot_num_bodies
+        self.contact_force_tensor = self.gym.acquire_net_contact_force_tensor(self.sim)
+
+        self.gym.refresh_actor_root_state_tensor(self.sim)
+        self.gym.refresh_net_contact_force_tensor(self.sim)
+
+        num_actors = self.env_asset_manager.get_env_actor_count() + 1 # Number of obstacles in the environment + one robot
+        bodies_per_env = self.env_asset_manager.get_env_link_count() + self.robot_num_bodies # Number of links in the environment + robot
 
         self.vec_root_tensor = gymtorch.wrap_tensor(
             self.root_tensor).view(self.num_envs, num_actors, 13)
@@ -156,9 +165,115 @@ class X152bSigmoid(X152bPx4):
         # define trajectory
         self.trajectory_setup()
 
+    def _create_envs(self):
+        print("\n\n\n\n\n CREATING ENVIRONMENT \n\n\n\n\n\n")
+        asset_path = self.cfg.asset_config.X152b.file.format(
+            AIRGYM_ROOT_DIR=AIRGYM_ROOT_DIR)
+        asset_root = os.path.dirname(asset_path)
+        asset_file = os.path.basename(asset_path)
+
+        asset_options = asset_class_to_AssetOptions(self.cfg.asset_config.X152b)
+
+        X152b = self.gym.load_asset(
+            self.sim, asset_root, asset_file, asset_options)
+
+        self.robot_num_bodies = self.gym.get_asset_rigid_body_count(X152b)
+
+        start_pose = gymapi.Transform()
+        # create env instance
+        pos = torch.tensor([0, 0, 0], device=self.device)
+        start_pose.p = gymapi.Vec3(*pos)
+        self.env_spacing = self.cfg.env.env_spacing
+        env_lower = gymapi.Vec3(-self.env_spacing, -
+                                self.env_spacing, -self.env_spacing)
+        env_upper = gymapi.Vec3(
+            self.env_spacing, self.env_spacing, self.env_spacing)
+        self.actor_handles = []
+        self.env_asset_handles = []
+        self.envs = []
+
+        self.segmentation_counter = 0
+
+        for i in range(self.num_envs):
+            # create environment
+            env_handle = self.gym.create_env(self.sim, env_lower, env_upper, int(np.sqrt(self.num_envs)))
+            # insert robot asset
+            actor_handle = self.gym.create_actor(env_handle, X152b, start_pose, "robot", i, self.cfg.asset_config.X152b.collision_mask, 0)
+            # append to lists
+            self.envs.append(env_handle)
+            self.actor_handles.append(actor_handle)
+
+            env_asset_list = self.env_asset_manager.prepare_assets_for_simulation(self.gym, self.sim)
+            asset_counter = 0
+
+            # have the segmentation counter be the max defined semantic id + 1. Use this to set the semantic mask of objects that are
+            # do not have a defined semantic id in the config file, but still requre one. Increment for every instance in the next snippet
+            for dict_item in env_asset_list:
+                self.segmentation_counter = max(self.segmentation_counter, int(dict_item["semantic_id"])+1)
+
+            for dict_item in env_asset_list:
+                folder_path = dict_item["asset_folder_path"]
+                filename = dict_item["asset_file_name"]
+                asset_options = dict_item["asset_options"]
+                whole_body_semantic = dict_item["body_semantic_label"]
+                per_link_semantic = dict_item["link_semantic_label"]
+                semantic_masked_links = dict_item["semantic_masked_links"]
+                semantic_id = dict_item["semantic_id"]
+                color = dict_item["color"]
+                collision_mask = dict_item["collision_mask"]
+
+                loaded_asset = self.gym.load_asset(self.sim, folder_path, filename, asset_options)
+
+                assert not (whole_body_semantic and per_link_semantic)
+                if semantic_id < 0:
+                    object_segmentation_id = self.segmentation_counter
+                    self.segmentation_counter += 1
+                else:
+                    object_segmentation_id = semantic_id
+
+                asset_counter += 1
+
+                env_asset_handle = self.gym.create_actor(env_handle, loaded_asset, start_pose, "env_asset_"+str(asset_counter), i, collision_mask, object_segmentation_id)
+                self.env_asset_handles.append(env_asset_handle)
+                if len(self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)) > 1:
+                    print("Env asset has rigid body with more than 1 link: ", len(self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)))
+                    sys.exit(0)
+
+                if per_link_semantic:
+                    rigid_body_names = None
+                    if len(semantic_masked_links) == 0:
+                        rigid_body_names = self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)
+                    else:
+                        rigid_body_names = semantic_masked_links
+                    for rb_index in range(len(rigid_body_names)):
+                        self.segmentation_counter += 1
+                        self.gym.set_rigid_body_segmentation_id(env_handle, env_asset_handle, rb_index, self.segmentation_counter)
+            
+                if semantic_id != 4 and semantic_id != 5 and semantic_id != 8:
+                    if color is None:
+                        color = np.random.randint(low=50,high=200,size=3)
+
+                    self.gym.set_rigid_body_color(env_handle, env_asset_handle, 0, gymapi.MESH_VISUAL,
+                            gymapi.Vec3(color[0]/255,color[1]/255,color[2]/255))
+        
+        self.robot_body_props = self.gym.get_actor_rigid_body_properties(self.envs[0],self.actor_handles[0])
+        self.robot_mass = 0
+        for prop in self.robot_body_props:
+            self.robot_mass += prop.mass
+        print("Total robot mass: ", self.robot_mass)
+        
+        print("\n\n\n\n\n ENVIRONMENT CREATED \n\n\n\n\n\n")
+
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
 
+        # set asset root states
+        self.env_asset_root_states[env_ids, :, 0:3] = self.env_asset_manager.asset_pose_tensor[env_ids, :, 0:3]
+        euler_angles = self.env_asset_manager.asset_pose_tensor[env_ids, :, 3:6]
+        self.env_asset_root_states[env_ids, :, 3:7] = quat_from_euler_xyz(euler_angles[..., 0], euler_angles[..., 1], euler_angles[..., 2])
+        self.env_asset_root_states[env_ids, :, 7:13] = 0.0
+
+        # set drone root state
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
         # randomize root states
@@ -210,6 +325,9 @@ class X152bSigmoid(X152bPx4):
         self.obs_buf[..., 12:15] = self.root_linvels
         self.obs_buf[..., 15:18] = self.root_angvels
 
+        cur_target = self.control_lists_tensor[self.flag.int()]
+        self.obs_buf[..., 18:21] = cur_target
+
         self.add_noise()
         return self.obs_buf
 
@@ -217,6 +335,9 @@ class X152bSigmoid(X152bPx4):
         # print(self.root_quats)
         # print(self.pre_root_positions[0])
         self.rew_buf[:], self.reset_buf[:] ,self.item_reward_info = self.compute_quadcopter_reward(
+            self.ctl_mode,
+            self.actions,
+            self.pre_actions,
             self.root_positions,
             self.pre_root_positions,
             self.root_quats,
@@ -231,21 +352,21 @@ class X152bSigmoid(X152bPx4):
         self.pre_actions = self.actions.clone()
         self.pre_root_positions = self.root_positions.clone()
     
-    def guidance_reward(self, root_positions, root_linvels):
-        cur_target = self.control_lists_tensor[self.flag.int()]
-        # target = torch.tensor([3, 0, 0], device=self.device).repeat(self.num_envs, 1)
-        tar_direction = cur_target - root_positions
-        root_linvels_norm = root_linvels / (torch.norm(root_linvels, dim=-1, keepdim=True) + 1e-8)
-        tar_direction_norm = tar_direction / (torch.norm(tar_direction, dim=-1, keepdim=True) + 1e-8)
-        cos_angle = torch.clamp(torch.sum(tar_direction_norm*root_linvels_norm, dim=-1), -1., 1.) # (-1, 1)
-        reward = (cos_angle + 1.0) / 2.0  # 将余弦值映射到 [0, 1]
-        return reward
+    # def guidance_reward(self, root_positions, root_linvels):
+    #     cur_target = self.control_lists_tensor[self.flag.int()]
+    #     # target = torch.tensor([3, 0, 0], device=self.device).repeat(self.num_envs, 1)
+    #     tar_direction = cur_target - root_positions
+    #     root_linvels_norm = root_linvels / (torch.norm(root_linvels, dim=-1, keepdim=True) + 1e-8)
+    #     tar_direction_norm = tar_direction / (torch.norm(tar_direction, dim=-1, keepdim=True) + 1e-8)
+    #     cos_angle = torch.clamp(torch.sum(tar_direction_norm*root_linvels_norm, dim=-1), -1., 1.) # (-1, 1)
+    #     reward = (cos_angle + 1.0) / 2.0  # 将余弦值映射到 [0, 1]
+    #     return reward
     
     # reward setting in UZH nature paper
-    # def guidance_reward(self, root_positions, pre_root_positions, root_angvels):
-    #     cur_target = self.control_lists_tensor[self.flag.int()]
-    #     r = torch.norm(cur_target-pre_root_positions, dim=-1) - torch.norm(cur_target-root_positions, dim=-1) - 0.01 * torch.norm(root_angvels, dim=-1)
-    #     return r
+    def guidance_reward(self, root_positions, pre_root_positions, root_angvels):
+        cur_target = self.control_lists_tensor[self.flag.int()]
+        r = torch.norm(cur_target-pre_root_positions, dim=-1) - torch.norm(cur_target-root_positions, dim=-1) - 0.01 * torch.norm(root_angvels, dim=-1)
+        return r
 
     def trajectory_setup(self):
         #####################################################################################
@@ -317,34 +438,45 @@ class X152bSigmoid(X152bPx4):
 
         # print("pos_reward:", pos_reward[0], "vel_reward:", vel_reward[0])
 
-        return 1.0 * pos_reward + 0.05 * vel_reward, pos_dist
+        return pos_reward, vel_reward, pos_dist
     
     def update_flag(self):
         # check whether the agent has reached the current target. if yes, flag += 1 and turn to the next target
         cur_target = self.control_lists_tensor[self.flag.int()]
         self.flag = torch.where(torch.norm(self.root_positions - cur_target, dim=-1) < 0.2, self.flag+1, self.flag)
-        
-        # nxt_target = self.control_lists_tensor[self.flag.int()+1]
-        # tar_vel = nxt_target - self.root_positions
-        # cosin_theta = torch.sum(tar_vel * self.root_linvels, dim=-1) / (torch.norm(tar_vel, dim=-1) * torch.norm(self.root_linvels, dim=-1) + 1e-8)
-        # cosin_theta = torch.clamp(cosin_theta, -1., 1.)
-        # r = .05 * cosin_theta
-        # return r
 
-        return 0.1 * torch.where(torch.norm(self.root_positions - cur_target, dim=-1) < 0.2, 
+        return 1 * torch.where(torch.norm(self.root_positions - cur_target, dim=-1) < 0.2, 
                            torch.ones(self.num_envs, dtype=torch.float32, device=self.device), 
                            torch.zeros(self.num_envs, dtype=torch.float32, device=self.device))
 
-    def compute_quadcopter_reward(self, root_positions, pre_root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length):
+    def compute_quadcopter_reward(self, 
+                                  ctrl_mode, 
+                                  actions, 
+                                  pre_actions, 
+                                  root_positions, 
+                                  pre_root_positions, 
+                                  root_quats, 
+                                  root_linvels, 
+                                  root_angvels, 
+                                  reset_buf, 
+                                  progress_buf, 
+                                  max_episode_length):
+        # continous actions
+        action_diff = actions - pre_actions
+        if ctrl_mode == "pos" or ctrl_mode == 'vel':
+            continous_action_reward =  .5 * (1 - torch.sqrt(action_diff.pow(2).sum(-1))/5)
+        else:
+            continous_action_reward = .5 * (1- torch.sqrt(action_diff[..., :-1].pow(2).sum(-1))/5) + .5 * (1-torch.sqrt(action_diff[..., -1].pow(2))/5)
+            thrust = actions[..., -1] # this thrust is the force on vertical axis
+            thrust_reward = .5 * (1-torch.abs(0.1533 - thrust))
         
-        reward, dist = self.tracking_reward(root_positions, root_linvels)
+        pos_reward, vel_reward, dist = self.tracking_reward(root_positions, root_linvels)
 
-        # guidance_reward = self.guidance_reward(root_positions, pre_root_positions, root_angvels)
-        guidance_reward = self.guidance_reward(root_positions, pre_root_positions)
+        guidance_reward = 1*self.guidance_reward(root_positions, pre_root_positions, root_angvels)
         # print("guidance_reward:", guidance_reward[0])
         flag_reward = self.update_flag()
         # print("flag_reward:", self.flag[0], flag_reward[0])
-        reward = guidance_reward + flag_reward
+        reward = 2 * pos_reward + 1*vel_reward + guidance_reward + flag_reward + continous_action_reward + thrust_reward
 
         # resets due to misbehavior
         ones = torch.ones_like(reset_buf)
@@ -358,12 +490,16 @@ class X152bSigmoid(X152bPx4):
         reset = torch.where(root_positions[..., 2] > 1.5, ones, reset)
 
         # resets due to a negative w in quaternions
-        # if ctrl_mode == "atti":
-        #     reset = torch.where(actions[..., 0] < 0, ones, reset)
+        if ctrl_mode == "atti":
+            reset = torch.where(actions[..., 0] < 0, ones, reset)
         
         item_reward_info = {}
-        # item_reward_info["guidance_reward"] = guidance_reward
-        # item_reward_info["flag_reward"] = flag_reward
+        item_reward_info["pos_reward"] = pos_reward
+        item_reward_info["vel_reward"] = vel_reward
+        item_reward_info["guidance_reward"] = guidance_reward
+        item_reward_info["flag_reward"] = flag_reward
+        item_reward_info["continous_action_reward"] = continous_action_reward
+        item_reward_info["thrust_reward"] = thrust_reward
 
         return reward, reset, item_reward_info
 
