@@ -81,7 +81,7 @@ class AirGymRLGPUEnv(vecenv.IVecEnv):
 env_configurations.register('X152b', {'env_creator': lambda **kwargs : task_registry.make_env('X152b',args=Namespace(**kwargs)),
         'vecenv_type': 'AirGym-RLGPU'})
 
-env_configurations.register('X152b_slit', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_slit',args=Namespace(**kwargs)),
+env_configurations.register('X152b_target', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_target',args=Namespace(**kwargs)),
         'vecenv_type': 'AirGym-RLGPU'})
 
 env_configurations.register('X152b_sigmoid', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_sigmoid',args=Namespace(**kwargs)),

@@ -16,11 +16,11 @@ except ImportError:
     print("Warning! X152bPx4WithCamCfg or X152bPx4WithCam cannot be imported. Ignore if using on real robot inference.")
 
 try:
-    from .acrobatics.X152b_slit_config import X152bSlitConfig
-    from .acrobatics.X152b_slit import X152bSlit
-    task_registry.register("X152b_slit", X152bSlit, X152bSlitConfig())
+    from .acrobatics.X152b_target_config import X152bTargetConfig
+    from .acrobatics.X152b_target import X152bTarget
+    task_registry.register("X152b_target", X152bTarget, X152bTargetConfig())
 except ImportError:
-    print("Warning! X152bSlit or X152bSlitConfig cannot be imported. Ignore if using on real robot inference.")
+    print("Warning! X152bTarget or X152bTargetConfig cannot be imported. Ignore if using on real robot inference.")
 
 try:
     from .acrobatics.X152b_sigmoid_config import X152bSigmoidConfig
