@@ -15,7 +15,7 @@ class asset:
     disable_gravity = False
     collapse_fixed_joints = True # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
     fix_base_link = False # fix the base of the robot
-    collision_mask = 0 # 1 to disable, 0 to enable...bitwise filter
+    collision_mask = 0 # objects with the same collision mask will not collide
     replace_cylinder_with_capsule = False # replace collision cylinders with capsules, leads to faster/more stable simulation
     flip_visual_attachments = False # Some .obj meshes must be flipped from y-up to z-up
     density = -1 #0.001
@@ -35,7 +35,7 @@ class X152b(asset):
     disable_gravity = False
     collapse_fixed_joints = True # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
     fix_base_link = False # fix the base of the robot
-    collision_mask = 0 # 1 to disable, 0 to enable...bitwise filter
+    collision_mask = 1 # 1 to disable, 0 to enable...bitwise filter
     replace_cylinder_with_capsule = False # replace collision cylinders with capsules, leads to faster/more stable simulation
     flip_visual_attachments = False # Some .obj meshes must be flipped from y-up to z-up
     density = -1 #0.001
@@ -158,6 +158,27 @@ class cube_asset_params(asset_state_params):
     vhacd_enabled = True
     resolution = 500000
 
+class ball_asset_params(asset_state_params):
+    num_assets = 1
+    collision_mask = 0 # objects with the same collision mask will not collide
+    
+    min_position_ratio = [0.5, 0.5, 0.5] # min position as a ratio of the bounds
+    max_position_ratio = [0.5, 0.5, 0.5] # max position as a ratio of the bounds
+
+    specified_position = [-1000.0, -1000.0, -1000.0] # if > -900, use this value instead of randomizing the ratios
+
+    min_euler_angles = [0, 0, -np.pi] # min euler angles
+    max_euler_angles = [0, 0, np.pi] # max euler angles
+
+    specified_euler_angle = [-1000.0, -1000.0, -1000.0] # if > -900, use this value instead of randomizing
+
+    links_per_asset = 1
+    set_whole_body_semantic_mask = True
+    set_semantic_mask_per_link = False
+    semantic_id = OBJECT_SEMANTIC_ID
+
+    vhacd_enabled = False
+
 class flag_asset_params(asset_state_params):
     num_assets = 6
     
@@ -195,12 +216,12 @@ class ground(asset_state_params):
 
     # specified_euler_angle = [-1000, -1000, -1000] # if > -900, use this value instead of randomizing
 
-    specified_position = [-0, -0, 0.05] # if > -900, use this value instead of randomizing the ratios
+    specified_position = [[-0, -0, 0.05]] # if > -900, use this value instead of randomizing the ratios
 
     min_euler_angles = [0.0, 0.0, 0.0] # min euler angles
     max_euler_angles = [0.0, 0.0, 0.0] # max euler angles
 
-    specified_euler_angle = [-0, 0, -0] # if > -900, use this value instead of randomizing
+    specified_euler_angle = [[-0, 0, -0]] # if > -900, use this value instead of randomizing
 
     links_per_asset = 1
     set_whole_body_semantic_mask = True

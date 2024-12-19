@@ -72,7 +72,6 @@ class AssetManager:
 
 
     def _add_asset_2_tensor(self, asset_class):
-
         self.env_actor_count += asset_class.num_assets
         self.env_link_count += asset_class.num_assets * asset_class.links_per_asset
         
@@ -100,7 +99,36 @@ class AssetManager:
                 (self.asset_max_state_tensor, max_state_tensor))
             self.asset_specified_state_tensor = torch.vstack(
                 (self.asset_specified_state_tensor, specified_state_tensor))
+            
+    def _add_asset_2_tensor_by_id(self, asset_class, id):
+        """
+        For adding specific assets one by one to the tensor
+        """
+        self.env_actor_count += 1
+        self.env_link_count += asset_class.links_per_asset
+        # Define the asset tensors together for the number of assets of the same class being loaded
+        asset_tensor = torch.zeros((1,6), dtype=torch.float, device=self.device).expand(1,-1)
 
+        min_state_tensor = torch.tensor((asset_class.min_position_ratio + asset_class.min_euler_angles), dtype=torch.float, device=self.device).expand(1,-1)
+        max_state_tensor = torch.tensor((asset_class.max_position_ratio + asset_class.max_euler_angles), dtype=torch.float, device=self.device).expand(1,-1)
+        specified_state_tensor = torch.tensor((asset_class.specified_position[id] + asset_class.specified_euler_angle[id]), dtype=torch.float, device=self.device).expand(1,-1)
+
+        # If the whole global asset pose tensor is not defined, define it and then append more copies to it
+        if self.asset_pose_tensor is None:
+            self.asset_pose_tensor = asset_tensor
+            self.asset_min_state_tensor = min_state_tensor
+            self.asset_max_state_tensor = max_state_tensor
+            self.asset_specified_state_tensor = specified_state_tensor
+        # if the tensor exists, append copies to it.
+        else:
+            self.asset_pose_tensor = torch.vstack(
+                (self.asset_pose_tensor, asset_tensor))
+            self.asset_min_state_tensor = torch.vstack(
+                (self.asset_min_state_tensor, min_state_tensor))
+            self.asset_max_state_tensor = torch.vstack(
+                (self.asset_max_state_tensor, max_state_tensor))
+            self.asset_specified_state_tensor = torch.vstack(
+                (self.asset_specified_state_tensor, specified_state_tensor))
 
     def load_asset_tensors(self):
         # Pre-load the tensors before the assets are created
@@ -114,9 +142,10 @@ class AssetManager:
         for asset_key, include_asset in self.asset_config.include_specific_asset.items():
             if not include_asset:
                 continue
-            print("Adding specific assets: {}".format(asset_key))
-            asset_class = self.asset_type_to_dict_map[asset_key]
-            self._add_asset_2_tensor(asset_class)
+            print("Adding specific assets: {} for {} times".format(asset_key, self.asset_type_to_dict_map[asset_key].num_assets))
+            for i in range(self.asset_type_to_dict_map[asset_key].num_assets):
+                asset_class = self.asset_type_to_dict_map[asset_key]
+                self._add_asset_2_tensor_by_id(asset_class, i)
         
         if self.asset_pose_tensor is None:
             return
@@ -187,12 +216,6 @@ class AssetManager:
 
             color = asset_class.color
 
-            assert asset_class.num_assets == 1, "Only one asset can be loaded if the asset_key is a specific asset!"
-            # assert hasattr(asset_class, "specified_position") and \
-            #     all(v > -900 for v in asset_class.specified_position) and \
-            #         all(v > -900 for v in asset_class.specified_euler_angle), \
-            #             "The specified position and angular must be defined for the specific asset!"
-            
             asset_type = asset_key.split("/")[0]
             asset_key = asset_key.split("/")[-1]
             folder_path = os.path.join(
@@ -201,14 +224,13 @@ class AssetManager:
 
             file_name_list = [f for f in os.listdir(folder_path)]
             if os.path.exists(folder_path + ".urdf"):
-                file_list.append(folder_path + ".urdf")
+                file_name = folder_path + ".urdf"
             else:
                 for f in file_name_list:
                     if f.endswith('.urdf'):
-                        file_list.append(f)
-                assert len(file_list) == 1, f"{len(file_list)} urdf file is added! Only one urdf file should be present in the folder!"
+                        file_name = f
 
-            for file_name in file_list:
+            for i in range(asset_class.num_assets):
                 asset_dict = {
                     "asset_folder_path": folder_path,
                     "asset_file_name": file_name,
@@ -253,7 +275,7 @@ class AssetManager:
 
         self.asset_pose_tensor = torch.where(self.asset_specified_state_tensor > -900, self.asset_specified_state_tensor, self.asset_pose_tensor)
         return
-        
+    
     def get_env_link_count(self):
         return self.env_link_count
 
