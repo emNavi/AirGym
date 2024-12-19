@@ -95,6 +95,8 @@ python runner.py --play --num_envs 64 --checkpoint <path-to-ckpt>
 ## Training a Trajectory Tracking Policy
 Every task is mainly affected by two `.py` files. Use task X152b_sigmoid as an example. Env definition file is `X152b_sigmoid.py`, and the config file is `X152b_sigmoid_config.py`, which could change environmental configuration like control mode, adding assets, simulation specification. `ctl_mode` has five options: 'pos', 'vel', 'atti', 'rate', 'prop'.
 
+Algorithm related configuration can be changed in `ppo_X152b_sigmoid.yaml`.
+
 Training:
 ```bash
 cd airgym/rl_games/
