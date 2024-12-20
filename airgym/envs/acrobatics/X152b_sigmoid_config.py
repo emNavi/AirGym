@@ -9,16 +9,19 @@ class X152bSigmoidConfig(X152bPx4Cfg):
     controller_test = False
     use_tcn = False # if use TCN
     tcn_seqs_len = 25 # if use TCN
+
+    def __init__(self, ctl_mode="prop"):
+        # Dynamically set ctl_mode for the env class
+        self.env.ctl_mode = ctl_mode
+        # Adjust dependent attributes based on ctl_mode
+        self.env.num_actions = 5 if ctl_mode == "atti" else 4
  
     class env:
-        ctl_mode = "rate"
         num_envs = 4 # must be a square number
         num_observations = 18 + 3
         headless = True
         get_privileged_obs = True # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned
-        num_actions = 4
         env_spacing = 10  # not used with heightfields/trimeshes
-        num_actions = 5 if ctl_mode == "atti" else 4
         episode_length_s = 16 # episode length in seconds
         num_control_steps_per_env_step = 1 # number of control & physics steps between camera renders
         enable_onboard_cameras = False # enable onboard cameras

@@ -86,6 +86,7 @@ def get_args(additional_parameters=[]):
         {"name": "--rl_device", "type": str, "default": "cuda:0", "help": 'Device used by the RL algorithm, (cpu, gpu, cuda:0, cuda:1 etc..)'},
         {"name": "--num_envs", "type": int, "default": None, "help": "Number of environments to create. Overrides config file if provided."},
         {"name": "--controller_test", "action": "store_true", "default": False, "help": "Test the controller"},
+        {"name": "--ctl_mode", "required": True, "type": str, "help": 'Specify the control mode and the options are: pos, vel, atti, rate, prop'},
     ]
     # parse arguments
     args = gymutil.parse_arguments(

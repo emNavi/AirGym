@@ -144,6 +144,7 @@ def update_config(config, args):
     config['params']['config']['env_config']['subscenes'] = args['subscenes']
     config['params']['config']['env_config']['use_gpu_pipeline'] = args['use_gpu_pipeline']
     config['params']['config']['env_config']['num_threads'] = args['num_threads']
+    config['params']['config']['env_config']['ctl_mode'] = args['ctl_mode']
 
     if args['num_envs'] > 0:
         config['params']['config']['num_actors'] = args['num_envs']
