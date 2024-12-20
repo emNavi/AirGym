@@ -75,6 +75,7 @@ Run the example script:
 cd airgym/scripts
 python example.py --controller_test
 ```
+The default `ctl_mode` is position control.
 
 ## Training and Displaying
 We train the model by rl-games==1.6.1. 
@@ -82,29 +83,29 @@ We train the model by rl-games==1.6.1.
 Training:
 ```bash
 cd airgym/rl_games/
-python runner.py --headless
+python runner.py --ctl_mode rate --headless
 ```
-Algorithm related parameters can be edited in `.yaml` files. Environment and simulator related parameters are located in ENV_config files like `X152bPx4_config.py`.
+Algorithm related parameters can be edited in `.yaml` files. Environment and simulator related parameters are located in ENV_config files like `X152bPx4_config.py`. The `ctl_mode` must be spicified.
 
 Displaying:
 ```bash
 cd airgym/rl_games/
-python runner.py --play --num_envs 64 --checkpoint <path-to-ckpt>
+python runner.py --play --num_envs 64 --ctl_mode rate --checkpoint <path-to-ckpt>
 ```
 
 ## Training a Trajectory Tracking Policy
-Every task is mainly affected by two `.py` files. Use task X152b_sigmoid as an example. Env definition file is `X152b_sigmoid.py`, and the config file is `X152b_sigmoid_config.py`, which could change environmental configuration like control mode, adding assets, simulation specification. `ctl_mode` has five options: 'pos', 'vel', 'atti', 'rate', 'prop'.
+Every task is mainly affected by two `.py` files. Use task X152b_sigmoid as an example. Env definition file is `X152b_sigmoid.py`, and the config file is `X152b_sigmoid_config.py`, which could change environmental configuration like control mode, adding assets, simulation specification. `ctl_mode` has five options: 'pos', 'vel', 'atti', 'rate', 'prop', and 'pos' is the default setting.
 
-Algorithm related configuration can be changed in `ppo_X152b_sigmoid.yaml`.
+Algorithm related configuration can be edited in `ppo_X152b_sigmoid.yaml`. Environment related configuration can be edited in  `.../envs/.../X152b_sigmoid_config.py`.
 
 Training:
 ```bash
 cd airgym/rl_games/
-python runner.py --task X152b_sigmoid --headless --file ppo_X152b_sigmoid.yaml
+python runner.py --task X152b_sigmoid --headless --ctl_mode rate  --file ppo_X152b_sigmoid.yaml
 ```
 
 Displaying:
 ```bash
 cd airgym/rl_games/
-python runner.py --play --num_envs 4 --task X152b_sigmoid --checkpoint <path-to-model>
+python runner.py --play --num_envs 4 --task X152b_sigmoid --ctl_mode rate --checkpoint <path-to-model>
 ```
