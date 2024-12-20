@@ -171,7 +171,10 @@ if __name__ == '__main__':
     
         config = update_config(config, args)
 
-        from custom_runner.custom_torch_runner import CustomRunner as Runner
+        if 'tcn' in config['params']['algo']['name']: # if use tcn
+            from custom_runner.custom_torch_runner import CustomRunner as Runner
+        else:
+            from rl_games.torch_runner import Runner
 
         runner = Runner(RLGPUAlgoObserver())
         try:
