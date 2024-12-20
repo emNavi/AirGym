@@ -11,7 +11,7 @@ class X152bTargetConfig(BaseConfig):
     tcn_seqs_len = 25 # if use TCN
 
     class env:
-        ctl_mode = "pos"
+        ctl_mode = "rate"
         num_envs = 4 # must be a square number
         num_observations = 18
         headless = True

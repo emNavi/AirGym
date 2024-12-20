@@ -270,6 +270,10 @@ class X152bTarget(X152bPx4):
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
 
+        # reset target red ball position
+        self.target_ball_states[env_ids, 0:2] = 1.5*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0., 0.], device=self.device)
+        self.target_ball_states[env_ids, 2] = 1.*torch_one_rand_float(-1., 1., (num_resets, 1), self.device).squeeze(-1) + 1.
+
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
         # randomize root states
@@ -308,10 +312,6 @@ class X152bTarget(X152bPx4):
         self.pre_actions[env_ids] = 0
         self.pre_root_positions[env_ids] = 0
 
-        # reset target red ball position
-        self.target_ball_states[env_ids, 0:2] = 1.5*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0., 0.], device=self.device)
-        self.target_ball_states[env_ids, 2] = 1.*torch_one_rand_float(-1., 1., (num_resets, 1), self.device).squeeze(-1) + 1.
-
         self.flag[env_ids] = 1
 
         if self.cfg.use_tcn:
@@ -326,6 +326,8 @@ class X152bTarget(X152bPx4):
         self.obs_buf[..., 15:18] = self.root_angvels
 
         # add relative position of target ball
+        self.target_ball_matrix = T.quaternion_to_matrix(self.target_ball_quats[:, [3, 0, 1, 2]]).reshape(self.num_envs, 9)
+        self.obs_buf[..., 0:9] -= self.target_ball_matrix
         self.obs_buf[..., 9:12] -= self.target_ball_positions
 
         self.add_noise()
@@ -350,70 +352,47 @@ class X152bTarget(X152bPx4):
         self.pre_actions = self.actions.clone()
         self.pre_root_positions = self.root_positions.clone()
         self.pre_root_angvels = self.root_angvels.clone()
-
-    def atti_alignment(self, root_positions, root_quats):
-        root_quats = root_quats / torch.norm(root_quats, dim=-1, keepdim=True).clamp(min=1e-8)
-        roll = torch.atan2(
-            2 * (root_quats[..., 3] * root_quats[..., 0] + root_quats[..., 1] * root_quats[..., 2]), 
-            1 - 2 * (root_quats[..., 0]**2 + root_quats[..., 1]**2))
-        
-        roll_target = torch.pi / 2  # 理想滚转角：+90°
-        roll_reward_positive = torch.exp(-1 * (roll - roll_target) ** 2)
-        roll_reward_negative = torch.exp(-1 * (roll + roll_target) ** 2) 
-        roll_reward = torch.maximum(roll_reward_positive, roll_reward_negative)
-
-        roll_reward = torch.where((root_positions[..., 0] > 1.9) & (root_positions[..., 0] < 2.1), roll_reward, 0)
-        
-        return roll_reward
     
-    def hit_reward(self, root_positions, target_positions):
+    def hit_reward(self, root_positions, target_positions, progress_buf):
         check = torch.norm(target_positions-root_positions, dim=-1)
-        r = 5000 * torch.where(check < 0.1, torch.tensor(1, device=self.device), torch.tensor(0, device=self.device))
-        return 0
-    
-    def hit_vel_reward(self, root_linvels):
-        target_vel = 6.
-        vel = torch.norm(root_linvels, dim=-1)
-        r = 1 * (1 - torch.clamp((vel - target_vel).abs() / target_vel, 0.0, 1.0))
-        return 0
-    
-    def dist_reward(self, root_positions, target_positions):
-        max_distance = 3
-        dist = torch.norm(target_positions-root_positions, dim=-1)
-        r = 1 * (1 - torch.clamp(dist / max_distance, 0.0, 1.0))
-        # print(r)
-        return 0
-
-    # def guidance_reward(self, root_positions, target_positions, root_linvels):
-    #     relative_positions = target_positions - root_positions
-    #     tar_direction = relative_positions / torch.norm(relative_positions, dim=1, keepdim=True)
-    #     vel_direction = root_linvels / torch.norm(root_linvels, dim=1, keepdim=True)
-    #     dot_product = (tar_direction * vel_direction).sum(dim=1)
-    #     angle_difference = torch.acos(dot_product.clamp(-1.0, 1.0)).abs()
-    #     r = 1.5 * (1 - angle_difference / torch.pi)
-    #     return r
+        hit_r = 800 * torch.where(check < 0.1, torch.tensor(1, device=self.device), torch.tensor(0, device=self.device))
+        progress_r = 800 * torch.where(check < 0.1, 
+                                        (1 - torch.clamp(progress_buf / self.max_episode_length, 0.0, 1.0)), 
+                                        torch.tensor(0, device=self.device))
+        return hit_r, progress_r, check
     
     def guidance_reward(self, root_positions, pre_root_positions, target_positions):
-        r = 5 * torch.norm(target_positions-pre_root_positions, dim=-1) - torch.norm(target_positions-root_positions, dim=-1)
+        if torch.all(pre_root_positions == 0):
+            pre_root_positions = root_positions # avoid a high wrong reward value cause by the first root_positions
+        r = 500 * (torch.norm(target_positions-pre_root_positions, dim=-1) - torch.norm(target_positions-root_positions, dim=-1))
         return r
     
     def continous_action_reward(self, root_angvels, pre_root_angvels, actions, pre_actions):
         angular_diff = root_angvels - pre_root_angvels
         max_angular_change = 1.0
-        r1 = 0.6 * (1 - torch.clamp(angular_diff.norm(dim=1) / max_angular_change, 0.0, 1.0))
-        r2 = 0.6 * (1 - (actions - pre_actions).norm(dim=-1).pow(2) / 5)
+        r1 = 0.4 * (1 - torch.clamp(angular_diff.norm(dim=1) / max_angular_change, 0.0, 1.0))
+        action_diff = actions - pre_actions
+        r2 = 0.4 * (1- torch.sqrt(action_diff[..., :-1].pow(2).sum(-1))/5) + 0.8 * (1-torch.sqrt(action_diff[..., -1].pow(2))/5)
         return r1+r2
+    
+    def vel_dir_reward(self, root_linvels, target_positions, root_positions):
+        relative_positions = target_positions - root_positions
+        tar_direction = relative_positions / torch.norm(relative_positions, dim=1, keepdim=True)
+        vel_direction = root_linvels / torch.norm(root_linvels, dim=1, keepdim=True)
+        dot_product = (tar_direction * vel_direction).sum(dim=1)
+        angle_difference = torch.acos(dot_product.clamp(-1.0, 1.0)).abs()
+        r = 3 * (1 - angle_difference / torch.pi)
+        return r
 
     def compute_quadcopter_reward(self, target_positions, root_positions, pre_root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length):
         relative_positions = target_positions - root_positions
         
         guidance_reward = self.guidance_reward(root_positions, pre_root_positions, target_positions)
-        dist_reward = self.dist_reward(root_positions, target_positions)
-        hit_reward = self.hit_reward(root_positions, target_positions)
-        hit_vel_reward = self.hit_vel_reward(root_linvels)
+        hit_reward, progress_r, check = self.hit_reward(root_positions, target_positions, progress_buf)
         continous_action_reward = self.continous_action_reward(root_angvels, self.pre_root_angvels, self.actions, self.pre_actions)
-        reward = guidance_reward + dist_reward + hit_reward + hit_vel_reward + continous_action_reward
-                    
+        vel_dir_reward = self.vel_dir_reward(root_linvels, target_positions, root_positions)
+        reward = guidance_reward + hit_reward + progress_r + continous_action_reward + vel_dir_reward
+
         # resets due to misbehavior
         ones = torch.ones_like(reset_buf)
         die = torch.zeros_like(reset_buf)
@@ -428,18 +407,19 @@ class X152bTarget(X152bPx4):
         reset = torch.where(relative_positions[..., 2] > 2, ones, reset)
 
         reset = torch.where(root_positions[..., 2] < 0, ones, reset)
-        reset = torch.where(root_positions[..., 2] > 2, ones, reset)
-        
-        # hit target done
-        # reset = torch.where(hit_reward > 0, ones, reset)
-        
+        reset = torch.where(root_positions[..., 2] > 3, ones, reset)
+
+        reset = torch.where(check < 0.1, ones, reset)
+                
         item_reward_info = {}
         item_reward_info["guidance_reward"] = guidance_reward
-        item_reward_info["dist_reward"] = dist_reward
         item_reward_info["hit_reward"] = hit_reward
-        item_reward_info["hit_vel_reward"] = hit_vel_reward
+        item_reward_info["progress_r"] = progress_r
         item_reward_info["continous_action_reward"] = continous_action_reward
+        item_reward_info["vel_dir_reward"] = vel_dir_reward
         item_reward_info["reward"] = reward
+
+        # print(guidance_reward[0], hit_reward[0], progress_r[0], continous_action_reward[0], vel_dir_reward[0], reward[0])
 
         return reward, reset, item_reward_info
 
