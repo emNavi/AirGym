@@ -14,5 +14,7 @@ setup(
                       'torch',
                       'pytorch3d',
                       'usd-core',
-                      'rospkg',]
+                      'rospkg',
+                      'gym==0.23.1',
+                      'rl_games==1.6.1',]
 )

@@ -78,7 +78,7 @@ python example.py --controller_test --task X152b --ctl_mode pos
 The default `ctl_mode` is position control.
 
 ## Training and Displaying
-We train the model by rl-games==1.6.1. 
+We can train the model by rl-games==1.6.1 which is a dependency of airgym. Of course you can use other RL libs for training. emNavi provide a set of quadrotor sim2real approach by using rl_games, please refer to **AirGym-Real** @https://github.com/emNavi/AirGym-Real.
 
 Training:
 ```bash
