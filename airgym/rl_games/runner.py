@@ -102,7 +102,6 @@ def get_args():
         {"name": "--train", "required": False, "help": "train network", "action": 'store_true'},
         {"name": "--play", "required": False, "help": "play(test) network", "action": 'store_true'},
         {"name": "--checkpoint", "type": str, "required": False, "help": "path to checkpoint"},
-        {"name": "--file", "type": str, "default": "ppo_X152b.yaml", "required": False, "help": "path to config"},
         {"name": "--num_envs", "type": int, "default": "4096", "help": "Number of environments to create. Overrides config file if provided."},
 
         {"name": "--sigma", "type": float, "required": False, "help": "sets new sigma value in case if 'fixed_sigma: True' in yaml config"},
@@ -136,6 +135,8 @@ def update_config(config, args):
 
     if args['task'] is not None:
         config['params']['config']['env_name'] = args['task']
+    else:
+        args['task'] = 'X152b'
     if args['experiment_name'] is not None:
         config['params']['config']['name'] = args['experiment_name']
 
@@ -150,7 +151,6 @@ def update_config(config, args):
 
     if args['num_envs'] > 0:
         config['params']['config']['num_actors'] = args['num_envs']
-        # config['params']['config']['num_envs'] = args['num_envs']
         config['params']['config']['env_config']['num_envs'] = args['num_envs']
 
     if args['seed'] > 0:
@@ -166,7 +166,7 @@ if __name__ == '__main__':
 
     args = vars(get_args())
 
-    config_name = args['file']
+    config_name = 'ppo_' + args['task']+'.yaml'
 
     print('Loading config: ', config_name)
     with open(config_name, 'r') as stream:
