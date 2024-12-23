@@ -10,7 +10,7 @@ from isaacgym import gymutil, gymtorch, gymapi
 from isaacgym.torch_utils import *
 from airgym.envs.base.base_task import BaseTask
 import airgym.utils.rotations as rot_utils
-from airgym.envs.acrobatics.X152b_slit_config import X152bSlitConfig
+from airgym.envs.task.X152b_slit_config import X152bSlitConfig
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
 
@@ -245,7 +245,7 @@ class X152bSlit(BaseTask):
 
         self.root_states[env_ids, 0] = 1.0*torch_rand_float(.0, .0, (num_resets, 1), self.device).squeeze(-1) # 2.0
         self.root_states[env_ids, 1] = 1.0*torch_rand_float(-0.0, -0.0, (num_resets, 1), self.device).squeeze(-1) # 2.0
-        self.root_states[env_ids, 2] = 1.0*torch_one_rand_float(1., 1., (num_resets, 1), self.device).squeeze(-1) # 2
+        self.root_states[env_ids, 2] = 1.0*torch_rand_float(1., 1., (num_resets, 1), self.device).squeeze(-1) # 2
         
         root_angle = torch.concatenate([0.*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .1
                                        0.*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2

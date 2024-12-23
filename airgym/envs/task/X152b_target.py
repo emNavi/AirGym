@@ -10,7 +10,7 @@ from isaacgym import gymutil, gymtorch, gymapi
 from isaacgym.torch_utils import *
 from airgym.envs.base.X152bPx4 import X152bPx4
 import airgym.utils.rotations as rot_utils
-from airgym.envs.acrobatics.X152b_target_config import X152bTargetConfig
+from airgym.envs.task.X152b_target_config import X152bTargetConfig
 from airgym.utils.asset_manager import AssetManager
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
@@ -166,7 +166,7 @@ class X152bTarget(X152bPx4):
             self.obs_seqs_buf = torch.zeros(
                 (self.num_envs, self.tcn_seqs_len, self.cfg.env.num_observations), device=self.device, dtype=torch.float32)
         
-        self.flag = torch.ones(self.num_envs, device=self.device)
+        self.flag = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
     
     def _create_envs(self):
         print("\n\n\n\n\n CREATING ENVIRONMENT \n\n\n\n\n\n")
@@ -272,13 +272,13 @@ class X152bTarget(X152bPx4):
 
         # reset target red ball position
         self.target_ball_states[env_ids, 0:2] = 1.5*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0., 0.], device=self.device)
-        self.target_ball_states[env_ids, 2] = 1.*torch_one_rand_float(-1., 1., (num_resets, 1), self.device).squeeze(-1) + 1.
+        self.target_ball_states[env_ids, 2:3] = .5*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
 
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
         # randomize root states
         self.root_states[env_ids, 0:2] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0., 0.], device=self.device)
-        self.root_states[env_ids, 2] = 0.2*torch_one_rand_float(-1., 1., (num_resets, 1), self.device).squeeze(-1) + 1.
+        self.root_states[env_ids, 2:3] = 0.2*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
         # self.root_states[env_ids, 0] = 0 # debug
         # self.root_states[env_ids, 1] = 0 # debug
         # self.root_states[env_ids, 2] = 0 # debug
@@ -312,7 +312,7 @@ class X152bTarget(X152bPx4):
         self.pre_actions[env_ids] = 0
         self.pre_root_positions[env_ids] = 0
 
-        self.flag[env_ids] = 1
+        self.flag[env_ids] = torch.where(self.target_ball_states[env_ids, 2] > self.root_states[env_ids, 2], True, False)
 
         if self.cfg.use_tcn:
             self.obs_seqs_buf[env_ids] = 0
@@ -399,6 +399,11 @@ class X152bTarget(X152bPx4):
 
         # resets due to episode length
         reset = torch.where(progress_buf >= max_episode_length - 1, ones, die)
+
+        # reset if altitude is too low or too high
+        reset = torch.where(torch.logical_or(
+            torch.logical_and(self.flag, self.root_positions[..., 2] > target_positions[..., 2]), 
+            torch.logical_and(~self.flag, self.root_positions[..., 2] < target_positions[..., 2])), ones, reset)
 
         # resets due to out of bounds
         reset = torch.where(torch.norm(relative_positions, dim=1) > 4, ones, reset)

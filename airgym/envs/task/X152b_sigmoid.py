@@ -10,7 +10,7 @@ from isaacgym import gymutil, gymtorch, gymapi
 from isaacgym.torch_utils import *
 from airgym.envs.base.X152bPx4 import X152bPx4
 import airgym.utils.rotations as rot_utils
-from airgym.envs.acrobatics.X152b_sigmoid_config import X152bSigmoidConfig
+from airgym.envs.task.X152b_sigmoid_config import X152bSigmoidConfig
 from airgym.utils.asset_manager import AssetManager
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
@@ -278,7 +278,7 @@ class X152bSigmoid(X152bPx4):
 
         # randomize root states
         self.root_states[env_ids, 0:2] = .2*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + self.control_lists_tensor[0, 0:2]
-        self.root_states[env_ids, 2] = .0*torch_one_rand_float(-1., 1., (num_resets, 1), self.device).squeeze(-1) + self.control_lists_tensor[0, 2]
+        self.root_states[env_ids, 2:3] = .0*torch_rand_float(-1., 1., (num_resets, 1), self.device) + self.control_lists_tensor[0, 2]
         # self.root_states[env_ids, 0] = 0 # debug
         # self.root_states[env_ids, 1] = 0 # debug
         # self.root_states[env_ids, 2] = 0 # debug
