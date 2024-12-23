@@ -277,8 +277,8 @@ class X152bTarget(X152bPx4):
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
         # randomize root states
-        self.root_states[env_ids, 0:2] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0., 0.], device=self.device)
-        self.root_states[env_ids, 2] = 0.*torch_one_rand_float(-1., 1., (num_resets, 1), self.device).squeeze(-1) + 1.
+        self.root_states[env_ids, 0:2] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0., 0.], device=self.device)
+        self.root_states[env_ids, 2] = 0.2*torch_one_rand_float(-1., 1., (num_resets, 1), self.device).squeeze(-1) + 1.
         # self.root_states[env_ids, 0] = 0 # debug
         # self.root_states[env_ids, 1] = 0 # debug
         # self.root_states[env_ids, 2] = 0 # debug
