@@ -1,11 +1,13 @@
 import numpy as np
 import os
 import yaml
+import traceback
 
 try:
     from isaacgym import gymutil
     print("isaacgym imported successful.")
 except ImportError:
+    traceback.print_exc()
     print("isaacgym cannot be imported. Trying to import from gym_utils.")
     from airgym.utils.gym_utils import gymutil
     print("gymutil imported successful from gym_utils.")

@@ -89,7 +89,8 @@ class X152bPx4(BaseTask):
 
     def __init__(self, cfg: X152bPx4Cfg, sim_params, physics_engine, sim_device, headless):
         self.cfg = cfg
-        print("ctl mode =========== ",cfg.env.ctl_mode)
+        assert cfg.env.ctl_mode is not None, "Please specify one control mode!"
+        print("ctl mode =========== ", cfg.env.ctl_mode)
         self.ctl_mode = cfg.env.ctl_mode
         self.max_episode_length = int(self.cfg.env.episode_length_s / self.cfg.sim.dt)
         self.debug_viz = False
@@ -309,7 +310,7 @@ class X152bPx4(BaseTask):
 
         # randomize root states
         self.root_states[env_ids, 0:2] = 2.0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) # 2.0
-        self.root_states[env_ids, 2] = 2.0*torch_one_rand_float(-1., 1., (num_resets, 1), self.device).squeeze(-1) # 2
+        self.root_states[env_ids, 2:3] = 2.0*torch_rand_float(-1., 1., (num_resets, 1), self.device) # 2
         # self.root_states[env_ids, 0] = 0 # debug
         # self.root_states[env_ids, 1] = 0 # debug
         # self.root_states[env_ids, 2] = 0 # debug
