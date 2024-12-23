@@ -13,5 +13,6 @@ setup(
                       'numpy',
                       'torch',
                       'pytorch3d',
-                      'usd-core',]
+                      'usd-core',
+                      'rospkg',]
 )

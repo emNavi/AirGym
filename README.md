@@ -59,7 +59,7 @@ We also build a randomly generated environment for drone training. One demo is s
     ```
 1. Install rlPx4Controller
     ```bash
-    git clone git@github.com:FP-Flight/rlPx4Controller.git
+    git clone git@github.com:emNavi/rlPx4Controller.git
     cd rlPx4Controller
     pip install -e .
     ```
