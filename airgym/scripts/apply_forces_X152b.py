@@ -107,7 +107,7 @@ gym.viewer_camera_look_at(viewer, None, gymapi.Vec3(20, 20, 5), gymapi.Vec3(0, 0
 
 gym.prepare_sim(sim)
 
-torque_amt = 100
+torque_amt = 0
 
 frame_count = 0
 while not gym.query_viewer_has_closed(viewer):
@@ -117,9 +117,11 @@ while not gym.query_viewer_has_closed(viewer):
         forces = torch.zeros((num_envs, num_bodies, 3), device=device, dtype=torch.float)
         torques = torch.zeros((num_envs, num_bodies, 3), device=device, dtype=torch.float)
         forces[:, 1:5, 2] = 0
+        forces[:, 2:3, 2] = 10
+        forces[:, 4:5, 2] = 10
         torques[:, 1:3, 2] = torque_amt
         torques[:, 3:5, 2] = -torque_amt
-        gym.apply_rigid_body_force_tensors(sim, gymtorch.unwrap_tensor(forces), gymtorch.unwrap_tensor(torques), gymapi.ENV_SPACE)
+        gym.apply_rigid_body_force_tensors(sim, gymtorch.unwrap_tensor(forces), gymtorch.unwrap_tensor(torques), gymapi.LOCAL_SPACE)
             
     # step the physics
     gym.simulate(sim)
