@@ -273,6 +273,8 @@ class X152bTarget(X152bPx4):
         # reset target red ball position
         self.target_ball_states[env_ids, 0:2] = 1.5*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0., 0.], device=self.device)
         self.target_ball_states[env_ids, 2:3] = .5*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
+        # self.target_ball_states[env_ids, 0:2] = 0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([1.5, 0.], device=self.device)
+        # self.target_ball_states[env_ids, 2:3] = .0*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
 
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
@@ -281,11 +283,11 @@ class X152bTarget(X152bPx4):
         self.root_states[env_ids, 2:3] = 0.2*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
         # self.root_states[env_ids, 0] = 0 # debug
         # self.root_states[env_ids, 1] = 0 # debug
-        # self.root_states[env_ids, 2] = 0 # debug
+        # self.root_states[env_ids, 2:3] = 1 # debug
 
         # randomize root orientation
-        root_angle = torch.concatenate([0.*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .1
-                                       0.*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2
+        root_angle = torch.concatenate([0.1*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .1
+                                       0.2*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2
         # root_angle = torch.concatenate([0.*torch.ones((num_resets, 1), device=self.device), # debug
         #                                 0.*torch.ones((num_resets, 1), device=self.device), # debug
         #                                 0.8*torch.pi*torch.ones((num_resets, 1), device=self.device)], dim=-1) # debug
@@ -347,7 +349,7 @@ class X152bTarget(X152bPx4):
             self.progress_buf, 
             self.max_episode_length, 
         )
-        
+        # print(self.actions[0])
         # update prev
         self.pre_actions = self.actions.clone()
         self.pre_root_positions = self.root_positions.clone()
