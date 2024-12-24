@@ -269,6 +269,8 @@ class X152bTarget(X152bPx4):
 
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
+        # if env_ids[0]:
+        #     print("sssssssssssssssssssssssssssssssssssssssssssssssss")
 
         # reset target red ball position
         self.target_ball_states[env_ids, 0:2] = 1.5*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0., 0.], device=self.device)
@@ -402,10 +404,14 @@ class X152bTarget(X152bPx4):
         # resets due to episode length
         reset = torch.where(progress_buf >= max_episode_length - 1, ones, die)
 
-        # reset if altitude is too low or too high
-        reset = torch.where(torch.logical_or(
-            torch.logical_and(self.flag, self.root_positions[..., 2] > target_positions[..., 2]), 
-            torch.logical_and(~self.flag, self.root_positions[..., 2] < target_positions[..., 2])), ones, reset)
+        # # reset if altitude is too low or too high
+        # reset = torch.where(torch.logical_or(
+        #     torch.logical_and(self.flag, self.root_positions[..., 2] > target_positions[..., 2]), 
+        #     torch.logical_and(~self.flag, self.root_positions[..., 2] < target_positions[..., 2])), ones, reset)
+        
+        # # thrust must be clamp to -1 and 1
+        # reset = torch.where(self.actions[..., -1] < -1, ones, reset)
+        # reset = torch.where(self.actions[..., -1] > 1, ones, reset)
 
         # resets due to out of bounds
         reset = torch.where(torch.norm(relative_positions, dim=1) > 4, ones, reset)

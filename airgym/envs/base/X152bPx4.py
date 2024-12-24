@@ -348,6 +348,7 @@ class X152bPx4(BaseTask):
             self.obs_seqs_buf[env_ids] = 0
 
     def pre_physics_step(self, _actions):
+        # print(_actions[0])
         # resets
         if self.counter % 250 == 0:
             print("self.counter:", self.counter)
@@ -356,17 +357,19 @@ class X152bPx4(BaseTask):
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(reset_env_ids) > 0:
             self.reset_idx(reset_env_ids)
-        actions = _actions.to(self.device)
+        self.actions = _actions.to(self.device)
 
         # debugging
         # if self.cfg.env.ctl_mode == "atti":
         #     print("actions:", actions[0])
             # assert torch.all(actions[..., 0] >= 0), "w in q must be positive!"
         
-        self.actions = tensor_clamp(
-            actions, self.action_lower_limits, self.action_upper_limits)
+        actions = self.actions
+        actions[..., -1] = 0.5 + 0.5 * self.actions[..., -1]
+        print("actions:", actions[0])
+        actions = tensor_clamp(actions, self.action_lower_limits, self.action_upper_limits)
         
-        actions_cpu = self.actions.cpu().numpy()
+        actions_cpu = actions.cpu().numpy()
         
         #--------------- input state for pid controller. tensor [n,4] --------#
         obs_buf_cpu = self.root_states.cpu().numpy()
@@ -403,7 +406,7 @@ class X152bPx4(BaseTask):
             self.cmd_thrusts = torch.tensor(self.parallel_rate_control.update(actions_cpu.astype(np.float64),ang_vel_cpu.astype(np.float64),0.01)) 
             # print("thrust on prop", self.cmd_thrusts[0])
         elif(control_mode_ == "prop"):
-            self.cmd_thrusts =  self.actions
+            self.cmd_thrusts =  actions
         else:
             print("Mode error")
         # end
@@ -417,7 +420,8 @@ class X152bPx4(BaseTask):
         #     time.sleep(10)
         # 
         # thrusts=((self.cmd_thrusts**2)*9.57).to('cuda') # 9.57
-        thrusts=(self.cmd_thrusts*9.59).to('cuda')
+        delta = .0*torch_rand_float(-1.0, 1.0, (self.num_envs, 1), device='cpu').repeat(1,4) + 9.59 
+        thrusts=(self.cmd_thrusts*delta).to('cuda')
         # print(self.cmd_thrusts[0])
 
         force_x = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
