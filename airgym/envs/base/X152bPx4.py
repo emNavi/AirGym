@@ -92,6 +92,7 @@ class X152bPx4(BaseTask):
         assert cfg.env.ctl_mode is not None, "Please specify one control mode!"
         print("ctl mode =========== ", cfg.env.ctl_mode)
         self.ctl_mode = cfg.env.ctl_mode
+        self.cfg.env.num_actions = 5 if cfg.env.ctl_mode == "atti" else 4
         self.max_episode_length = int(self.cfg.env.episode_length_s / self.cfg.sim.dt)
         self.debug_viz = False
         num_actors = 1
@@ -309,15 +310,15 @@ class X152bPx4(BaseTask):
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
         # randomize root states
-        self.root_states[env_ids, 0:2] = 2.0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) # 2.0
-        self.root_states[env_ids, 2:3] = 2.0*torch_rand_float(-1., 1., (num_resets, 1), self.device) # 2
+        self.root_states[env_ids, 0:2] = .0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) # 2.0
+        self.root_states[env_ids, 2:3] = .0*torch_rand_float(-1., 1., (num_resets, 1), self.device) # 2
         # self.root_states[env_ids, 0] = 0 # debug
         # self.root_states[env_ids, 1] = 0 # debug
         # self.root_states[env_ids, 2] = 0 # debug
 
         # randomize root orientation
-        root_angle = torch.concatenate([0.1*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .1
-                                       0.2*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2
+        root_angle = torch.concatenate([0.*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .1
+                                       0.*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2
         # root_angle = torch.concatenate([0.*torch.ones((num_resets, 1), device=self.device), # debug
         #                                 0.*torch.ones((num_resets, 1), device=self.device), # debug
         #                                 0.8*torch.pi*torch.ones((num_resets, 1), device=self.device)], dim=-1) # debug
@@ -326,8 +327,8 @@ class X152bPx4(BaseTask):
         self.root_states[env_ids, 3:7] = root_quats[:, [1, 2, 3, 0]] #x,y,z,w
 
         # randomize root linear and angular velocities
-        self.root_states[env_ids, 7:10] = 0.5*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.5
-        self.root_states[env_ids, 10:13] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.2
+        self.root_states[env_ids, 7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.5
+        self.root_states[env_ids, 10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.2
         # self.root_states[env_ids, 7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # debug
         # self.root_states[env_ids, 10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # debug
 
@@ -398,7 +399,9 @@ class X152bPx4(BaseTask):
         elif(control_mode_ == "rate"):
             root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
             self.parallel_rate_control.set_q_world(root_quats_cpu.astype(np.float64))
+            # print("thrust", actions_cpu[0][-1])
             self.cmd_thrusts = torch.tensor(self.parallel_rate_control.update(actions_cpu.astype(np.float64),ang_vel_cpu.astype(np.float64),0.01)) 
+            # print("thrust on prop", self.cmd_thrusts[0])
         elif(control_mode_ == "prop"):
             self.cmd_thrusts =  self.actions
         else:
@@ -412,8 +415,10 @@ class X152bPx4(BaseTask):
         # if nan_mask.any():
         #     print("Sleeping for 10 second...")
         #     time.sleep(10)
-        
-        thrusts=((self.cmd_thrusts**2)*9.57).to('cuda')
+        # 
+        # thrusts=((self.cmd_thrusts**2)*9.57).to('cuda') # 9.57
+        thrusts=(self.cmd_thrusts*9.59).to('cuda')
+        # print(self.cmd_thrusts[0])
 
         force_x = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
         force_y = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
