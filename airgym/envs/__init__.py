@@ -25,6 +25,13 @@ except ImportError:
     print("WARNING! X152bTarget or X152bTargetConfig cannot be imported. Ignore if using on real robot inference.")
     traceback.print_exc()
 try:
+    from .task.X152b_avoid_config import X152bAvoidConfig
+    from .task.X152b_avoid import X152bAvoid
+    task_registry.register("X152b_avoid", X152bAvoid, X152bAvoidConfig())
+except ImportError:
+    print("WARNING! X152bAvoid or X152bAvoidConfig cannot be imported. Ignore if using on real robot inference.")
+    traceback.print_exc()
+try:
     from .task.X152b_sigmoid_config import X152bSigmoidConfig
     from .task.X152b_sigmoid import X152bSigmoid
     task_registry.register("X152b_sigmoid", X152bSigmoid, X152bSigmoidConfig())
