@@ -49,8 +49,8 @@ if viewer is None:
     raise Exception("Failed to create viewer")
 
 # load asset
-# asset_root = "../../resources/robots"
-# asset_file = "X152b/model.urdf"
+asset_root = "../../resources/models/environment_assets"
+asset_file = "cubes/1X1/model.urdf"
 
 asset_options = gymapi.AssetOptions()
 
