@@ -125,9 +125,6 @@ class X152bSigmoid(X152bPx4):
         self.target_positions[:, 2] = 1
         self.all_indices = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
 
-        # control tensors
-        self.action_input = torch.zeros(
-            (self.num_envs, 4), dtype=torch.float32, device=self.device, requires_grad=False)
         self.forces = torch.zeros((self.num_envs, bodies_per_env, 3),
                                   dtype=torch.float32, device=self.device, requires_grad=False)
         self.torques = torch.zeros((self.num_envs, bodies_per_env, 3),
@@ -256,10 +253,10 @@ class X152bSigmoid(X152bPx4):
                     self.gym.set_rigid_body_color(env_handle, env_asset_handle, 0, gymapi.MESH_VISUAL,
                             gymapi.Vec3(color[0]/255,color[1]/255,color[2]/255))
         
-        self.robot_body_props = self.gym.get_actor_rigid_body_properties(self.envs[0],self.actor_handles[0])
+        self.robot_body_items = self.gym.get_actor_rigid_body_properties(self.envs[0],self.actor_handles[0])
         self.robot_mass = 0
-        for prop in self.robot_body_props:
-            self.robot_mass += prop.mass
+        for item in self.robot_body_items:
+            self.robot_mass += item.mass
         print("Total robot mass: ", self.robot_mass)
         
         print("\n\n\n\n\n ENVIRONMENT CREATED \n\n\n\n\n\n")
@@ -476,7 +473,7 @@ class X152bSigmoid(X152bPx4):
         # print("guidance_reward:", guidance_reward[0])
         flag_reward = self.update_flag()
         # print("flag_reward:", self.flag[0], flag_reward[0])
-        reward = 2 * pos_reward + 1*vel_reward + guidance_reward + flag_reward + continous_action_reward + thrust_reward
+        reward = 2 * pos_reward + 1*vel_reward + guidance_reward + flag_reward + continous_action_reward #+ thrust_reward
 
         # resets due to misbehavior
         ones = torch.ones_like(reset_buf)
@@ -499,7 +496,7 @@ class X152bSigmoid(X152bPx4):
         item_reward_info["guidance_reward"] = guidance_reward
         item_reward_info["flag_reward"] = flag_reward
         item_reward_info["continous_action_reward"] = continous_action_reward
-        item_reward_info["thrust_reward"] = thrust_reward
+        # item_reward_info["thrust_reward"] = thrust_reward
 
         return reward, reset, item_reward_info
 

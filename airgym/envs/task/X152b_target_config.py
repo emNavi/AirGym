@@ -10,12 +10,6 @@ class X152bTargetConfig(BaseConfig):
     use_tcn = False # if use TCN
     tcn_seqs_len = 25 # if use TCN
 
-    def __init__(self, ctl_mode="prop"):
-        # Dynamically set ctl_mode for the env class
-        self.env.ctl_mode = ctl_mode
-        # Adjust dependent attributes based on ctl_mode
-        self.env.num_actions = 5 if ctl_mode == "atti" else 4
-
     class env:
         num_envs = 4 # must be a square number
         num_observations = 18
@@ -146,11 +140,6 @@ class X152bTargetConfig(BaseConfig):
         class back_wall(asset_register.back_wall):
             num_assets = 1
 
-        class cube1X4_asset_params(asset_register.cube_asset_params):
-            num_assets = 1
-            specified_position = [1.0, 0.0, 0.0] # if > -900, use this value instead of randomizing the ratios
-            specified_euler_angle = [0.0, 0.0, 0.0] # if > -900, use this value instead of randomizing
-
         asset_type_to_dict_map = {
             "balls": ball_asset_params,
             "thin": thin_asset_params,
@@ -166,6 +155,5 @@ class X152bTargetConfig(BaseConfig):
             "boundaries/top_wall": top_wall,
             "boundaries/8X18ground": ground,
             "boundaries/18X18ground": ground,
-            "cubes/1X4": cube1X4_asset_params
             }
  

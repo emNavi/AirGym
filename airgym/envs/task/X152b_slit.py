@@ -120,9 +120,6 @@ class X152bSlit(BaseTask):
         self.target_positions[:, 2] = 1
         self.all_indices = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
 
-        # control tensors
-        self.action_input = torch.zeros(
-            (self.num_envs, 4), dtype=torch.float32, device=self.device, requires_grad=False)
         self.forces = torch.zeros((self.num_envs, bodies_per_env, 3),
                                   dtype=torch.float32, device=self.device, requires_grad=False)
         self.torques = torch.zeros((self.num_envs, bodies_per_env, 3),

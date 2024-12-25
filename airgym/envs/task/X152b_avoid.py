@@ -129,9 +129,6 @@ class X152bAvoid(X152bPx4):
         else:
             print("Mode Error!")
 
-        # control tensors
-        self.action_input = torch.zeros(
-            (self.num_envs, 4), dtype=torch.float32, device=self.device, requires_grad=False)
         self.forces = torch.zeros((self.num_envs, bodies_per_env, 3),
                                   dtype=torch.float32, device=self.device, requires_grad=False)
         self.torques = torch.zeros((self.num_envs, bodies_per_env, 3),

@@ -166,9 +166,6 @@ class X152bPx4(BaseTask):
         self.target_positions[:, 2] = 1
         self.all_indices = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
 
-        # control tensors
-        self.action_input = torch.zeros(
-            (self.num_envs, 4), dtype=torch.float32, device=self.device, requires_grad=False)
         self.forces = torch.zeros((self.num_envs, bodies_per_env, 3),
                                   dtype=torch.float32, device=self.device, requires_grad=False)
         self.torques = torch.zeros((self.num_envs, bodies_per_env, 3),
@@ -365,8 +362,9 @@ class X152bPx4(BaseTask):
             # assert torch.all(actions[..., 0] >= 0), "w in q must be positive!"
         
         actions = self.actions
-        actions[..., -1] = 0.5 + 0.5 * self.actions[..., -1]
-        print("actions:", actions[0])
+        if self.ctl_mode == 'rate' or self.ctl_mode == 'atti': 
+            actions[..., -1] = 0.5 + 0.5 * self.actions[..., -1]
+        # print("actions:", actions[0])
         actions = tensor_clamp(actions, self.action_lower_limits, self.action_upper_limits)
         
         actions_cpu = actions.cpu().numpy()

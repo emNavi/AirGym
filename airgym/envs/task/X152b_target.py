@@ -44,6 +44,7 @@ class X152bTarget(X152bPx4):
         self.cfg = cfg
         print("ctl mode =========== ",cfg.env.ctl_mode)
         self.ctl_mode = cfg.env.ctl_mode
+        self.cfg.env.num_actions = 5 if cfg.env.ctl_mode == "atti" else 4
         self.max_episode_length = int(self.cfg.env.episode_length_s / self.cfg.sim.dt)
         self.debug_viz = False
         num_actors = 1
@@ -128,9 +129,6 @@ class X152bTarget(X152bPx4):
         else:
             print("Mode Error!")
 
-        # control tensors
-        self.action_input = torch.zeros(
-            (self.num_envs, 4), dtype=torch.float32, device=self.device, requires_grad=False)
         self.forces = torch.zeros((self.num_envs, bodies_per_env, 3),
                                   dtype=torch.float32, device=self.device, requires_grad=False)
         self.torques = torch.zeros((self.num_envs, bodies_per_env, 3),
@@ -259,10 +257,10 @@ class X152bTarget(X152bPx4):
                     self.gym.set_rigid_body_color(env_handle, env_asset_handle, 0, gymapi.MESH_VISUAL,
                             gymapi.Vec3(color[0]/255,color[1]/255,color[2]/255))
         
-        self.robot_body_props = self.gym.get_actor_rigid_body_properties(self.envs[0],self.actor_handles[0])
+        self.robot_body_items = self.gym.get_actor_rigid_body_properties(self.envs[0],self.actor_handles[0])
         self.robot_mass = 0
-        for prop in self.robot_body_props:
-            self.robot_mass += prop.mass
+        for item in self.robot_body_items:
+            self.robot_mass += item.mass
         print("Total robot mass: ", self.robot_mass)
         
         print("\n\n\n\n\n ENVIRONMENT CREATED \n\n\n\n\n\n")

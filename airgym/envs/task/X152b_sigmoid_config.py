@@ -9,12 +9,6 @@ class X152bSigmoidConfig(X152bPx4Cfg):
     controller_test = False
     use_tcn = False # if use TCN
     tcn_seqs_len = 25 # if use TCN
-
-    def __init__(self, ctl_mode="prop"):
-        # Dynamically set ctl_mode for the env class
-        self.env.ctl_mode = ctl_mode
-        # Adjust dependent attributes based on ctl_mode
-        self.env.num_actions = 5 if ctl_mode == "atti" else 4
  
     class env:
         num_envs = 4 # must be a square number
