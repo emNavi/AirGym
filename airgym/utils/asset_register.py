@@ -35,7 +35,7 @@ class X152b(asset):
     disable_gravity = False
     collapse_fixed_joints = True # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
     fix_base_link = False # fix the base of the robot
-    collision_mask = 1 # 1 to disable, 0 to enable...bitwise filter
+    collision_mask = 1 # objects with the same collision mask will not collide
     replace_cylinder_with_capsule = False # replace collision cylinders with capsules, leads to faster/more stable simulation
     flip_visual_attachments = False # Some .obj meshes must be flipped from y-up to z-up
     density = -1 #0.001
@@ -51,7 +51,7 @@ class asset_state_params(asset):
     min_position_ratio = [0.5, 0.5, 0.5] # min position as a ratio of the bounds
     max_position_ratio = [0.5, 0.5, 0.5] # max position as a ratio of the bounds
 
-    collision_mask = 1
+    collision_mask = 1 # objects with the same collision mask will not collide
 
     collapse_fixed_joints = True
     fix_base_link = True

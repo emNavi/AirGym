@@ -45,6 +45,8 @@ class AssetManager:
         self.asset_config = self.cfg.asset_config
         self.assets = []
         self.asset_pose_tensor = None
+        self.asset_random_pose_tensor = None
+        self.asset_specified_pose_tensor = None
         self.asset_const_inv_mask_tensor = None
         self.asset_min_state_tensor = None
         self.asset_max_state_tensor = None
@@ -69,36 +71,41 @@ class AssetManager:
         
         self.load_asset_tensors()
         self.randomize_pose()
+        if self.asset_random_pose_tensor is None and self.asset_specified_pose_tensor is not None:
+            self.asset_pose_tensor = self.asset_specified_pose_tensor
+        elif self.asset_random_pose_tensor is not None and self.asset_specified_pose_tensor is None:
+            self.asset_pose_tensor = self.asset_random_pose_tensor
+        elif self.asset_random_pose_tensor is not None and self.asset_specified_pose_tensor is not None:
+            self.asset_pose_tensor = torch.cat([self.asset_random_pose_tensor, self.asset_specified_pose_tensor], dim=1)
 
 
     def _add_asset_2_tensor(self, asset_class):
+        """
+        For adding assets of the same class to the tensor
+        """
         self.env_actor_count += asset_class.num_assets
         self.env_link_count += asset_class.num_assets * asset_class.links_per_asset
         
         # Define the asset tensors together for the number of assets of the same class being loaded
-        asset_tensor = torch.zeros((1,6), dtype=torch.float, device=self.device).expand(1,-1)
+        asset_random_tensor = torch.zeros((1,6), dtype=torch.float, device=self.device).expand(1,-1)
         
-        asset_tensor = asset_tensor.tile(asset_class.num_assets, 1)
+        asset_random_tensor = asset_random_tensor.tile(asset_class.num_assets, 1)
         min_state_tensor = torch.tensor((asset_class.min_position_ratio + asset_class.min_euler_angles), dtype=torch.float, device=self.device).expand(asset_class.num_assets,-1)
         max_state_tensor = torch.tensor((asset_class.max_position_ratio + asset_class.max_euler_angles), dtype=torch.float, device=self.device).expand(asset_class.num_assets,-1)
-        specified_state_tensor = torch.tensor((asset_class.specified_position + asset_class.specified_euler_angle), dtype=torch.float, device=self.device).expand(asset_class.num_assets,-1)
         
         # If the whole global asset pose tensor is not defined, define it and then append more copies to it
-        if self.asset_pose_tensor is None:
-            self.asset_pose_tensor = asset_tensor
+        if self.asset_random_pose_tensor is None:
+            self.asset_random_pose_tensor = asset_random_tensor
             self.asset_min_state_tensor = min_state_tensor
             self.asset_max_state_tensor = max_state_tensor
-            self.asset_specified_state_tensor = specified_state_tensor
         # if the tensor exists, append copies to it.
         else:
-            self.asset_pose_tensor = torch.vstack(
-                (self.asset_pose_tensor, asset_tensor))
+            self.asset_random_pose_tensor = torch.vstack(
+                (self.asset_random_pose_tensor, asset_random_tensor))
             self.asset_min_state_tensor = torch.vstack(
                 (self.asset_min_state_tensor, min_state_tensor))
             self.asset_max_state_tensor = torch.vstack(
                 (self.asset_max_state_tensor, max_state_tensor))
-            self.asset_specified_state_tensor = torch.vstack(
-                (self.asset_specified_state_tensor, specified_state_tensor))
             
     def _add_asset_2_tensor_by_id(self, asset_class, id):
         """
@@ -106,29 +113,15 @@ class AssetManager:
         """
         self.env_actor_count += 1
         self.env_link_count += asset_class.links_per_asset
-        # Define the asset tensors together for the number of assets of the same class being loaded
-        asset_tensor = torch.zeros((1,6), dtype=torch.float, device=self.device).expand(1,-1)
-
-        min_state_tensor = torch.tensor((asset_class.min_position_ratio + asset_class.min_euler_angles), dtype=torch.float, device=self.device).expand(1,-1)
-        max_state_tensor = torch.tensor((asset_class.max_position_ratio + asset_class.max_euler_angles), dtype=torch.float, device=self.device).expand(1,-1)
-        specified_state_tensor = torch.tensor((asset_class.specified_position[id] + asset_class.specified_euler_angle[id]), dtype=torch.float, device=self.device).expand(1,-1)
+        specified_pose_tensor = torch.tensor((asset_class.specified_position[id] + asset_class.specified_euler_angle[id]), dtype=torch.float, device=self.device).expand(1,-1)
 
         # If the whole global asset pose tensor is not defined, define it and then append more copies to it
-        if self.asset_pose_tensor is None:
-            self.asset_pose_tensor = asset_tensor
-            self.asset_min_state_tensor = min_state_tensor
-            self.asset_max_state_tensor = max_state_tensor
-            self.asset_specified_state_tensor = specified_state_tensor
+        if self.asset_specified_pose_tensor is None:
+            self.asset_specified_pose_tensor = specified_pose_tensor
         # if the tensor exists, append copies to it.
         else:
-            self.asset_pose_tensor = torch.vstack(
-                (self.asset_pose_tensor, asset_tensor))
-            self.asset_min_state_tensor = torch.vstack(
-                (self.asset_min_state_tensor, min_state_tensor))
-            self.asset_max_state_tensor = torch.vstack(
-                (self.asset_max_state_tensor, max_state_tensor))
-            self.asset_specified_state_tensor = torch.vstack(
-                (self.asset_specified_state_tensor, specified_state_tensor))
+            self.asset_specified_pose_tensor = torch.vstack(
+                (self.asset_specified_pose_tensor, specified_pose_tensor))
 
     def load_asset_tensors(self):
         # Pre-load the tensors before the assets are created
@@ -147,15 +140,14 @@ class AssetManager:
                 asset_class = self.asset_type_to_dict_map[asset_key]
                 self._add_asset_2_tensor_by_id(asset_class, i)
         
-        if self.asset_pose_tensor is None:
-            return
-
-        self.asset_pose_tensor = torch.tile(
-            self.asset_pose_tensor.unsqueeze(0), (self.cfg.env.num_envs, 1, 1))
-        self.asset_min_state_tensor = self.asset_min_state_tensor.expand(self.cfg.env.num_envs, -1, -1)
-        self.asset_max_state_tensor = self.asset_max_state_tensor.expand(self.cfg.env.num_envs, -1, -1)
+        if self.asset_random_pose_tensor is not None:
+            self.asset_random_pose_tensor = self.asset_random_pose_tensor.expand(self.cfg.env.num_envs, -1, -1).clone()
+            self.asset_min_state_tensor = self.asset_min_state_tensor.expand(self.cfg.env.num_envs, -1, -1).clone()
+            self.asset_max_state_tensor = self.asset_max_state_tensor.expand(self.cfg.env.num_envs, -1, -1).clone()
         
-
+        if self.asset_specified_pose_tensor is not None:
+            self.asset_specified_pose_tensor = self.asset_specified_pose_tensor.expand(self.cfg.env.num_envs, -1, -1).clone()
+        
     def prepare_assets_for_simulation(self, gym, sim):
         asset_list = []
         for asset_key, include_asset in self.asset_config.include_asset_type.items():
@@ -259,7 +251,7 @@ class AssetManager:
         return selected_files
     
     def randomize_pose(self, num_obstacles = None, reset_envs = None):
-        if self.asset_pose_tensor is None:
+        if self.asset_random_pose_tensor is None:
             return
 
         # Sampled environment bounds
@@ -269,11 +261,8 @@ class AssetManager:
         self.env_bound_diff = (self.env_upper_bound - self.env_lower_bound)
 
         pos_ratio_euler_asbolute = self.asset_min_state_tensor + torch.rand_like(self.asset_min_state_tensor)*(self.asset_max_state_tensor - self.asset_min_state_tensor)
-        self.asset_pose_tensor[:, :, :3] = self.env_lower_bound.unsqueeze(1) + self.env_bound_diff.unsqueeze(1) * pos_ratio_euler_asbolute[:,:,:3]
-        
-        self.asset_pose_tensor[:, :, 3:6] = pos_ratio_euler_asbolute[:, :, 3:6]
-
-        self.asset_pose_tensor = torch.where(self.asset_specified_state_tensor > -900, self.asset_specified_state_tensor, self.asset_pose_tensor)
+        self.asset_random_pose_tensor[:, :, :3]  = self.env_lower_bound.unsqueeze(1) + self.env_bound_diff.unsqueeze(1)* pos_ratio_euler_asbolute[:,:,:3]
+        self.asset_random_pose_tensor[:, :, 3:6] = pos_ratio_euler_asbolute[:, :, 3:6]
         return
     
     def get_env_link_count(self):
