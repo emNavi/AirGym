@@ -10,7 +10,7 @@ from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
 from isaacgym import gymutil, gymtorch, gymapi
 from isaacgym.torch_utils import *
 
-from airgym.envs.base.base_task import BaseTask
+from .X152bPx4 import X152bPx4
 from .X152bPx4_with_cam_config import X152bPx4WithCamCfg
 
 from airgym.utils.asset_manager import AssetManager
@@ -25,15 +25,17 @@ import cv2
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
 
 
-class X152bPx4WithCam(BaseTask):
+class X152bPx4WithCam(X152bPx4):
 
     def __init__(self, cfg: X152bPx4WithCamCfg, sim_params, physics_engine, sim_device, headless):
         self.cfg = cfg
-        print("ctl mode=========== ",cfg.env.ctl_mode)
+        assert cfg.env.ctl_mode is not None, "Please specify one control mode!"
+        print("ctl mode =========== ", cfg.env.ctl_mode)
         self.ctl_mode = cfg.env.ctl_mode
-
+        self.cfg.env.num_actions = 5 if cfg.env.ctl_mode == "atti" else 4
         self.max_episode_length = int(self.cfg.env.episode_length_s / self.cfg.sim.dt)
         self.debug_viz = False
+        num_actors = 1
 
         self.sim_params = sim_params
         self.physics_engine = physics_engine
@@ -42,13 +44,11 @@ class X152bPx4WithCam(BaseTask):
 
         self.enable_onboard_cameras = self.cfg.env.enable_onboard_cameras
 
-
         self.env_asset_manager = AssetManager(self.cfg, sim_device)
         self.cam_resolution = (480,270)
         self.cam_resolution = (640,480)
 
-
-        super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
+        super(X152bPx4, self).__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
         self.root_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
         self.contact_force_tensor = self.gym.acquire_net_contact_force_tensor(self.sim)
 
@@ -63,7 +63,7 @@ class X152bPx4WithCam(BaseTask):
 
         self.root_states = self.vec_root_tensor[:, 0, :]
         self.root_positions = self.root_states[..., 0:3]
-        self.root_quats = self.root_states[..., 3:7]
+        self.root_quats = self.root_states[..., 3:7] # x,y,z,w
         self.root_linvels = self.root_states[..., 7:10]
         self.root_angvels = self.root_states[..., 10:13]
 
@@ -86,28 +86,27 @@ class X152bPx4WithCam(BaseTask):
         # choice 1 from rate ctrl and vel ctrl
         if(cfg.env.ctl_mode == "pos"):
             self.action_upper_limits = torch.tensor(
-            [10, 10, 10, 6.0], device=self.device, dtype=torch.float32)
+            [3, 3, 3, 6.0], device=self.device, dtype=torch.float32)
             self.action_lower_limits = torch.tensor(
-            [-10, -10, -10, -6.0], device=self.device, dtype=torch.float32)
+            [-3, -3, -3, -6.0], device=self.device, dtype=torch.float32)
             self.parallel_pos_control = ParallelPosControl(self.num_envs)
         elif(cfg.env.ctl_mode == "vel"):
             self.action_upper_limits = torch.tensor(
-                [3, 3, 3, 1], device=self.device, dtype=torch.float32)
+                [6, 6, 6, 6], device=self.device, dtype=torch.float32)
             self.action_lower_limits = torch.tensor(
-                [-3, -3, -3, -1], device=self.device, dtype=torch.float32)
+                [-6, -6, -6, -6], device=self.device, dtype=torch.float32)
             self.parallel_vel_control = ParallelVelControl(self.num_envs)
-
-        elif(cfg.env.ctl_mode == "atti"):
+        elif(cfg.env.ctl_mode == "atti"): # w, x, y, z, thrust
             self.action_upper_limits = torch.tensor(
-            [1, 1, 1, 1.0], device=self.device, dtype=torch.float32)
+            [1, 1, 1, 1, 1], device=self.device, dtype=torch.float32)
             self.action_lower_limits = torch.tensor(
-            [-1, -1, -1, 0.0], device=self.device, dtype=torch.float32)
+            [-1, -1, -1, -1, 0.], device=self.device, dtype=torch.float32)
             self.parallel_atti_control = ParallelAttiControl(self.num_envs)
         elif(cfg.env.ctl_mode == "rate"):
             self.action_upper_limits = torch.tensor(
-                [8, 8, 8, 1], device=self.device, dtype=torch.float32)
+                [6, 6, 6, 1], device=self.device, dtype=torch.float32)
             self.action_lower_limits = torch.tensor(
-                [-8, -8, -8, 0], device=self.device, dtype=torch.float32)
+                [-6, -6, -6, 0], device=self.device, dtype=torch.float32)
             self.parallel_rate_control = ParallelRateControl(self.num_envs)
         elif(cfg.env.ctl_mode == "prop"):
             self.action_upper_limits = torch.tensor(
@@ -115,11 +114,8 @@ class X152bPx4WithCam(BaseTask):
             self.action_lower_limits = torch.tensor(
                 [0, 0, 0, 0], device=self.device, dtype=torch.float32)
         else:
-            print("Mode error")
+            print("Mode Error!")
 
-        # control tensors
-        self.action_input = torch.zeros(
-            (self.num_envs, 4), dtype=torch.float32, device=self.device, requires_grad=False)
         self.forces = torch.zeros((self.num_envs, bodies_per_env, 3),
                                   dtype=torch.float32, device=self.device, requires_grad=False)
         self.torques = torch.zeros((self.num_envs, bodies_per_env, 3),
@@ -130,7 +126,6 @@ class X152bPx4WithCam(BaseTask):
             (self.num_envs, 3), dtype=torch.float32, device=self.device)
         self.env_upper_bound = torch.zeros(
             (self.num_envs, 3), dtype=torch.float32, device=self.device)
-
 
         if self.cfg.env.enable_onboard_cameras:
             self.full_camera_array = torch.zeros((self.num_envs, 270, 480), device=self.device)
@@ -286,10 +281,10 @@ class X152bPx4WithCam(BaseTask):
             self.envs.append(env_handle)
             self.actor_handles.append(actor_handle)
 
-        self.robot_body_props = self.gym.get_actor_rigid_body_properties(self.envs[0],self.actor_handles[0])
+        self.robot_body_items = self.gym.get_actor_rigid_body_properties(self.envs[0],self.actor_handles[0])
         self.robot_mass = 0
-        for prop in self.robot_body_props:
-            self.robot_mass += prop.mass
+        for item in self.robot_body_items:
+            self.robot_mass += item.mass
         print("Total robot mass: ", self.robot_mass)
         
         print("\n\n\n\n\n ENVIRONMENT CREATED \n\n\n\n\n\n")
@@ -365,81 +360,6 @@ class X152bPx4WithCam(BaseTask):
         self.progress_buf[env_ids] = 0
         self.reset_buf[env_ids] = 1
         
-
-    def pre_physics_step(self, _actions):
-        # resets
-        if self.counter % 250 == 0:
-            print("self.counter:", self.counter)
-        self.counter += 1
-
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
-        if len(reset_env_ids) > 0:
-            self.reset_idx(reset_env_ids)
-        actions = _actions.to(self.device)
-        self.actions = tensor_clamp(
-            actions, self.action_lower_limits, self.action_upper_limits)
-        actions_cpu = self.actions.cpu().numpy()
-
-        # tensor [n,4]
-        obs_buf_cpu = self.obs_buf.cpu().numpy()
-        root_pos_cpu = self.obs_buf[..., 0:3].cpu().numpy()
-        root_quats_cpu = self.obs_buf[..., 3:7].cpu().numpy()
-        lin_vel_cpu = self.obs_buf[..., 7:10].cpu().numpy()
-        ang_vel_cpu = self.obs_buf[..., 10:13].cpu().numpy()
-        # print(actions)
-        control_mode_ = self.ctl_mode
-        if(control_mode_ == "pos"):
-            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
-            self.parallel_pos_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
-            self.cmd_thrusts = torch.tensor(self.parallel_pos_control.update(actions_cpu.astype(np.float64)))
-        elif(control_mode_ == "vel"):
-            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
-            self.parallel_vel_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
-            self.cmd_thrusts = torch.tensor(self.parallel_vel_control.update(actions_cpu.astype(np.float64)))
-        elif(control_mode_ == "atti"):
-            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
-            self.parallel_atti_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
-            self.cmd_thrusts = torch.tensor(self.parallel_atti_control.update(actions_cpu.astype(np.float64))) 
-        elif(control_mode_ == "rate"):
-            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
-            self.parallel_rate_control.set_q_world(root_quats_cpu.astype(np.float64))
-            self.cmd_thrusts = torch.tensor(self.parallel_rate_control.update(actions_cpu.astype(np.float64),ang_vel_cpu.astype(np.float64),0.01)) 
-        elif(control_mode_ == "prop"):
-            self.cmd_thrusts =  self.actions
-        else:
-            print("Mode error")
-            
-        thrusts=((self.cmd_thrusts**2)*9.57).to('cuda')
-
-        force_x = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
-        force_y = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
-        force_xy = torch.cat((force_x, force_y), 1).reshape(-1, 4, 2)
-        thrusts = thrusts.reshape(-1, 4, 1)
-        thrusts = torch.cat((force_xy, thrusts), 2)
-
-        self.thrusts = thrusts
-
-        # # clear actions for reset envs
-        self.thrusts[reset_env_ids] = 0
-        # # spin spinning rotors
-        prop_rot = ((self.cmd_thrusts)*0.2).to('cuda')
-
-        # prop_rot = self.thrust_cmds_damp * self.prop_max_rot
-        self.torques[:, 1, 2] = -prop_rot[:, 0]
-        self.torques[:, 2, 2] = -prop_rot[:, 1]
-        self.torques[:, 3, 2] = prop_rot[:, 2]
-        self.torques[:, 4, 2] = prop_rot[:, 3]
-
-        self.forces[:, 1:5] = self.thrusts
-
-        # apply actions
-        self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
-            self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.LOCAL_SPACE)
-        # self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
-        #     self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.GLOBAL_SPACE)
-        # apply propeller rotation
-        # self.gym.set_joint_target_velocity(self.sim, )
-
     def render_cameras(self):        
         self.gym.render_all_camera_sensors(self.sim)
         self.gym.start_access_image_tensors(self.sim)
