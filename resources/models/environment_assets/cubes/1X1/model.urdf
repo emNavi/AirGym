@@ -3,15 +3,15 @@
   <link name="base_link">
     <visual name="base_link_visual">
       <geometry>
-        <mesh filename="1X1.dae" scale="1. 1. 1."/>
+        <mesh filename="1x1dae.dae" scale="1. 1. 1."/>
       </geometry>
-      <origin xyz="0 0 -0.16" rpy="1.57 0 0"/>
+      <origin xyz="0 0 0" rpy="1.57 0 0"/>
     </visual>
     <collision name="base_link_collision">
       <geometry>
-        <mesh filename="1X1.dae" scale="1. 1. 1."/>
+        <mesh filename="1x1dae.dae" scale="1. 1. 1."/>
       </geometry>
-      <origin xyz="0 0 -0.16" rpy="1.57 0 0"/>
+      <origin xyz="0 0 0" rpy="1.57 0 0"/>
     </collision>
   </link>
 </robot>

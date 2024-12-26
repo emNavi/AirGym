@@ -298,7 +298,7 @@ class X152bAvoid(X152bPx4):
         self.cube_states[env_ids, 2:3] = .0*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
         # self.cube_states[env_ids, 0:2] = 0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([1.5, 0.], device=self.device)
         # self.cube_states[env_ids, 2:3] = .0*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
-        self.cube_states[env_ids, 7:10] = self.calculate_cube_velocity(self.cube_positions, 10.0)
+        self.cube_states[env_ids, 7:10] = self.calculate_cube_velocity(self.cube_positions, 5.0)
 
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
@@ -344,39 +344,41 @@ class X152bAvoid(X152bPx4):
 
     def calculate_cube_velocity(self, cube_position, v_e, g=9.81):
         """
-        计算 cube 的初速度 (vx, vy, vz) 以使其以期望速度砸向无人机。
+        计算 cube 的初速度 (vx, vy, vz) 以使其以水平速度为基础，砸向无人机。
 
         参数：
         - cube_position (tensor): 初始位置 [num_envs, 3]，每行为 (x, y, z)。
-        - v_e (float): 期望总速度（标量）。
+        - v_e (float): 期望水平速度（标量）。
         - g (float): 重力加速度，默认 9.81。
 
         输出：
         - velocity (tensor): 初速度 [num_envs, 3]，每行为 (vx, vy, vz)。
         """
         # 无人机位置
-        drone_position = torch.tensor([0.0, 0.0, 1.0], device=self.device).expand_as(cube_position)  # Shape [1, 3]
+        drone_position = torch.tensor([0.0, 0.0, 1.0], device=self.device).expand_as(cube_position)  # [num_envs, 3]
 
         # 计算方向向量
-        direction = drone_position - cube_position  # Shape [num_envs, 3]
+        direction = drone_position - cube_position  # [num_envs, 3]
         distance_xy = torch.norm(direction[:, :2], dim=1, keepdim=True)  # 水平距离 [num_envs, 1]
         unit_direction_xy = direction[:, :2] / distance_xy  # 水平方向单位向量 [num_envs, 2]
 
-        # 计算垂直方向初速度
-        z_c = cube_position[:, 2]  # 初始高度 [num_envs]
-        z_u = drone_position[0, 2]  # 无人机目标高度，标量
-        v_z = torch.sqrt(2 * g * torch.clamp(z_u - z_c, min=0.0))  # Shape [num_envs]
+        # 计算水平飞行时间
+        v_e = torch.tensor(v_e, device=self.device).expand_as(distance_xy)  # 期望水平速度 [num_envs, 1]
+        t = distance_xy / v_e  # 水平运动时间 [num_envs, 1]
 
-        # 计算水平初速度分量
-        v_xy = torch.sqrt(torch.clamp(v_e**2 - v_z**2, min=0.0))  # Shape [num_envs]
-        v_x = unit_direction_xy[:, 0] * v_xy.squeeze()  # Shape [num_envs]
-        v_y = unit_direction_xy[:, 1] * v_xy.squeeze()  # Shape [num_envs]
+        # 计算垂直方向初速度
+        z_c = cube_position[:, 2].unsqueeze(1)  # 初始高度 [num_envs, 1]
+        z_u = drone_position[:, 2].unsqueeze(1)  # 无人机目标高度 [num_envs, 1]
+        v_z = (z_u - z_c + 0.5 * g * t**2) / t  # 垂直速度公式 [num_envs, 1]
+
+        # 水平方向初速度分量
+        v_x = unit_direction_xy[:, 0].unsqueeze(1) * v_e  # 水平方向 x 分量 [num_envs, 1]
+        v_y = unit_direction_xy[:, 1].unsqueeze(1) * v_e  # 水平方向 y 分量 [num_envs, 1]
 
         # 合并速度分量
-        velocity = torch.stack([v_x, v_y, v_z], dim=1)  # Shape [num_envs, 3]
+        velocity = torch.cat([v_x, v_y, v_z], dim=1)  # [num_envs, 3]
 
         return velocity
-
 
 
     def compute_observations(self):

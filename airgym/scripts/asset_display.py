@@ -55,6 +55,7 @@ asset_file = "cubes/1X1/model.urdf"
 asset_options = gymapi.AssetOptions()
 
 asset_options.vhacd_enabled = True
+asset_options.disable_gravity = True
 # asset_options.vhacd_params.resolution = 500000
 # asset_options.vhacd_params.max_num_vertices_per_ch = 1
 asset_options.vhacd_params.resolution = 300000
