@@ -4,7 +4,7 @@ from airgym.utils import asset_register
 import numpy as np
 from airgym import AIRGYM_ROOT_DIR
 
-class X152bSigmoidConfig(X152bPx4Cfg):
+class X152bSinConfig(X152bPx4Cfg):
     seed = 1
     controller_test = False
     use_tcn = False # if use TCN
@@ -12,7 +12,7 @@ class X152bSigmoidConfig(X152bPx4Cfg):
  
     class env:
         num_envs = 4 # must be a square number
-        num_observations = 18 + 3
+        num_observations = 18 + 30
         headless = True
         get_privileged_obs = True # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned
         env_spacing = 10  # not used with heightfields/trimeshes
@@ -110,7 +110,7 @@ class X152bSigmoidConfig(X152bPx4Cfg):
         class ground(asset_register.ground):
             num_assets = 1
             collision_mask = 1
-            specified_position = [[-0, -0, 0.05]]
+            specified_position = [[9, -0, 0.05]]
             specified_euler_angle = [[0.0, 0.0, 0.0]]
 
         class left_wall(asset_register.left_wall):
@@ -133,15 +133,11 @@ class X152bSigmoidConfig(X152bPx4Cfg):
 
         ## cubes
         class cube1X4_asset_params(asset_register.cube_asset_params):
-            num_assets = 4
+            num_assets = 2
             collision_mask = 1
-            specified_position = [[0.0, 0.0, 0.0],
-                                  [2.0, 0.0, 0.0],
-                                  [4.0, 0.0, 0.0],
-                                  [6.0, 0.0, 0.0]] # if > -900, use this value instead of randomizing the ratios
+            specified_position = [[2.0, 0.0, 0.0],
+                                  [6.0, 0.0, 0.0],]
             specified_euler_angle = [[0.0, 0.0, 0.0],
-                                     [0.0, 0.0, 0.0],
-                                     [0.0, 0.0, 0.0],
                                      [0.0, 0.0, 0.0]] # if > -900, use this value instead of randomizing
 
         asset_type_to_dict_map = {
