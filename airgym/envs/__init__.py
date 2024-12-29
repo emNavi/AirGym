@@ -24,6 +24,15 @@ try:
 except ImportError:
     print("WARNING! X152bTarget or X152bTargetConfig cannot be imported. Ignore if using on real robot inference.")
     traceback.print_exc()
+
+try:
+    from .task.X152b_slit_config import X152bSlitConfig
+    from .task.X152b_slit import X152bSlit
+    task_registry.register("X152b_slit", X152bSlit, X152bSlitConfig())
+except ImportError:
+    print("WARNING! X152bSlit or X152bSlitConfig cannot be imported. Ignore if using on real robot inference.")
+    traceback.print_exc()
+
 try:
     from .task.X152b_avoid_config import X152bAvoidConfig
     from .task.X152b_avoid import X152bAvoid
@@ -32,9 +41,9 @@ except ImportError:
     print("WARNING! X152bAvoid or X152bAvoidConfig cannot be imported. Ignore if using on real robot inference.")
     traceback.print_exc()
 try:
-    from .task.X152b_sigmoid_config import X152bSigmoidConfig
-    from .task.X152b_sigmoid import X152bSigmoid
-    task_registry.register("X152b_sigmoid", X152bSigmoid, X152bSigmoidConfig())
+    from .task.X152b_sin_config import X152bSinConfig
+    from .task.X152b_sin import X152bSin
+    task_registry.register("X152b_sin", X152bSin, X152bSinConfig())
 except ImportError:
-    print("WARNING! X152bSigmoid or X152bSigmoidConfig cannot be imported. Ignore if using on real robot inference.")
+    print("WARNING! X152bSin or X152bSinConfig cannot be imported. Ignore if using on real robot inference.")
     traceback.print_exc()

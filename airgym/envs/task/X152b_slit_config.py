@@ -5,11 +5,14 @@ import numpy as np
 from airgym import AIRGYM_ROOT_DIR
 
 class X152bSlitConfig(BaseConfig):
-    seed = 1
+    seed = 8
+    controller_test = False
+    use_tcn = False # if use TCN
+    tcn_seqs_len = 25 # if use TCN
 
     class env:
         num_envs = 4 # must be a square number
-        num_observations = 18
+        num_observations = 18+3
         headless = True
         get_privileged_obs = True # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned
         env_spacing = 10  # not used with heightfields/trimeshes

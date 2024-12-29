@@ -86,10 +86,13 @@ env_configurations.register('X152b', {'env_creator': lambda **kwargs : task_regi
 env_configurations.register('X152b_target', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_target',args=Namespace(**kwargs)),
         'vecenv_type': 'AirGym-RLGPU'})
 
+env_configurations.register('X152b_slit', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_slit',args=Namespace(**kwargs)),
+        'vecenv_type': 'AirGym-RLGPU'})
+
 env_configurations.register('X152b_avoid', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_avoid',args=Namespace(**kwargs)),
         'vecenv_type': 'AirGym-RLGPU'})
 
-env_configurations.register('X152b_sigmoid', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_sigmoid',args=Namespace(**kwargs)),
+env_configurations.register('X152b_sin', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_sin',args=Namespace(**kwargs)),
         'vecenv_type': 'AirGym-RLGPU'})
 
 vecenv.register('AirGym-RLGPU',

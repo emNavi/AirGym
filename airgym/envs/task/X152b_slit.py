@@ -8,7 +8,7 @@ from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
 
 from isaacgym import gymutil, gymtorch, gymapi
 from isaacgym.torch_utils import *
-from airgym.envs.base.base_task import BaseTask
+from airgym.envs.base.X152bPx4 import X152bPx4
 import airgym.utils.rotations as rot_utils
 from airgym.envs.task.X152b_slit_config import X152bSlitConfig
 
@@ -37,12 +37,14 @@ def quaternion_multiply(q1: torch.Tensor, q2: torch.Tensor):
     w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
     return torch.stack((x, y, z, w), dim=-1)
 
-class X152bSlit(BaseTask):
+class X152bSlit(X152bPx4):
 
     def __init__(self, cfg: X152bSlitConfig, sim_params, physics_engine, sim_device, headless):
         self.cfg = cfg
-        print("ctl mode =========== ",cfg.env.ctl_mode)
+        assert cfg.env.ctl_mode is not None, "Please specify one control mode!"
+        print("ctl mode =========== ", cfg.env.ctl_mode)
         self.ctl_mode = cfg.env.ctl_mode
+        self.cfg.env.num_actions = 5 if cfg.env.ctl_mode == "atti" else 4
         self.max_episode_length = int(self.cfg.env.episode_length_s / self.cfg.sim.dt)
         self.debug_viz = False
         num_actors = 1
@@ -52,7 +54,7 @@ class X152bSlit(BaseTask):
         self.sim_device_id = sim_device
         self.headless = headless
 
-        super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
+        super(X152bPx4, self).__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
         self.root_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
 
         bodies_per_env = self.robot_num_bodies
@@ -149,92 +151,6 @@ class X152bSlit(BaseTask):
             
             self.gym.viewer_camera_look_at(self.viewer, None, cam_pos, cam_target)
 
-    def create_sim(self):
-        self.sim = self.gym.create_sim(
-            self.sim_device_id, self.graphics_device_id, self.physics_engine, self.sim_params)
-        self._create_envs()
-        self.progress_buf = torch.zeros(
-            self.cfg.env.num_envs, device=self.sim_device, dtype=torch.long)
-
-    def _create_ground_plane(self):
-        plane_params = gymapi.PlaneParams()
-        plane_params.normal = gymapi.Vec3(0.0, 0.0, 1.0)
-        self.gym.add_ground(self.sim, plane_params)
-        return
-
-    def _create_envs(self):
-        print("\n\n\n\n\n CREATING ENVIRONMENT \n\n\n\n\n\n")
-        asset_path = self.cfg.asset_config.X152b.file.format(
-            AIRGYM_ROOT_DIR=AIRGYM_ROOT_DIR)
-        asset_root = os.path.dirname(asset_path)
-        asset_file = os.path.basename(asset_path)
-
-        asset_options = asset_class_to_AssetOptions(self.cfg.asset_config.X152b)
-
-        X152b = self.gym.load_asset(
-            self.sim, asset_root, asset_file, asset_options)
-
-        self.robot_num_bodies = self.gym.get_asset_rigid_body_count(X152b)
-
-        start_pose = gymapi.Transform()
-        self.env_spacing = self.cfg.env.env_spacing
-        env_lower = gymapi.Vec3(-self.env_spacing, -
-                                self.env_spacing, -self.env_spacing)
-        env_upper = gymapi.Vec3(
-            self.env_spacing, self.env_spacing, self.env_spacing)
-        self.actor_handles = []
-        self.envs = []
-        for i in range(self.num_envs):
-            # create env instance
-            env_handle = self.gym.create_env(
-                self.sim, env_lower, env_upper, int(np.sqrt(self.num_envs)))
-            pos = torch.tensor([0, 0, 1], device=self.device)
-            start_pose.p = gymapi.Vec3(*pos)
-
-            actor_handle = self.gym.create_actor(
-                env_handle, X152b, start_pose, self.cfg.asset_config.X152b.name, i, self.cfg.asset_config.X152b.collision_mask, 0)
-            
-            self.robot_bodies = self.gym.get_actor_rigid_body_properties(
-                env_handle, actor_handle)
-            self.envs.append(env_handle)
-            self.actor_handles.append(actor_handle)
-        
-        self.robot_mass = 0
-        for body in self.robot_bodies:
-            self.robot_mass += body.mass
-        print("Total robot mass: ", self.robot_mass)
-        
-        print("\n\n\n\n\n ENVIRONMENT CREATED \n\n\n\n\n\n")
-
-    def step(self, actions):
-        # step physics and render each frame
-        for i in range(self.cfg.env.num_control_steps_per_env_step):
-            self.pre_physics_step(actions)
-            self.gym.simulate(self.sim)
-            # NOTE: as per the isaacgym docs, self.gym.fetch_results must be called after self.gym.simulate, but not having it here seems to work fine
-            # it is called in the render function.
-            self.post_physics_step()
-
-        self.render(sync_frame_time=False)
-        
-        self.progress_buf += 1
-        self.compute_observations()
-        self.compute_reward()
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
-        if len(reset_env_ids) > 0:
-            self.reset_idx(reset_env_ids)
-
-        self.time_out_buf = self.progress_buf > self.max_episode_length
-        self.extras["time_outs"] = self.time_out_buf
-        self.extras["item_reward_info"] = self.item_reward_info
-        return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
-
-    def reset(self):
-        """ Reset all robots"""
-        self.reset_idx(torch.arange(self.num_envs, device=self.device))
-        obs, privileged_obs, _, _, _ = self.step(torch.zeros(self.num_envs, self.num_actions, device=self.device, requires_grad=False))
-        return obs, privileged_obs
-
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
 
@@ -266,100 +182,6 @@ class X152bSlit(BaseTask):
         self.pre_actions[env_ids] = 0
         self.pre_root_positions[env_ids] = 0
 
-    def pre_physics_step(self, _actions):
-        # resets
-        if self.counter % 250 == 0:
-            print("self.counter:", self.counter)
-        self.counter += 1
-
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
-        if len(reset_env_ids) > 0:
-            self.reset_idx(reset_env_ids)
-        actions = _actions.to(self.device)
-        self.actions = tensor_clamp(
-            actions, self.action_lower_limits, self.action_upper_limits)
-        # print(self.actions)
-        if self.ctl_mode == "atti":
-            actions_q = actions[..., :-1]
-            actions_cpu = torch.cat((actions_q, self.actions[..., -1].unsqueeze(-1)), dim=-1).cpu().numpy()
-        else:
-            actions_cpu = self.actions.cpu().numpy()
-        actions_cpu = self.actions.cpu().numpy()
-        # print(actions_cpu[...,-1])
-        
-        # tensor [n,4]
-        obs_buf_cpu = self.root_states.cpu().numpy()
-        root_pos_cpu = self.root_states[..., 0:3].cpu().numpy()
-        root_quats_cpu = self.root_states[..., 3:7].cpu().numpy()
-        lin_vel_cpu = self.root_states[..., 7:10].cpu().numpy()
-        ang_vel_cpu = self.root_states[..., 10:13].cpu().numpy()
-
-        # print(actions)
-        control_mode_ = self.ctl_mode
-        if(control_mode_ == "pos"):
-            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
-            self.parallel_pos_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
-            self.cmd_thrusts = torch.tensor(self.parallel_pos_control.update(actions_cpu.astype(np.float64)))
-        elif(control_mode_ == "vel"):
-            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
-            self.parallel_vel_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
-            self.cmd_thrusts = torch.tensor(self.parallel_vel_control.update(actions_cpu.astype(np.float64)))
-        elif(control_mode_ == "atti"):
-            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
-            self.parallel_atti_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
-            self.cmd_thrusts = torch.tensor(self.parallel_atti_control.update(actions_cpu.astype(np.float64))) 
-        elif(control_mode_ == "rate"):
-            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
-            self.parallel_rate_control.set_q_world(root_quats_cpu.astype(np.float64))
-            self.cmd_thrusts = torch.tensor(self.parallel_rate_control.update(actions_cpu.astype(np.float64),ang_vel_cpu.astype(np.float64),0.01)) 
-        elif(control_mode_ == "prop"):
-            self.cmd_thrusts =  self.actions
-        else:
-            print("Mode error")
-        # end
-
-        # debugging
-        # 使用 torch.isnan() 检查张量中的元素是否为 NaN
-        # nan_mask = torch.isnan(self.cmd_thrusts)
-        # # 如果有 NaN，则进行暂停
-        # if nan_mask.any():
-        #     print("Sleeping for 10 second...")
-        #     time.sleep(10)
-        
-        thrusts=((self.cmd_thrusts**2)*9.57).to('cuda')
-
-        force_x = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
-        force_y = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
-        force_xy = torch.cat((force_x, force_y), 1).reshape(-1, 4, 2)
-        thrusts = thrusts.reshape(-1, 4, 1)
-        thrusts = torch.cat((force_xy, thrusts), 2)
-
-        self.thrusts = thrusts
-
-        # # clear actions for reset envs
-        self.thrusts[reset_env_ids] = 0
-        # # spin spinning rotors
-        prop_rot = ((self.cmd_thrusts)*0.2).to('cuda')
-
-        # prop_rot = self.thrust_cmds_damp * self.prop_max_rot
-        self.torques[:, 1, 2] = -prop_rot[:, 0]
-        self.torques[:, 2, 2] = -prop_rot[:, 1]
-        self.torques[:, 3, 2] = prop_rot[:, 2]
-        self.torques[:, 4, 2] = prop_rot[:, 3]
-
-        self.forces[:, 1:5] = self.thrusts
-
-        # apply actions
-        self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
-            self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.LOCAL_SPACE)
-        # self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
-        #     self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.GLOBAL_SPACE)
-        # apply propeller rotation
-        # self.gym.set_joint_target_velocity(self.sim, )
-
-    def post_physics_step(self):
-        self.gym.refresh_actor_root_state_tensor(self.sim)
-
     def compute_observations(self):
         self.root_matrix = T.quaternion_to_matrix(self.root_quats[:, [3, 0, 1, 2]]).reshape(self.num_envs, 9)
         # print(self.root_matrix)
@@ -368,24 +190,19 @@ class X152bSlit(BaseTask):
         self.obs_buf[..., 12:15] = self.root_linvels
         self.obs_buf[..., 15:18] = self.root_angvels
 
+        slit_position = torch.tensor([4.0, 0, 1], device=self.device).repeat(self.num_envs, 1)
+        relative_position = slit_position - self.root_positions
+        self.obs_buf[..., 18:21] = relative_position
+
         self.add_noise()
         return self.obs_buf
-
-    def add_noise(self):
-        matrix_noise = 1e-3 *torch_normal_float((self.num_envs, 9), self.device)
-        pos_noise = 5e-3 *torch_normal_float((self.num_envs, 3), self.device)
-        linvels_noise = 2e-2 *torch_normal_float((self.num_envs, 3), self.device)
-        angvels_noise = 4e-1 *torch_normal_float((self.num_envs, 3), self.device)
-
-        self.obs_buf[..., 0:9] += matrix_noise
-        self.obs_buf[..., 9:12] += pos_noise
-        self.obs_buf[..., 12:15] += linvels_noise
-        self.obs_buf[..., 15:18] += angvels_noise
 
     def compute_reward(self):
         # print(self.root_quats)
         # print(self.pre_root_positions[0])
         self.rew_buf[:], self.reset_buf[:] ,self.item_reward_info = self.compute_quadcopter_reward(
+            self.actions,
+            self.pre_actions,
             self.root_positions,
             self.pre_root_positions,
             self.root_quats,
@@ -407,7 +224,7 @@ class X152bSlit(BaseTask):
             1 - 2 * (root_quats[..., 0]**2 + root_quats[..., 1]**2))
         
         roll_reward = - 1 * (roll - torch.pi)**2
-        roll_reward = torch.where((root_positions[..., 0] > 1.9) & (root_positions[..., 0] < 2.1), roll_reward, 0)
+        roll_reward = torch.where((root_positions[..., 0] > 3.9) & (root_positions[..., 0] < 4.1), roll_reward, 0)
         
         return roll_reward
     
@@ -417,8 +234,20 @@ class X152bSlit(BaseTask):
         # print(r)
         return r
 
-    def compute_quadcopter_reward(self, root_positions, pre_root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length):
-        reward = 0.5 * self.atti_alignment(root_positions, root_quats) + self.guidance_reward(root_positions, pre_root_positions, root_angvels)
+    def compute_quadcopter_reward(self, actions, pre_actions, root_positions, pre_root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length):
+        # continous action
+        # action_diff = actions - pre_actions
+        # if self.ctl_mode == "pos" or self.ctl_mode == 'vel':
+        #     continous_action_reward =  .1 * (1 - torch.sqrt(action_diff.pow(2).sum(-1))/5)
+        # else:
+        #     continous_action_reward = .1 * (1- torch.sqrt(action_diff[..., :-1].pow(2).sum(-1))/5) + .1 * (1-torch.sqrt(action_diff[..., -1].pow(2))/5)
+            # thrust = actions[..., -1] # this thrust is the force on vertical axis
+            # thrust_reward = .2 * (1-torch.abs(0.1533 - thrust))
+        
+        atti_alignment = 10 *self.atti_alignment(root_positions, root_quats)
+        guidance_reward = 10 * self.guidance_reward(root_positions, pre_root_positions, root_angvels)
+
+        reward = guidance_reward + atti_alignment 
 
         # resets due to misbehavior
         ones = torch.ones_like(reset_buf)
@@ -428,12 +257,14 @@ class X152bSlit(BaseTask):
         reset = torch.where(progress_buf >= max_episode_length - 1, ones, die)
         # reset = torch.where(dist > 1.0, ones, reset)
 
-        reset = torch.where(root_positions[..., 2] < 0.5, ones, reset)
-        reset = torch.where(root_positions[..., 2] > 1.5, ones, reset)
+        yz_norm = torch.norm(root_positions[..., 1:]-torch.tensor([0, 1], device=self.device).repeat(self.num_envs, 1), dim=-1)
+        reset = torch.where(yz_norm > 0.5, ones, reset)
         
         item_reward_info = {}
-        # item_reward_info["guidance_reward"] = guidance_reward
-        # item_reward_info["flag_reward"] = flag_reward
+        item_reward_info["guidance_reward"] = guidance_reward
+        item_reward_info["atti_alignment"] = atti_alignment
+        # item_reward_info["thrust_reward"] = thrust_reward
+        # item_reward_info["continous_action_reward"] = continous_action_reward
 
         return reward, reset, item_reward_info
 
