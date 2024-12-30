@@ -49,8 +49,8 @@ class ExtractObsWrapper(gym.Wrapper):
 
 class AirGymRLGPUEnv(vecenv.IVecEnv):
     def __init__(self, config_name, num_actors, **kwargs):
-        print("AirGymRLGPUEnv", config_name, num_actors, kwargs)
-        print(env_configurations.configurations)
+        print("AirGymRLGPUEnv:", config_name, num_actors, kwargs)
+        # print(env_configurations.configurations)
         self.env, env_conf = env_configurations.configurations[config_name]['env_creator'](**kwargs)
 
         self.env = ExtractObsWrapper(self.env)
@@ -122,6 +122,8 @@ def get_args():
         {"name": "--horovod", "action": "store_true", "default": False, "help": "Use horovod for multi-gpu training"},
         {"name": "--rl_device", "type": str, "default": "cuda:0", "help": 'Device used by the RL algorithm, (cpu, gpu, cuda:0, cuda:1 etc..)'},
         {"name": "--ctl_mode", "required": True, "type": str, "help": 'Specify the control mode and the options are: pos, vel, atti, rate, prop'},
+        {"name": "--use_tcn", "type": bool, "default": False, "help": "Use TCN network"},
+        {"name": "--tcn_seqs_len", "type": int, "default": 25, "help": "TCN sequence length"},
         ]
         
     # parse arguments
@@ -154,6 +156,8 @@ def update_config(config, args):
     config['params']['config']['env_config']['use_gpu_pipeline'] = args['use_gpu_pipeline']
     config['params']['config']['env_config']['num_threads'] = args['num_threads']
     config['params']['config']['env_config']['ctl_mode'] = args['ctl_mode']
+    config['params']['config']['env_config']['use_tcn'] = args['use_tcn']
+    config['params']['config']['env_config']['tcn_seqs_len'] = args['tcn_seqs_len']
 
     if args['num_envs'] > 0:
         config['params']['config']['num_actors'] = args['num_envs']
@@ -191,7 +195,7 @@ if __name__ == '__main__':
         except yaml.YAMLError as exc:
             print(exc)
 
-    print(config)
+    print("Config from yaml and args:", config)
 
     rank = int(os.getenv("LOCAL_RANK", "0"))
     if args["track"] and rank == 0:

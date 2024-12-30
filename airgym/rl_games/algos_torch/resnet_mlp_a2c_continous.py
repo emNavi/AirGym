@@ -10,14 +10,13 @@ from torch import optim
 from rl_games.algos_torch import central_value
 
 
-class CustomA2CAgent(A2CAgent):
+class ResnetMLPA2CAgent(A2CAgent):
     def __init__(self, base_name, params):
         super(A2CAgent, self).__init__(base_name, params)
-        if 'tcn' in params['network']:
-            self.is_tcn = True
-            self.tcn_seqs_len = params['network']['tcn']['tcn_seqs_len']
+        if 'resnet_mlp' in params['network']:
+            self.resnet_mlp = True
 
-        obs_shape = (self.tcn_seqs_len,) + self.obs_shape
+        obs_shape = self.obs_shape
         build_config = {
             'actions_num' : self.actions_num,
             'input_shape' : obs_shape,
@@ -72,11 +71,10 @@ class CustomA2CAgent(A2CAgent):
         algo_info = {
             'num_actors' : self.num_actors,
             'horizon_length' : self.horizon_length,
-            'tcn_seqs_len' : self.tcn_seqs_len,
             'has_central_value' : self.has_central_value,
             'use_action_masks' : self.use_action_masks
         }
-        self.experience_buffer = CustomExperienceBuffer(self.env_info, algo_info, self.ppo_device)
+        self.experience_buffer = ExperienceBuffer(self.env_info, algo_info, self.ppo_device)
 
         val_shape = (self.horizon_length, batch_size, self.value_size)
         current_rewards_shape = (batch_size, self.value_size)
@@ -96,44 +94,3 @@ class CustomA2CAgent(A2CAgent):
         
         self.update_list = ['actions', 'neglogpacs', 'values', 'mus', 'sigmas']
         self.tensor_list = self.update_list + ['obses', 'states', 'dones']
-
-class CustomExperienceBuffer(ExperienceBuffer):
-    '''
-    Experience buffer for TCN A2C agent
-    '''
-    def __init__(self, env_info, algo_info, device):
-        super().__init__(env_info, algo_info, device)
-        self.tcn_seqs_len = algo_info['tcn_seqs_len']
-        self.obs_base_shape = (self.horizon_length, self.num_agents * self.num_actors, self.tcn_seqs_len)
-        self.tensor_dict['obses'] = self._create_tensor_from_space(env_info['observation_space'], self.obs_base_shape)
-
-
-class CustomPlayerContinuous(PpoPlayerContinuous, BasePlayer):
-    def __init__(self, params):
-        super(PpoPlayerContinuous, self).__init__(params)
-        self.network = self.config['network']
-        self.actions_num = self.action_space.shape[0] 
-        self.actions_low = torch.from_numpy(self.action_space.low.copy()).float().to(self.device)
-        self.actions_high = torch.from_numpy(self.action_space.high.copy()).float().to(self.device)
-        self.mask = [False]
-
-        self.normalize_input = self.config['normalize_input']
-        self.normalize_value = self.config.get('normalize_value', False)
-
-        if 'tcn' in params['network']:
-            self.is_tcn = True
-            self.tcn_seqs_len = params['network']['tcn']['tcn_seqs_len']
-
-        obs_shape = (self.tcn_seqs_len,) + self.obs_shape
-        config = {
-            'actions_num' : self.actions_num,
-            'input_shape' : obs_shape,
-            'num_seqs' : self.num_agents,
-            'value_size': self.env_info.get('value_size',1),
-            'normalize_value': self.normalize_value,
-            'normalize_input': self.normalize_input,
-        } 
-        self.model = self.network.build(config)
-        self.model.to(self.device)
-        self.model.eval()
-        self.is_rnn = self.model.is_rnn()

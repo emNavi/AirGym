@@ -17,6 +17,15 @@ try:
 except ImportError:
     print("WARNING! X152bPx4WithCamCfg or X152bPx4WithCam cannot be imported. Ignore if using on real robot inference.")
     traceback.print_exc()
+
+try:
+    from airgym.envs.task.X152bPx4_planning_config import X152bPx4PlanningCfg
+    from airgym.envs.task.X152bPx4_planning import X152bPx4Planning
+    task_registry.register("X152b_planning", X152bPx4Planning, X152bPx4PlanningCfg())
+except ImportError:
+    print("WARNING! X152bPx4PlanningCfg or X152bPx4Planning cannot be imported. Ignore if using on real robot inference.")
+    traceback.print_exc()
+
 try:
     from .task.X152b_target_config import X152bTargetConfig
     from .task.X152b_target import X152bTarget

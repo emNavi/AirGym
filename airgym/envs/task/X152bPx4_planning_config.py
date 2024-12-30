@@ -4,13 +4,13 @@ from airgym.utils import asset_register
 import numpy as np
 from airgym import AIRGYM_ROOT_DIR
 
-class X152bPx4WithCamCfg(BaseConfig):
+class X152bPx4PlanningCfg(BaseConfig):
     seed = 1
     controller_test = False
         
     class env:
         num_envs = 4 # must be a square number
-        num_observations = 13
+        num_observations = 18
         headless = True
         get_privileged_obs = True # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned
         env_spacing = 10  # not used with heightfields/trimeshes
@@ -129,6 +129,9 @@ class X152bPx4WithCamCfg(BaseConfig):
 
         class ground(asset_register.ground):
             num_assets = 1
+            collision_mask = 1
+            specified_position = [[9, -0, 0.05]]
+            specified_euler_angle = [[0.0, 0.0, 0.0]]
 
         class left_wall(asset_register.left_wall):
             num_assets = 1

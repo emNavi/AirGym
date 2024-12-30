@@ -10,8 +10,8 @@ from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
 from isaacgym import gymutil, gymtorch, gymapi
 from isaacgym.torch_utils import *
 
-from .X152bPx4 import X152bPx4
-from .X152bPx4_with_cam_config import X152bPx4WithCamCfg
+from airgym.envs.base.X152bPx4 import X152bPx4
+from airgym.envs.task.X152bPx4_planning_config import X152bPx4PlanningCfg
 
 from airgym.utils.asset_manager import AssetManager
 
@@ -25,9 +25,9 @@ import cv2
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
 
 
-class X152bPx4WithCam(X152bPx4):
+class X152bPx4Planning(X152bPx4):
 
-    def __init__(self, cfg: X152bPx4WithCamCfg, sim_params, physics_engine, sim_device, headless):
+    def __init__(self, cfg: X152bPx4PlanningCfg, sim_params, physics_engine, sim_device, headless):
         self.cfg = cfg
         assert cfg.env.ctl_mode is not None, "Please specify one control mode!"
         print("ctl mode =========== ", cfg.env.ctl_mode)
