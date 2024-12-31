@@ -27,7 +27,6 @@ class BasePlayer(object):
 
     def __init__(self, params):
         self.config = config = params['config']
-        self.load_networks(params)
         self.env_name = self.config['env_name']
         self.player_config = self.config.get('player', {})
         self.env_config = self.config.get('env_config', {})
@@ -68,8 +67,6 @@ class BasePlayer(object):
         self.use_cuda = True
         self.batch_size = 1
         self.has_batch_dimension = False
-        self.has_central_value = self.config.get(
-            'central_value_config') is not None
         self.device_name = self.config.get('device_name', 'cuda')
         self.render_env = self.player_config.get('render', False)
         self.games_num = self.player_config.get('games_num', 2000)
@@ -170,10 +167,6 @@ class BasePlayer(object):
     def on_file_modified(self, event):
         self.process_new_eval_checkpoint(event.src_path)
 
-    def load_networks(self, params):
-        builder = model_builder.ModelBuilder()
-        self.config['network'] = builder.load(params)
-
     def _preproc_obs(self, obs_batch):
         if type(obs_batch) is dict:
             obs_batch = copy.copy(obs_batch)
@@ -258,9 +251,6 @@ class BasePlayer(object):
 
     def set_weights(self, weights):
         self.model.load_state_dict(weights['model'])
-        if self.normalize_input and 'running_mean_std' in weights:
-            self.model.running_mean_std.load_state_dict(
-                weights['running_mean_std'])
 
     def create_env(self):
         return env_configurations.configurations[self.env_name]['env_creator'](**self.env_config)
@@ -273,12 +263,6 @@ class BasePlayer(object):
 
     def reset(self):
         raise NotImplementedError('raise')
-
-    def init_rnn(self):
-        if self.is_rnn:
-            rnn_states = self.model.get_default_rnn_state()
-            self.states = [torch.zeros((s.size()[0], self.batch_size, s.size(
-            )[2]), dtype=torch.float32).to(self.device) for s in rnn_states]
 
     def run(self):
         n_games = self.games_num
@@ -305,7 +289,6 @@ class BasePlayer(object):
 
         self.wait_for_checkpoint()
 
-        need_init_rnn = self.is_rnn
         for _ in range(n_games):
             if games_played >= n_games:
                 break
@@ -313,10 +296,6 @@ class BasePlayer(object):
             obses = self.env_reset(self.env)
             batch_size = 1
             batch_size = self.get_batch_size(obses, batch_size)
-
-            if need_init_rnn:
-                self.init_rnn()
-                need_init_rnn = False
 
             cr = torch.zeros(batch_size, dtype=torch.float32)
             steps = torch.zeros(batch_size, dtype=torch.float32)
@@ -348,11 +327,6 @@ class BasePlayer(object):
                 games_played += done_count
 
                 if done_count > 0:
-                    if self.is_rnn:
-                        for s in self.states:
-                            s[:, all_done_indices, :] = s[:,
-                                                          all_done_indices, :] * 0.0
-
                     cur_rewards = cr[done_indices].sum().item()
                     cur_steps = steps[done_indices].sum().item()
 
@@ -413,11 +387,10 @@ class BasePlayer(object):
         return batch_size
 
 
-class A2CPlayerContinuous(BasePlayer):
+class A2CPlayer(BasePlayer):
 
     def __init__(self, params):
         BasePlayer.__init__(self, params)
-        self.network = self.config['network']
         self.actions_num = self.action_space.shape[0] 
         self.actions_low = torch.from_numpy(self.action_space.low.copy()).float().to(self.device)
         self.actions_high = torch.from_numpy(self.action_space.high.copy()).float().to(self.device)
@@ -426,19 +399,17 @@ class A2CPlayerContinuous(BasePlayer):
         self.normalize_input = self.config['normalize_input']
         self.normalize_value = self.config.get('normalize_value', False)
 
-        obs_shape = self.obs_shape
-        config = {
+        from lib.model.a2c_continuous_logstd_model import ModelA2CContinuousLogStd
+        keys = {
             'actions_num' : self.actions_num,
-            'input_shape' : obs_shape,
-            'num_seqs' : self.num_agents,
+            'input_shape' : self.obs_shape,
             'value_size': self.env_info.get('value_size',1),
-            'normalize_value': self.normalize_value,
+            'normalize_value' : self.normalize_value,
             'normalize_input': self.normalize_input,
-        } 
-        self.model = self.network.build(config)
+        }
+        self.model = ModelA2CContinuousLogStd(params, keys)
         self.model.to(self.device)
         self.model.eval()
-        self.is_rnn = self.model.is_rnn()
 
     def get_action(self, obs, is_deterministic = False):
         if self.has_batch_dimension == False:
@@ -448,13 +419,11 @@ class A2CPlayerContinuous(BasePlayer):
             'is_train': False,
             'prev_actions': None, 
             'obs' : obs,
-            'rnn_states' : self.states
         }
         with torch.no_grad():
             res_dict = self.model(input_dict)
         mu = res_dict['mus']
         action = res_dict['actions']
-        self.states = res_dict['rnn_states']
         if is_deterministic:
             current_action = mu
         else:
@@ -469,7 +438,8 @@ class A2CPlayerContinuous(BasePlayer):
 
     def restore(self, fn):
         checkpoint = torch_ext.load_checkpoint(fn)
-        print(checkpoint.keys())
+        print(checkpoint['model'].keys())
+        # print(self.model)
         self.model.load_state_dict(checkpoint['model'])
         if self.normalize_input and 'running_mean_std' in checkpoint:
             self.model.running_mean_std.load_state_dict(checkpoint['running_mean_std'])
@@ -478,18 +448,6 @@ class A2CPlayerContinuous(BasePlayer):
         if self.env is not None and env_state is not None:
             self.env.set_env_state(env_state)
 
-    # def save(self, fn):
-    #     torch_ext.save_checkpoint(fn + "_model", self.model.a2c_network.actor_mlp)
-    #     torch_ext.save_checkpoint(fn + "_running_mean_std", self.model.running_mean_std)
-    #     torch_ext.save_checkpoint(fn + "_env_state", self.vec_env.get_env_state())
-    
-    # def restore(self, fn):
-    #     self.model.a2c_network.actor_mlp = torch.load(fn + "_model.pth")
-    #     if self.normalize_input:
-    #         self.model.running_mean_std = torch.load(fn + "_running_mean_std.pth")
-    #     if self.env is not None:
-    #         self.env.set_env_state(torch.load(fn + "_env_state.pth"))
-
     def reset(self):
-        self.init_rnn()
+        pass
 

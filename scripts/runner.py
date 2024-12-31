@@ -86,9 +86,6 @@ def update_config(config, args):
 
 
 if __name__ == '__main__':
-    os.makedirs("../nn", exist_ok=True)
-    os.makedirs("../runs", exist_ok=True)
-
     args = vars(get_args())
 
     config_name = 'ppo_' + args['task']+'.yaml'

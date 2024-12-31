@@ -124,17 +124,9 @@ def random_sample(obs_batch, prob):
 def mean_list(val):
     return torch.mean(torch.stack(val))
 
-def apply_masks(losses, mask=None):
-    sum_mask = None
-    if mask is not None:
-        mask = mask.unsqueeze(1)
-        sum_mask = mask.numel()#
-        #sum_mask = mask.sum()
-        res_losses = [(l * mask).sum() / sum_mask for l in losses]
-    else:
-        res_losses = [torch.mean(l) for l in losses]
-    
-    return res_losses, sum_mask
+def apply_masks(losses):
+    res_losses = [torch.mean(l) for l in losses]
+    return res_losses
 
 def normalization_with_masks(values, masks):
     if masks is None:
@@ -303,14 +295,5 @@ class AverageMeter(nn.Module):
     def get_mean(self):
         return self.mean.squeeze(0).cpu().numpy()
 
-
-class IdentityRNN(nn.Module):
-    def __init__(self, in_shape, out_shape):
-        super(IdentityRNN, self).__init__()
-        assert(in_shape == out_shape)
-        self.identity = torch.nn.Identity()
-
-    def forward(self, x, h):
-        return self.identity(x), h
 
  

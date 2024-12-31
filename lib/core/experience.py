@@ -277,9 +277,6 @@ class VectorizedReplayBuffer:
         return obses, actions, rewards, next_obses, dones
 
 
-
-
-
 class ExperienceBuffer:
     '''
     More generalized than replay buffers.
@@ -295,7 +292,6 @@ class ExperienceBuffer:
         
         self.num_actors = algo_info['num_actors']
         self.horizon_length = algo_info['horizon_length']
-        self.has_central_value = algo_info['has_central_value']
         self.use_action_masks = algo_info.get('use_action_masks', False)
         batch_size = self.num_actors * self.num_agents
         self.is_discrete = False
@@ -327,8 +323,6 @@ class ExperienceBuffer:
         state_base_shape = self.state_base_shape
 
         self.tensor_dict['obses'] = self._create_tensor_from_space(env_info['observation_space'], obs_base_shape)
-        if self.has_central_value:
-            self.tensor_dict['states'] = self._create_tensor_from_space(env_info['state_space'], state_base_shape)
         
         val_space = gym.spaces.Box(low=0, high=1,shape=(env_info.get('value_size',1),))
         self.tensor_dict['rewards'] = self._create_tensor_from_space(val_space, obs_base_shape)
@@ -376,14 +370,6 @@ class ExperienceBuffer:
                 self.tensor_dict[name][k][index,:] = v
         else:
             self.tensor_dict[name][index,:] = val
-
-
-    def update_data_rnn(self, name, indices,play_mask, val):
-        if type(val) is dict:
-            for k,v in val:
-                self.tensor_dict[name][k][indices,play_mask] = v
-        else:
-            self.tensor_dict[name][indices,play_mask] = val
 
     def get_transformed(self, transform_op):
         res_dict = {}

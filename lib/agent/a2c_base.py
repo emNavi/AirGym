@@ -1,8 +1,6 @@
 import copy
 import os
 
-from rl_games.algos_torch import  model_builder
-
 import numpy as np
 import time
 import gym
@@ -21,6 +19,8 @@ from lib.core import schedulers
 from lib.core import torch_ext
 from lib.core.moving_mean_std import GeneralizedMovingStats
 from lib.utils import vecenv
+
+from rl_games.algos_torch import model_builder
 
 from abc import ABC
 from abc import abstractmethod, abstractproperty
@@ -103,7 +103,7 @@ class A2CBase(BaseAlgorithm):
         self.config = config
         self.algo_observer = config['features']['observer']
         self.algo_observer.before_init(base_name, config, self.experiment_name)
-        self.load_networks(params)
+        # self.load_networks(params) 
 
         self.multi_gpu = config.get('multi_gpu', False)
 
@@ -158,18 +158,7 @@ class A2CBase(BaseAlgorithm):
         self.use_action_masks = config.get('use_action_masks', False)
         self.is_train = config.get('is_train', True)
 
-        self.central_value_config = self.config.get('central_value_config', None)
-        self.has_central_value = self.central_value_config is not None
         self.truncate_grads = self.config.get('truncate_grads', False)
-
-        if self.has_central_value:
-            self.state_space = self.env_info.get('state_space', None)
-            if isinstance(self.state_space,gym.spaces.Dict):
-                self.state_shape = {}
-                for k,v in self.state_space.spaces.items():
-                    self.state_shape[k] = v.shape
-            else:
-                self.state_shape = self.state_space.shape
 
         self.self_play_config = self.config.get('self_play_config', None)
         self.has_self_play_config = self.self_play_config is not None
@@ -178,7 +167,6 @@ class A2CBase(BaseAlgorithm):
         self.save_freq = config.get('save_frequency', 0)
         self.save_best_after = config.get('save_best_after', 100)
         self.print_stats = config.get('print_stats', True)
-        self.rnn_states = None
         self.name = base_name
 
         # TODO: do we still need it?
@@ -218,19 +206,10 @@ class A2CBase(BaseAlgorithm):
 
         self.e_clip = config['e_clip']
         self.clip_value = config['clip_value']
-        self.network = config['network']
+        # self.network = config['network']
         self.rewards_shaper = config['reward_shaper']
         self.num_agents = self.env_info.get('agents', 1)
         self.horizon_length = config['horizon_length']
-
-        # seq_length is used only with rnn policy and value functions
-        if 'seq_len' in config:
-            print('WARNING: seq_len is deprecated, use seq_length instead')
-
-        self.seq_length = self.config.get('seq_length', 4)
-        print('seq_length:', self.seq_length)
-        self.bptt_len = self.config.get('bptt_length', self.seq_length) # not used right now. Didn't show that it is usefull
-        self.zero_rnn_on_done = self.config.get('zero_rnn_on_done', True)
 
         self.normalize_advantage = config['normalize_advantage']
         self.normalize_rms_advantage = config.get('normalize_rms_advantage', False)
@@ -256,7 +235,6 @@ class A2CBase(BaseAlgorithm):
         self.game_shaped_rewards = torch_ext.AverageMeter(self.value_size, self.games_to_track).to(self.ppo_device)
         self.game_lengths = torch_ext.AverageMeter(1, self.games_to_track).to(self.ppo_device)
         self.obs = None
-        self.games_num = self.config['minibatch_size'] // self.seq_length # it is used only for current rnn implementation
 
         self.batch_size = self.horizon_length * self.num_actors * self.num_agents
         self.batch_size_envs = self.horizon_length * self.num_actors
@@ -320,7 +298,6 @@ class A2CBase(BaseAlgorithm):
 
         self.is_tensor_obses = False
 
-        self.last_rnn_indices = None
         self.last_state_indices = None
 
         # features
@@ -356,16 +333,16 @@ class A2CBase(BaseAlgorithm):
         self.scaler.step(self.optimizer)
         self.scaler.update()
 
-    def load_networks(self, params):
-        builder = model_builder.ModelBuilder()
-        self.config['network'] = builder.load(params)
-        has_central_value_net = self.config.get('central_value_config') is not None
-        if has_central_value_net:
-            print('Adding Central Value Network')
-            if 'model' not in params['config']['central_value_config']:
-                params['config']['central_value_config']['model'] = {'name': 'central_value'}
-            network = builder.load(params['config']['central_value_config'])
-            self.config['central_value_config']['network'] = network
+    # def load_networks(self, params):
+    #     builder = model_builder.ModelBuilder()
+    #     self.config['network'] = builder.load(params)
+    #     has_central_value_net = self.config.get('central_value_config') is not  None
+    #     if has_central_value_net:
+    #         print('Adding Central Value Network')
+    #         if 'model' not in params['config']['central_value_config']:
+    #             params['config']['central_value_config']['model'] = {'name': 'central_value'}
+    #         network = builder.load(params['config']['central_value_config'])
+    #         self.config['central_value_config']['network'] = network
 
     def write_stats(self, total_time, epoch_num, step_time, play_time, update_time, a_losses, c_losses, entropies, kls, last_lr, lr_mul, frame, scaled_time, scaled_play_time, curr_frames):
         # do we need scaled time?
@@ -405,9 +382,6 @@ class A2CBase(BaseAlgorithm):
 
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = lr
-        
-        #if self.has_central_value:
-        #    self.central_value_net.update_lr(lr)
 
     def get_action_values(self, obs):
         processed_obs = self._preproc_obs(obs['obs'])
@@ -416,44 +390,24 @@ class A2CBase(BaseAlgorithm):
             'is_train': False,
             'prev_actions': None, 
             'obs' : processed_obs,
-            'rnn_states' : self.rnn_states
         }
 
         with torch.no_grad():
             res_dict = self.model(input_dict)
-            if self.has_central_value:
-                states = obs['states']
-                input_dict = {
-                    'is_train': False,
-                    'states' : states,
-                }
-                value = self.get_central_value(input_dict)
-                res_dict['values'] = value
+
         return res_dict
 
     def get_values(self, obs):
         with torch.no_grad():
-            if self.has_central_value:
-                states = obs['states']
-                self.central_value_net.eval()
-                input_dict = {
-                    'is_train': False,
-                    'states' : states,
-                    'actions' : None,
-                    'is_done': self.dones,
-                }
-                value = self.get_central_value(input_dict)
-            else:
-                self.model.eval()
-                processed_obs = self._preproc_obs(obs['obs'])
-                input_dict = {
-                    'is_train': False,
-                    'prev_actions': None, 
-                    'obs' : processed_obs,
-                    'rnn_states' : self.rnn_states
-                }
-                result = self.model(input_dict)
-                value = result['values']
+            self.model.eval()
+            processed_obs = self._preproc_obs(obs['obs'])
+            input_dict = {
+                'is_train': False,
+                'prev_actions': None, 
+                'obs' : processed_obs,
+            }
+            result = self.model(input_dict)
+            value = result['values']
             return value
 
     @property
@@ -468,7 +422,6 @@ class A2CBase(BaseAlgorithm):
         algo_info = {
             'num_actors' : self.num_actors,
             'horizon_length' : self.horizon_length,
-            'has_central_value' : self.has_central_value,
             'use_action_masks' : self.use_action_masks
         }
         self.experience_buffer = ExperienceBuffer(self.env_info, algo_info, self.ppo_device)
@@ -479,18 +432,6 @@ class A2CBase(BaseAlgorithm):
         self.current_shaped_rewards = torch.zeros(current_rewards_shape, dtype=torch.float32, device=self.ppo_device)
         self.current_lengths = torch.zeros(batch_size, dtype=torch.float32, device=self.ppo_device)
         self.dones = torch.ones((batch_size,), dtype=torch.uint8, device=self.ppo_device)
-
-        if self.is_rnn:
-            self.rnn_states = self.model.get_default_rnn_state()
-            self.rnn_states = [s.to(self.ppo_device) for s in self.rnn_states]
-
-            total_agents = self.num_agents * self.num_actors
-            num_seqs = self.horizon_length // self.seq_length
-            assert((self.horizon_length * total_agents // self.num_minibatches) % self.seq_length == 0)
-            self.mb_rnn_states = [torch.zeros((num_seqs, s.size()[0], total_agents, s.size()[2]), dtype = torch.float32, device=self.ppo_device) for s in self.rnn_states]
-
-    def init_rnn_from_model(self, model):
-        self.is_rnn = self.model.is_rnn()
 
     def cast_obs(self, obs):
         if isinstance(obs, torch.Tensor):
@@ -618,9 +559,6 @@ class A2CBase(BaseAlgorithm):
         state['frame'] = self.frame
         state['optimizer'] = self.optimizer.state_dict()
 
-        if self.has_central_value:
-            state['assymetric_vf_nets'] = self.central_value_net.state_dict()
-
         # This is actually the best reward ever achieved. last_mean_rewards is perhaps not the best variable name
         # We save it to the checkpoint to prevent overriding the "best ever" checkpoint upon experiment restart
         state['last_mean_rewards'] = self.last_mean_rewards
@@ -637,9 +575,6 @@ class A2CBase(BaseAlgorithm):
         if set_epoch:
             self.epoch_num = weights['epoch']
             self.frame = weights['frame']
-
-        if self.has_central_value:
-            self.central_value_net.load_state_dict(weights['assymetric_vf_nets'])
 
         self.optimizer.load_state_dict(weights['optimizer'])
 
@@ -658,14 +593,11 @@ class A2CBase(BaseAlgorithm):
         state = {}
         if self.mixed_precision:
             state['scaler'] = self.scaler.state_dict()
-        if self.has_central_value:
-            state['central_val_stats'] = self.central_value_net.get_stats_weights(model_stats)
         if model_stats:
             if self.normalize_input:
                 state['running_mean_std'] = self.model.running_mean_std.state_dict()
             if self.normalize_value:
                 state['reward_mean_std'] = self.model.value_mean_std.state_dict()
-
         return state
 
     def set_stats_weights(self, weights):
@@ -760,8 +692,6 @@ class A2CBase(BaseAlgorithm):
 
             for k in update_list:
                 self.experience_buffer.update_data(k, n, res_dict[k]) 
-            if self.has_central_value:
-                self.experience_buffer.update_data('states', n, self.obs['states'])
 
             step_time_start = time.time()
             self.obs, rewards, self.dones, infos = self.env_step(res_dict['actions'])
@@ -807,93 +737,3 @@ class A2CBase(BaseAlgorithm):
         batch_dict['step_time'] = step_time
 
         return batch_dict
-
-    def play_steps_rnn(self):
-        update_list = self.update_list
-        mb_rnn_states = self.mb_rnn_states
-        step_time = 0.0
-
-        for n in range(self.horizon_length):
-            if n % self.seq_length == 0:
-                for s, mb_s in zip(self.rnn_states, mb_rnn_states):
-                    mb_s[n // self.seq_length,:,:,:] = s
-
-            if self.has_central_value:
-                self.central_value_net.pre_step_rnn(n)
-
-            if self.use_action_masks:
-                masks = self.vec_env.get_action_masks()
-                res_dict = self.get_masked_action_values(self.obs, masks)
-            else:
-                res_dict = self.get_action_values(self.obs)
-
-            self.rnn_states = res_dict['rnn_states']
-            self.experience_buffer.update_data('obses', n, self.obs['obs'])
-            self.experience_buffer.update_data('dones', n, self.dones.byte())
-
-            for k in update_list:
-                self.experience_buffer.update_data(k, n, res_dict[k])
-            if self.has_central_value:
-                self.experience_buffer.update_data('states', n, self.obs['states'])
-
-            step_time_start = time.time()
-            self.obs, rewards, self.dones, infos = self.env_step(res_dict['actions'])
-            step_time_end = time.time()
-
-            step_time += (step_time_end - step_time_start)
-
-            shaped_rewards = self.rewards_shaper(rewards)
-
-            if self.value_bootstrap and 'time_outs' in infos:
-                shaped_rewards += self.gamma * res_dict['values'] * self.cast_obs(infos['time_outs']).unsqueeze(1).float()
-
-            self.experience_buffer.update_data('rewards', n, shaped_rewards)
-
-            self.current_rewards += rewards
-            self.current_shaped_rewards += shaped_rewards
-            self.current_lengths += 1
-            all_done_indices = self.dones.nonzero(as_tuple=False)
-            env_done_indices = all_done_indices[::self.num_agents]
-
-            if len(all_done_indices) > 0:
-                if self.zero_rnn_on_done:
-                    for s in self.rnn_states:
-                        s[:, all_done_indices, :] = s[:, all_done_indices, :] * 0.0
-                if self.has_central_value:
-                    self.central_value_net.post_step_rnn(all_done_indices)
-
-            self.game_rewards.update(self.current_rewards[env_done_indices])
-            self.game_shaped_rewards.update(self.current_shaped_rewards[env_done_indices])
-            self.game_lengths.update(self.current_lengths[env_done_indices])
-            self.algo_observer.process_infos(infos, env_done_indices)
-
-            not_dones = 1.0 - self.dones.float()
-
-            self.current_rewards = self.current_rewards * not_dones.unsqueeze(1)
-            self.current_shaped_rewards = self.current_shaped_rewards * not_dones.unsqueeze(1)
-            self.current_lengths = self.current_lengths * not_dones
-
-        last_values = self.get_values(self.obs)
-
-        fdones = self.dones.float()
-        mb_fdones = self.experience_buffer.tensor_dict['dones'].float()
-
-        mb_values = self.experience_buffer.tensor_dict['values']
-        mb_rewards = self.experience_buffer.tensor_dict['rewards']
-        mb_advs = self.discount_values(fdones, last_values, mb_fdones, mb_values, mb_rewards)
-        mb_returns = mb_advs + mb_values
-        batch_dict = self.experience_buffer.get_transformed_list(swap_and_flatten01, self.tensor_list)
-
-        batch_dict['returns'] = swap_and_flatten01(mb_returns)
-        batch_dict['played_frames'] = self.batch_size
-        states = []
-        for mb_s in mb_rnn_states:
-            t_size = mb_s.size()[0] * mb_s.size()[2]
-            h_size = mb_s.size()[3]
-            states.append(mb_s.permute(1,2,0,3).reshape(-1,t_size, h_size))
-
-        batch_dict['rnn_states'] = states
-        batch_dict['step_time'] = step_time
-
-        return batch_dict
-    

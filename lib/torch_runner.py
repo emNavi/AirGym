@@ -10,45 +10,13 @@ from lib.agent import a2c_continuous
 from lib.agent import players
 from lib.core.algo_observer import DefaultAlgoObserver
 
-class ObjectFactory:
-    def __init__(self):
-        self._builders = {}
-
-    def register_builder(self, name, builder):
-        self._builders[name] = builder
-
-    def set_builders(self, builders):
-        self._builders = builders
-        
-    def create(self, name, **kwargs):
-        builder = self._builders.get(name)
-        if not builder:
-            raise ValueError(name)
-        return builder(**kwargs)
-
 def _restore(agent, args):
     if 'checkpoint' in args and args['checkpoint'] is not None and args['checkpoint'] !='':
         agent.restore(args['checkpoint'])
 
-def _override_sigma(agent, args):
-    if 'sigma' in args and args['sigma'] is not None:
-        net = agent.model.a2c_network
-        if hasattr(net, 'sigma') and hasattr(net, 'fixed_sigma'):
-            if net.fixed_sigma:
-                with torch.no_grad():
-                    net.sigma.fill_(float(args['sigma']))
-            else:
-                print('Print cannot set new sigma because fixed_sigma is False')
-
 class Runner:
 
     def __init__(self, algo_observer=None):
-        self.algo_factory = ObjectFactory()
-        self.algo_factory.register_builder('a2c_continuous', lambda **kwargs : a2c_continuous.A2CAgentContinuous(**kwargs))
-
-        self.player_factory = ObjectFactory()
-        self.player_factory.register_builder('a2c_continuous', lambda **kwargs : players.A2CPlayerContinuous(**kwargs))
-
         self.algo_observer = algo_observer if algo_observer else DefaultAlgoObserver()
         torch.backends.cudnn.benchmark = True
 
@@ -111,20 +79,15 @@ class Runner:
 
     def run_train(self, args):
         print('Started to train')
-        agent = self.algo_factory.create(self.algo_name, base_name='run', params=self.params)
+        agent = a2c_continuous.A2CAgent(base_name='run', params=self.params)
         _restore(agent, args)
-        _override_sigma(agent, args)
         agent.train()
 
     def run_play(self, args):
         print('Started to play')
-        player = self.create_player()
+        player = players.A2CPlayer(params=self.params)
         _restore(player, args)
-        _override_sigma(player, args)
         player.run()
-
-    def create_player(self):
-        return self.player_factory.create(self.algo_name, params=self.params)
 
     def reset(self):
         pass

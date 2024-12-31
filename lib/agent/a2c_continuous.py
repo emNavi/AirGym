@@ -1,6 +1,5 @@
 from lib.core import torch_ext
 from lib.core import common_losses
-from lib.core import central_value
 from lib.core import datasets
 from lib.agent.a2c_base import A2CBase
 
@@ -38,17 +37,26 @@ class ContinuousA2CBase(A2CBase):
 
     def __init__(self, base_name, params):
         A2CBase.__init__(self, base_name, params)
-
         self.is_discrete = False
         action_space = self.env_info['action_space']
         self.actions_num = action_space.shape[0]
         self.bounds_loss_coef = self.config.get('bounds_loss_coef', None)
-
         self.clip_actions = self.config.get('clip_actions', True)
 
         # todo introduce device instead of cuda()
         self.actions_low = torch.from_numpy(action_space.low.copy()).float().to(self.ppo_device)
         self.actions_high = torch.from_numpy(action_space.high.copy()).float().to(self.ppo_device)
+
+        from lib.model.a2c_continuous_logstd_model import ModelA2CContinuousLogStd
+        keys = {
+            'actions_num' : self.actions_num,
+            'input_shape' : self.obs_shape,
+            'num_seqs' : self.num_actors * self.num_agents,
+            'value_size': self.env_info.get('value_size',1),
+            'normalize_value' : self.normalize_value,
+            'normalize_input': self.normalize_input,
+        }
+        self.model = ModelA2CContinuousLogStd(params, keys)
 
     def preprocess_actions(self, actions):
         if self.clip_actions:
@@ -73,21 +81,15 @@ class ContinuousA2CBase(A2CBase):
         self.set_eval()
         play_time_start = time.time()
         with torch.no_grad():
-            if self.is_rnn:
-                batch_dict = self.play_steps_rnn()
-            else:
-                batch_dict = self.play_steps()
+            batch_dict = self.play_steps()
 
         play_time_end = time.time()
         update_time_start = time.time()
-        rnn_masks = batch_dict.get('rnn_masks', None)
 
         self.set_train()
         self.curr_frames = batch_dict.pop('played_frames')
         self.prepare_dataset(batch_dict)
         self.algo_observer.after_steps()
-        if self.has_central_value:
-            self.train_central_value()
 
         a_losses = []
         c_losses = []
@@ -144,8 +146,6 @@ class ContinuousA2CBase(A2CBase):
         neglogpacs = batch_dict['neglogpacs']
         mus = batch_dict['mus']
         sigmas = batch_dict['sigmas']
-        rnn_states = batch_dict.get('rnn_states', None)
-        rnn_masks = batch_dict.get('rnn_masks', None)
 
         advantages = returns - values
 
@@ -158,16 +158,10 @@ class ContinuousA2CBase(A2CBase):
         advantages = torch.sum(advantages, axis=1)
 
         if self.normalize_advantage:
-            if self.is_rnn:
-                if self.normalize_rms_advantage:
-                    advantages = self.advantage_mean_std(advantages, mask=rnn_masks)
-                else:
-                    advantages = torch_ext.normalization_with_masks(advantages, rnn_masks)
+            if self.normalize_rms_advantage:
+                advantages = self.advantage_mean_std(advantages)
             else:
-                if self.normalize_rms_advantage:
-                    advantages = self.advantage_mean_std(advantages)
-                else:
-                    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+                advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
         dataset_dict = {}
         dataset_dict['old_values'] = values
@@ -177,23 +171,10 @@ class ContinuousA2CBase(A2CBase):
         dataset_dict['actions'] = actions
         dataset_dict['obs'] = obses
         dataset_dict['dones'] = dones
-        dataset_dict['rnn_states'] = rnn_states
-        dataset_dict['rnn_masks'] = rnn_masks
         dataset_dict['mu'] = mus
         dataset_dict['sigma'] = sigmas
 
         self.dataset.update_values_dict(dataset_dict)
-
-        if self.has_central_value:
-            dataset_dict = {}
-            dataset_dict['old_values'] = values
-            dataset_dict['advantages'] = advantages
-            dataset_dict['returns'] = returns
-            dataset_dict['actions'] = actions
-            dataset_dict['obs'] = batch_dict['states']
-            dataset_dict['dones'] = dones
-            dataset_dict['rnn_masks'] = rnn_masks
-            self.central_value_net.update_dataset(dataset_dict)
 
     def train(self):
         self.init_tensors()
@@ -312,54 +293,22 @@ class ContinuousA2CBase(A2CBase):
             if should_exit:
                 return self.last_mean_rewards, epoch_num
 
-class A2CAgentContinuous(ContinuousA2CBase):
+class A2CAgent(ContinuousA2CBase):
 
     def __init__(self, base_name, params):
-        ContinuousA2CBase.__init__(self, base_name, params)
-        obs_shape = self.obs_shape
-        build_config = {
-            'actions_num' : self.actions_num,
-            'input_shape' : obs_shape,
-            'num_seqs' : self.num_actors * self.num_agents,
-            'value_size': self.env_info.get('value_size',1),
-            'normalize_value' : self.normalize_value,
-            'normalize_input': self.normalize_input,
-        }
-
-        self.model = self.network.build(build_config)
+        ContinuousA2CBase.__init__(self, base_name, params)        
         self.model.to(self.ppo_device)
         self.states = None
-        self.init_rnn_from_model(self.model)
         self.last_lr = float(self.last_lr)
         self.bound_loss_type = self.config.get('bound_loss_type', 'bound') # 'regularisation' or 'bound'
         self.optimizer = optim.Adam(self.model.parameters(), float(self.last_lr), eps=1e-08, weight_decay=self.weight_decay)
 
-        if self.has_central_value:
-            cv_config = {
-                'state_shape' : self.state_shape, 
-                'value_size' : self.value_size,
-                'ppo_device' : self.ppo_device, 
-                'num_agents' : self.num_agents, 
-                'horizon_length' : self.horizon_length,
-                'num_actors' : self.num_actors, 
-                'num_actions' : self.actions_num, 
-                'seq_length' : self.seq_length,
-                'normalize_value' : self.normalize_value,
-                'network' : self.central_value_config['network'],
-                'config' : self.central_value_config, 
-                'writter' : self.writer,
-                'max_epochs' : self.max_epochs,
-                'multi_gpu' : self.multi_gpu,
-                'zero_rnn_on_done' : self.zero_rnn_on_done
-            }
-            self.central_value_net = central_value.CentralValueTrain(**cv_config).to(self.ppo_device)
-
         self.use_experimental_cv = self.config.get('use_experimental_cv', True)
-        self.dataset = datasets.PPODataset(self.batch_size, self.minibatch_size, self.is_discrete, self.is_rnn, self.ppo_device, self.seq_length)
+        self.dataset = datasets.PPODataset(self.batch_size, self.minibatch_size, self.is_discrete, self.ppo_device)
         if self.normalize_value:
-            self.value_mean_std = self.central_value_net.model.value_mean_std if self.has_central_value else self.model.value_mean_std
+            self.value_mean_std = self.model.value_mean_std
 
-        self.has_value_loss = self.use_experimental_cv or not self.has_central_value
+        self.has_value_loss = self.use_experimental_cv
         self.algo_observer.after_init(self)
 
     def update_epoch(self):
@@ -373,19 +322,6 @@ class A2CAgentContinuous(ContinuousA2CBase):
     def restore(self, fn, set_epoch=True):
         checkpoint = torch_ext.load_checkpoint(fn)
         self.set_full_state_weights(checkpoint, set_epoch=set_epoch)
-    
-    # def save(self, fn):
-    #     torch_ext.save_checkpoint(fn + "_model", self.model.a2c_network.actor_mlp)
-    #     torch_ext.save_checkpoint(fn + "_running_mean_std", self.model.running_mean_std)
-    #     torch_ext.save_checkpoint(fn + "_env_state", self.vec_env.get_env_state())
-    
-    # def restore(self, fn):
-    #     self.model.a2c_network.actor_mlp = torch.load(fn + "_model.pth")
-    #     if self.normalize_input:
-    #         self.model.running_mean_std = torch.load(fn + "_running_mean_std.pth")
-    #     if self.vec_env is not None:
-    #         self.vec_env.set_env_state(torch.load(fn + "_env_state.pth"))
-
 
     def get_masked_action_values(self, obs, action_masks):
         assert False
@@ -410,15 +346,6 @@ class A2CAgentContinuous(ContinuousA2CBase):
             'obs' : obs_batch,
         }
 
-        rnn_masks = None
-        if self.is_rnn:
-            rnn_masks = input_dict['rnn_masks']
-            batch_dict['rnn_states'] = input_dict['rnn_states']
-            batch_dict['seq_length'] = self.seq_length
-
-            if self.zero_rnn_on_done:
-                batch_dict['dones'] = input_dict['dones']            
-
         with torch.cuda.amp.autocast(enabled=self.mixed_precision):
             res_dict = self.model(batch_dict)
             action_log_probs = res_dict['prev_neglogp']
@@ -439,7 +366,7 @@ class A2CAgentContinuous(ContinuousA2CBase):
                 b_loss = self.bound_loss(mu)
             else:
                 b_loss = torch.zeros(1, device=self.ppo_device)
-            losses, sum_mask = torch_ext.apply_masks([a_loss.unsqueeze(1), c_loss , entropy.unsqueeze(1), b_loss.unsqueeze(1)], rnn_masks)
+            losses = torch_ext.apply_masks([a_loss.unsqueeze(1), c_loss , entropy.unsqueeze(1), b_loss.unsqueeze(1)])
             a_loss, c_loss, entropy, b_loss = losses[0], losses[1], losses[2], losses[3]
 
             loss = a_loss + 0.5 * c_loss * self.critic_coef - entropy * self.entropy_coef + b_loss * self.bounds_loss_coef
@@ -455,10 +382,8 @@ class A2CAgentContinuous(ContinuousA2CBase):
         self.trancate_gradients_and_step()
 
         with torch.no_grad():
-            reduce_kl = rnn_masks is None
+            reduce_kl = True
             kl_dist = torch_ext.policy_kl(mu.detach(), sigma.detach(), old_mu_batch, old_sigma_batch, reduce_kl)
-            if rnn_masks is not None:
-                kl_dist = (kl_dist * rnn_masks).sum() / rnn_masks.numel()  #/ sum_mask
 
         self.diagnostics.mini_batch(self,
         {
@@ -466,8 +391,8 @@ class A2CAgentContinuous(ContinuousA2CBase):
             'returns' : return_batch,
             'new_neglogp' : action_log_probs,
             'old_neglogp' : old_action_log_probs_batch,
-            'masks' : rnn_masks
-        }, curr_e_clip, 0)      
+            'masks' : None,
+        }, curr_e_clip, 0)
 
         self.train_result = (a_loss, c_loss, entropy, \
             kl_dist, self.last_lr, lr_mul, \
