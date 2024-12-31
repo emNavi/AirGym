@@ -83,33 +83,7 @@ class BasePlayer(object):
         self.max_steps = 108000 // 4
         self.device = torch.device(self.device_name)
 
-        self.evaluation = self.player_config.get("evaluation", False)
-        self.update_checkpoint_freq = self.player_config.get("update_checkpoint_freq", 100)
-        # if we run player as evaluation worker this will take care of loading new checkpoints
-        self.dir_to_monitor = self.player_config.get("dir_to_monitor")
-        # path to the newest checkpoint
-        self.checkpoint_to_load: Optional[str] = None
-
-        if self.evaluation and self.dir_to_monitor is not None:
-            self.checkpoint_mutex = threading.Lock()
-            self.eval_checkpoint_dir = os.path.join(self.dir_to_monitor, "eval_checkpoints")
-            os.makedirs(self.eval_checkpoint_dir, exist_ok=True)
-
-            patterns = ["*.pth"]
-            from watchdog.observers import Observer
-            from watchdog.events import PatternMatchingEventHandler
-            self.file_events = PatternMatchingEventHandler(patterns)
-            self.file_events.on_created = self.on_file_created
-            self.file_events.on_modified = self.on_file_modified
-
-            self.file_observer = Observer()
-            self.file_observer.schedule(self.file_events, self.dir_to_monitor, recursive=False)
-            self.file_observer.start()
-
     def wait_for_checkpoint(self):
-        if self.dir_to_monitor is None:
-            return
-
         attempt = 0
         while True:
             attempt += 1
@@ -121,29 +95,6 @@ class BasePlayer(object):
             time.sleep(1.0)
 
         print(f"Checkpoint {self.checkpoint_to_load} is available!")
-
-    def maybe_load_new_checkpoint(self):
-        # lock mutex while loading new checkpoint
-        with self.checkpoint_mutex:
-            if self.checkpoint_to_load is not None:
-                print(f"Evaluation: loading new checkpoint {self.checkpoint_to_load}...")
-                # try if we can load anything from the pth file, this will quickly fail if the file is corrupted
-                # without triggering the retry loop in "safe_filesystem_op()"
-                load_error = False
-                try:
-                    torch.load(self.checkpoint_to_load)
-                except Exception as e:
-                    print(f"Evaluation: checkpoint file is likely corrupted {self.checkpoint_to_load}: {e}")
-                    load_error = True
-
-                if not load_error:
-                    try:
-                        self.restore(self.checkpoint_to_load)
-                    except Exception as e:
-                        print(f"Evaluation: failed to load new checkpoint {self.checkpoint_to_load}: {e}")
-
-                # whether we succeeded or not, forget about this checkpoint
-                self.checkpoint_to_load = None
 
     def process_new_eval_checkpoint(self, path):
         with self.checkpoint_mutex:
@@ -160,12 +111,6 @@ class BasePlayer(object):
                 return
 
             self.checkpoint_to_load = eval_checkpoint_path
-
-    def on_file_created(self, event):
-        self.process_new_eval_checkpoint(event.src_path)
-
-    def on_file_modified(self, event):
-        self.process_new_eval_checkpoint(event.src_path)
 
     def _preproc_obs(self, obs_batch):
         if type(obs_batch) is dict:
@@ -277,17 +222,8 @@ class BasePlayer(object):
         has_masks = False
         has_masks_func = getattr(self.env, "has_action_mask", None) is not None
 
-        op_agent = getattr(self.env, "create_agent", None)
-        if op_agent:
-            agent_inited = True
-            # print('setting agent weights for selfplay')
-            # self.env.create_agent(self.env.config)
-            # self.env.set_weights(range(8),self.get_weights())
-
         if has_masks_func:
             has_masks = self.env.has_action_mask()
-
-        self.wait_for_checkpoint()
 
         for _ in range(n_games):
             if games_played >= n_games:
@@ -303,9 +239,6 @@ class BasePlayer(object):
             print_game_res = False
 
             for n in range(self.max_steps):
-                if self.evaluation and n % self.update_checkpoint_freq == 0:
-                    self.maybe_load_new_checkpoint()
-
                 if has_masks:
                     masks = self.env.get_action_mask()
                     action = self.get_masked_action(

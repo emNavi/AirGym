@@ -83,15 +83,9 @@ class BaseAlgorithm(ABC):
 class A2CBase(BaseAlgorithm):
 
     def __init__(self, base_name, params):
-
         self.config = config = params['config']
         pbt_str = ''
-        self.population_based_training = config.get('population_based_training', False)
-        if self.population_based_training:
-            # in PBT, make sure experiment name contains a unique id of the policy within a population
-            pbt_str = f'_pbt_{config["pbt_idx"]:02d}'
 
-        # This helps in PBT when we need to restart an experiment with the exact same name, rather than
         # generating a new name with the timestamp every time.
         full_experiment_name = config.get('full_experiment_name', None)
         if full_experiment_name:
@@ -169,7 +163,6 @@ class A2CBase(BaseAlgorithm):
         self.print_stats = config.get('print_stats', True)
         self.name = base_name
 
-        # TODO: do we still need it?
         self.ppo = config.get('ppo', True)
         self.max_epochs = self.config.get('max_epochs', -1)
         self.max_frames = self.config.get('max_frames', -1)
@@ -184,7 +177,6 @@ class A2CBase(BaseAlgorithm):
             self.scheduler = schedulers.AdaptiveScheduler(self.kl_threshold)
 
         elif self.linear_lr:
-            
             if self.max_epochs == -1 and self.max_frames == -1:
                 print("Max epochs and max frames are not set. Linear learning rate schedule can't be used, switching to the contstant (identity) one.")
                 self.scheduler = schedulers.IdentityScheduler()
@@ -206,7 +198,6 @@ class A2CBase(BaseAlgorithm):
 
         self.e_clip = config['e_clip']
         self.clip_value = config['clip_value']
-        # self.network = config['network']
         self.rewards_shaper = config['reward_shaper']
         self.num_agents = self.env_info.get('agents', 1)
         self.horizon_length = config['horizon_length']
@@ -277,10 +268,7 @@ class A2CBase(BaseAlgorithm):
 
         if self.global_rank == 0:
             writer = SummaryWriter(self.summaries_dir)
-            if self.population_based_training:
-                self.writer = IntervalSummaryWriter(writer, self.config)
-            else:
-                self.writer = writer
+            self.writer = writer
         else:
             self.writer = None
 
@@ -332,17 +320,6 @@ class A2CBase(BaseAlgorithm):
 
         self.scaler.step(self.optimizer)
         self.scaler.update()
-
-    # def load_networks(self, params):
-    #     builder = model_builder.ModelBuilder()
-    #     self.config['network'] = builder.load(params)
-    #     has_central_value_net = self.config.get('central_value_config') is not  None
-    #     if has_central_value_net:
-    #         print('Adding Central Value Network')
-    #         if 'model' not in params['config']['central_value_config']:
-    #             params['config']['central_value_config']['model'] = {'name': 'central_value'}
-    #         network = builder.load(params['config']['central_value_config'])
-    #         self.config['central_value_config']['network'] = network
 
     def write_stats(self, total_time, epoch_num, step_time, play_time, update_time, a_losses, c_losses, entropies, kls, last_lr, lr_mul, frame, scaled_time, scaled_play_time, curr_frames):
         # do we need scaled time?
