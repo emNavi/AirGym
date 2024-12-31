@@ -20,8 +20,6 @@ from lib.core import torch_ext
 from lib.core.moving_mean_std import GeneralizedMovingStats
 from lib.utils import vecenv
 
-from rl_games.algos_torch import model_builder
-
 from abc import ABC
 from abc import abstractmethod, abstractproperty
 

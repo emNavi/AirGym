@@ -9,8 +9,6 @@ import shutil
 import threading
 import time
 
-from rl_games.algos_torch import model_builder
-
 from lib.utils import vecenv
 from lib.utils import env_configurations
 from lib.core import torch_ext
