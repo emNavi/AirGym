@@ -24,44 +24,6 @@ import pytorch3d.transforms as T
 import rospy
 from std_msgs.msg import Float64MultiArray
 
-# #---- parameters for outter loop (vel/pos) training ----##
-# C1 = 1                # for continous actions
-# C2 = 0               # not used
-# TH = 0               # not used
-# P1 = 2             # for horizental position
-# P2 = 3               # for horizental position accuracy
-# P3 = 1               # for vertical position
-# P4 = 6               # for vertical position accuracy
-# P5 = 0.2             # for position error
-# V1 = 1             # for velocity
-# V2 = 6               # for velocity accuracy
-# V3 = 0.5             # for velocity direction
-# Y1 = 1               # for yaw
-# Y2 = 3               # for yaw accuracy
-# Y3 = 0.1             # for yaw error
-# A1 = 0.18            # for rate
-# A2 = 6               # for rate accuracy
-# E = 0.4              # for energy consumption
-
-##---- parameters for inner loop (atti/rate/prop) training ----##
-C1 = 1.2                # for continous actions
-C2 = 1.2                # for continous thrust
-TH = 1                # for thrust to overcome gravity
-P1 = 1              # for horizental position
-P2 = 6               # for horizental position accuracy
-P3 = 1               # for vertical position
-P4 = 6               # for vertical position accuracy
-P5 = 1               # for position error
-V1 = 1               # for velocity
-V2 = 4               # for velocity accuracy
-V3 = 0.5             # for velocity direction
-Y1 = 1.5               # for yaw
-Y2 = torch.pi        # for yaw accuracy
-Y3 = 0.3               # for yaw error
-A1 = 1               # for rate
-A2 = 6               # for rate accuracy
-E = 0.4              # for energy consumption
-
 def quaternion_conjugate(q: torch.Tensor):
     """Compute the conjugate of a quaternion."""
     q_conj = q.clone()
@@ -173,8 +135,6 @@ class X152bPx4(BaseTask):
         
         # control parameters
         self.thrusts = torch.zeros((self.num_envs, 4, 3), dtype=torch.float32, device=self.device)
-        self.thrust_cmds_damp = torch.zeros((self.num_envs, 4), dtype=torch.float32, device=self.device)
-        self.thrust_rot_damp = torch.zeros((self.num_envs, 4), dtype=torch.float32, device=self.device)
 
         # set target states
         self.target_states = torch.tensor(self.cfg.env.target_state, device=self.device).repeat(self.num_envs, 1)
@@ -182,10 +142,6 @@ class X152bPx4(BaseTask):
         # actions
         self.actions = torch.zeros((self.num_envs, self.num_actions), device=self.device)
         self.pre_actions = torch.zeros((self.num_envs, self.num_actions), device=self.device)
-
-        # reward integration buffers
-        self.int_pos_error = torch.zeros((self.num_envs, 10), device=self.device)
-        self.int_yaw_error = torch.zeros((self.num_envs, 10), device=self.device)
 
         if self.viewer:
             cam_pos_x, cam_pos_y, cam_pos_z = self.cfg.viewer.pos[0], self.cfg.viewer.pos[1], self.cfg.viewer.pos[2]
@@ -333,12 +289,6 @@ class X152bPx4(BaseTask):
         self.reset_buf[env_ids] = 1
         self.progress_buf[env_ids] = 0
 
-        self.thrust_cmds_damp[env_ids] = 0
-        self.thrust_rot_damp[env_ids] = 0
-
-        self.int_pos_error[env_ids] = 0
-        self.int_yaw_error[env_ids] = 0
-
         self.pre_actions[env_ids] = 0
 
         if self.cfg.use_tcn:
@@ -435,7 +385,6 @@ class X152bPx4(BaseTask):
         # # spin spinning rotors
         prop_rot = ((self.cmd_thrusts)*0.2).to('cuda')
 
-        # prop_rot = self.thrust_cmds_damp * self.prop_max_rot
         self.torques[:, 1, 2] = -prop_rot[:, 0]
         self.torques[:, 2, 2] = -prop_rot[:, 1]
         self.torques[:, 3, 2] = prop_rot[:, 2]
