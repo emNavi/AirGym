@@ -71,12 +71,6 @@ class AssetManager:
         
         self.load_asset_tensors()
         self.randomize_pose()
-        if self.asset_random_pose_tensor is None and self.asset_specified_pose_tensor is not None:
-            self.asset_pose_tensor = self.asset_specified_pose_tensor
-        elif self.asset_random_pose_tensor is not None and self.asset_specified_pose_tensor is None:
-            self.asset_pose_tensor = self.asset_random_pose_tensor
-        elif self.asset_random_pose_tensor is not None and self.asset_specified_pose_tensor is not None:
-            self.asset_pose_tensor = torch.cat([self.asset_random_pose_tensor, self.asset_specified_pose_tensor], dim=1)
 
 
     def _add_asset_2_tensor(self, asset_class):
@@ -173,6 +167,11 @@ class AssetManager:
                 self.asset_config.folder_path, asset_key)
             file_list = self.randomly_select_asset_files(
                 folder_path, asset_class.num_assets)
+            """
+            Note: This step only for randomly-selecting assets. All assets are loaded in the environment file by 'gym.load_asset()'.
+                Since loading assets from .xml spends a lot of time, we randomly select the assets just once and then randomly positioning them in the environment.
+                It means when you display the training, assets in one vec-environment keeps always the same but with random placement after the reset.
+            """
 
             for file_name in file_list:
                 asset_dict = {
@@ -263,6 +262,13 @@ class AssetManager:
         pos_ratio_euler_asbolute = self.asset_min_state_tensor + torch.rand_like(self.asset_min_state_tensor)*(self.asset_max_state_tensor - self.asset_min_state_tensor)
         self.asset_random_pose_tensor[:, :, :3]  = self.env_lower_bound.unsqueeze(1) + self.env_bound_diff.unsqueeze(1)* pos_ratio_euler_asbolute[:,:,:3]
         self.asset_random_pose_tensor[:, :, 3:6] = pos_ratio_euler_asbolute[:, :, 3:6]
+
+        if self.asset_random_pose_tensor is None and self.asset_specified_pose_tensor is not None:
+            self.asset_pose_tensor = self.asset_specified_pose_tensor
+        elif self.asset_random_pose_tensor is not None and self.asset_specified_pose_tensor is None:
+            self.asset_pose_tensor = self.asset_random_pose_tensor
+        elif self.asset_random_pose_tensor is not None and self.asset_specified_pose_tensor is not None:
+            self.asset_pose_tensor = torch.cat([self.asset_random_pose_tensor, self.asset_specified_pose_tensor], dim=1)
         return
     
     def get_env_link_count(self):
