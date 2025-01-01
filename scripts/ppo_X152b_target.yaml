@@ -21,13 +21,16 @@ params:
       initializer:
         name: default
         scale: 2
+    
+    # resnet:
+    #   type: resnet18
 
   config:
-    env_name: X152b
+    env_name: X152b_target
     env_config:
       num_envs: 4096
     
-    name: ppo_X152b
+    name: ppo_X152b_target
     reward_shaper:
       # min_val: -1
       scale_value: 0.1

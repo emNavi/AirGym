@@ -3,6 +3,7 @@ import numpy as np
 import torch.nn as nn
 from lib.model.base_model import BaseModel
 from lib.network.mlp import MLP
+from lib.network.resnet import ResNetFeatureExtractor
 
 class ModelA2CContinuousLogStd(BaseModel):
     def __init__(self, params, keys):
@@ -14,8 +15,13 @@ class ModelA2CContinuousLogStd(BaseModel):
 
         self.load(params['network'])
 
+        if self.has_resnet:
+            if self.resnet_type == 'resnet18':
+                self.actor_resnet = ResNetFeatureExtractor('resnet18', output_dim=32)
+
         self.actor_mlp = MLP(input_shape[0], self.mlp_cfg['units'], self.mlp_cfg['activation'])
         if self.separate:
+            self.critic_resnet = ResNetFeatureExtractor('resnet18', output_dim=32)
             self.critic_mlp = MLP(input_shape[0], self.mlp_cfg['units'], self.mlp_cfg['activation'])
 
         out_size = self.mlp_cfg['units'][-1]
@@ -40,19 +46,38 @@ class ModelA2CContinuousLogStd(BaseModel):
     def forward(self, input_dict):
         is_train = input_dict.get('is_train', True)
         prev_actions = input_dict.get('prev_actions', None)
-        out = self.norm_obs(input_dict['obs'])
-
-        a_out = c_out = self.actor_mlp(out)
-        mu = self.mu_act(self.mu(a_out))
-        if self.fixed_sigma:
-            logstd = mu * 0.0 + self.logstd_act(self.logstd)
-        else:
-            logstd = self.logstd_act(self.logstd(a_out))
-        
         if self.separate:
-            c_out = self.critic_mlp(out)
-        value = self.value_head_act(self.value_head(c_out))
-
+            if self.has_resnet:
+                a_resnet_out = self.actor_resnet(input_dict['obs']['image'])
+                c_resnet_out = self.critic_resnet(input_dict['obs']['image'])
+                out = self.norm_obs(input_dict['obs']['state'])
+                a_out = torch.cat((out, a_resnet_out), dim=-1)
+                c_out = torch.cat((out, c_resnet_out), dim=-1)
+            else:
+                out = self.norm_obs(input_dict['obs'])
+                a_out = self.actor_mlp(out)
+                c_out = self.critic_mlp(out)
+                mu = self.mu_act(self.mu(a_out))
+                if self.fixed_sigma:
+                    logstd = mu * 0.0 + self.logstd_act(self.logstd)
+                else:
+                    logstd = self.logstd_act(self.logstd(a_out))
+                value = self.value_head_act(self.value_head(c_out))
+        else:
+            if self.has_resnet:
+                resnet_out = self.actor_resnet(input_dict['obs']['image'])
+                out = self.norm_obs(input_dict['obs']['state'])
+                out = torch.cat((out, resnet_out), dim=-1)
+            else:
+                out = self.norm_obs(input_dict['obs'])
+                a_out = c_out = self.actor_mlp(out)
+                mu = self.mu_act(self.mu(a_out))
+                if self.fixed_sigma:
+                    logstd = mu * 0.0 + self.logstd_act(self.logstd)
+                else:
+                    logstd = self.logstd_act(self.logstd(a_out))
+                value = self.value_head_act(self.value_head(c_out))
+                
         sigma = torch.exp(logstd)
         distr = torch.distributions.Normal(mu, sigma, validate_args=False)
         if is_train:
@@ -64,7 +89,7 @@ class ModelA2CContinuousLogStd(BaseModel):
                 'entropy' : entropy,
                 'mus' : mu,
                 'sigmas' : sigma
-            }                
+            }
             return result
         else:
             selected_action = distr.sample()
@@ -86,26 +111,18 @@ class ModelA2CContinuousLogStd(BaseModel):
     def load(self, params):
         self.separate = params.get('separate', False)
         self.mlp_cfg = params['mlp']
-        if 'cnn' in params:
-            self.resnet_cfg = params['resnet']
-        self.value_activation = params.get('value_activation', 'None')
-        self.normalization = params.get('normalization', None)
         self.has_space = 'space' in params
-        self.central_value = params.get('central_value', False)
-        self.joint_obs_actions_config = params.get('joint_obs_actions', None)
+        self.has_resnet = 'resnet' in params
 
         if self.has_space:
-            self.is_multi_discrete = 'multi_discrete' in params['space']
-            self.is_discrete = 'discrete' in params['space']
             self.is_continuous = 'continuous'in params['space']
             if self.is_continuous:
                 self.space_config = params['space']['continuous']
                 self.fixed_sigma = self.space_config['fixed_sigma']
-            elif self.is_discrete:
-                self.space_config = params['space']['discrete']
-            elif self.is_multi_discrete:
-                self.space_config = params['space']['multi_discrete']
         else:
             self.is_discrete = False
             self.is_continuous = False
             self.is_multi_discrete = False
+        
+        if self.has_resnet:
+            self.resnet_type = params['resnet']['type']
