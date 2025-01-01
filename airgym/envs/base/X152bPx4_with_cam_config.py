@@ -26,7 +26,7 @@ class X152bPx4WithCamCfg(BaseConfig):
         lookat = [0, 0, 0]  # [m]
 
     class sim:
-        dt =  0.005 #0.01
+        dt =  0.01 #0.01
         substeps = 1
         gravity = [0., 0. , -9.81]  # [m/s^2]
         up_axis = 1  # 0 is y, 1 is z
@@ -89,7 +89,7 @@ class X152bPx4WithCamCfg(BaseConfig):
             "trees": False,
             "objects": False, 
             "cubes": True,
-            "flags": False,
+            "flags": True,
         }
         
         include_specific_asset = {
@@ -99,8 +99,8 @@ class X152bPx4WithCamCfg(BaseConfig):
             "boundaries/back_wall": False,
             "boundaries/right_wall": False, 
             "boundaries/bottom_wall": False, 
-            "boundaries/8X18ground": True,
-            "boundaries/18X18ground": False,
+            "boundaries/8X18ground": False,
+            "boundaries/18X18ground": True,
         }
 
         env_lower_bound_min = [-4.0, -8.0, 0.0] # lower bound for the environment space
@@ -122,7 +122,7 @@ class X152bPx4WithCamCfg(BaseConfig):
             num_assets = 30
 
         class cube_asset_params(asset_register.cube_asset_params):
-            num_assets = 1
+            num_assets = 6
 
         class flag_asset_params(asset_register.flag_asset_params):
             num_assets = 6

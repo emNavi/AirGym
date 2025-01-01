@@ -35,7 +35,7 @@ class ModelA2CContinuousLogStd(BaseModel):
             nn.init.constant_(self.logstd, 0.)
         else:
             self.logstd = torch.nn.Linear(out_size, actions_num)
-            nn.init.constant_(self.logstd.weight, 0.)  
+            nn.init.constant_(self.logstd.weight, 0.)
         self.logstd_act = nn.Identity()
 
         self.value_head = torch.nn.Linear(self.mlp_cfg['units'][-1], 1)

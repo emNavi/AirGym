@@ -10,8 +10,8 @@ from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
 from isaacgym import gymutil, gymtorch, gymapi
 from isaacgym.torch_utils import *
 
-from .X152bPx4 import X152bPx4
-from .X152bPx4_with_cam_config import X152bPx4WithCamCfg
+from airgym.envs.base.base_task import BaseTask
+from airgym.envs.base.X152bPx4_with_cam_config import X152bPx4WithCamCfg
 
 from airgym.utils.asset_manager import AssetManager
 
@@ -25,7 +25,7 @@ import cv2
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
 
 
-class X152bPx4WithCam(X152bPx4):
+class X152bPx4WithCam(BaseTask):
 
     def __init__(self, cfg: X152bPx4WithCamCfg, sim_params, physics_engine, sim_device, headless):
         self.cfg = cfg
@@ -46,9 +46,8 @@ class X152bPx4WithCam(X152bPx4):
 
         self.env_asset_manager = AssetManager(self.cfg, sim_device)
         self.cam_resolution = (128, 128)
-        # self.cam_resolution = (640,480)
 
-        super(X152bPx4, self).__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
+        super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
         self.root_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
         self.contact_force_tensor = self.gym.acquire_net_contact_force_tensor(self.sim)
 
@@ -67,16 +66,13 @@ class X152bPx4WithCam(X152bPx4):
         self.root_linvels = self.root_states[..., 7:10]
         self.root_angvels = self.root_states[..., 10:13]
 
-        self.env_asset_root_states = self.vec_root_tensor[:, 1:, :]
-        
         self.privileged_obs_buf = None
         if self.vec_root_tensor.shape[1] > 1:
+            self.env_asset_root_states = self.vec_root_tensor[:, 1:, :]
             if self.get_privileged_obs:
-                self.privileged_obs_buf = self.env_asset_root_states.clone()
-
-        self.contact_forces = gymtorch.wrap_tensor(self.contact_force_tensor).view(self.num_envs, bodies_per_env, 3)[:, 0]
-
-        self.collisions = torch.zeros(self.num_envs, device=self.device)
+                self.privileged_obs_buf = self.env_asset_root_states
+                
+        self.gym.refresh_actor_root_state_tensor(self.sim)
 
         self.initial_root_states = self.root_states.clone()
         self.counter = 0
@@ -127,9 +123,13 @@ class X152bPx4WithCam(X152bPx4):
         self.env_upper_bound = torch.zeros(
             (self.num_envs, 3), dtype=torch.float32, device=self.device)
 
+        self.contact_forces = gymtorch.wrap_tensor(self.contact_force_tensor).view(self.num_envs, bodies_per_env, 3)[:, 0]
+        self.collisions = torch.zeros(self.num_envs, device=self.device)
+
         if self.cfg.env.enable_onboard_cameras:
+            print("Onboard cameras enabled...")
+            print("camera resolution =========== ", self.cam_resolution)
             self.full_camera_array = torch.zeros((self.num_envs, self.cam_resolution[0], self.cam_resolution[1]), device=self.device)
-            # self.full_camera_array = torch.zeros((self.num_envs, 480, 640), device=self.device)
 
         if self.viewer:
             cam_pos_x, cam_pos_y, cam_pos_z = self.cfg.viewer.pos[0], self.cfg.viewer.pos[1], self.cfg.viewer.pos[2]
@@ -289,6 +289,96 @@ class X152bPx4WithCam(X152bPx4):
         
         print("\n\n\n\n\n ENVIRONMENT CREATED \n\n\n\n\n\n")
 
+    def pre_physics_step(self, _actions):
+        if self.counter % 250 == 0:
+            print("self.counter:", self.counter)
+        self.counter += 1
+
+        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+        if len(reset_env_ids) > 0:
+            self.reset_idx(reset_env_ids)
+        self.actions = _actions.to(self.device)
+        
+        actions = self.actions
+        if self.ctl_mode == 'rate' or self.ctl_mode == 'atti': 
+            actions[..., -1] = 0.5 + 0.5 * self.actions[..., -1]
+        # print("actions:", actions[0])
+        actions = tensor_clamp(actions, self.action_lower_limits, self.action_upper_limits)
+        
+        actions_cpu = actions.cpu().numpy()
+        
+        #--------------- input state for pid controller. tensor [n,4] --------#
+        obs_buf_cpu = self.root_states.cpu().numpy()
+        # pos
+        root_pos_cpu = self.root_states[..., 0:3].cpu().numpy()
+        # quat. if w is negative, then set it to positive. x,y,z,w
+        self.root_states[..., 3:7] = torch.where(self.root_states[..., 6:7] < 0, 
+                                                 -self.root_states[..., 3:7], 
+                                                 self.root_states[..., 3:7])
+        root_quats_cpu = self.root_states[..., 3:7].cpu().numpy() # x,y,z,w
+        # lin vel
+        lin_vel_cpu = self.root_states[..., 7:10].cpu().numpy()
+        # ang vel
+        ang_vel_cpu = self.root_states[..., 10:13].cpu().numpy()
+
+        # print(actions)
+        control_mode_ = self.ctl_mode
+        if(control_mode_ == "pos"):
+            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
+            self.parallel_pos_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
+            self.cmd_thrusts = torch.tensor(self.parallel_pos_control.update(actions_cpu.astype(np.float64)))
+        elif(control_mode_ == "vel"):
+            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
+            self.parallel_vel_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
+            self.cmd_thrusts = torch.tensor(self.parallel_vel_control.update(actions_cpu.astype(np.float64)))
+        elif(control_mode_ == "atti"):
+            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]] # w, x, y, z
+            self.parallel_atti_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
+            self.cmd_thrusts = torch.tensor(self.parallel_atti_control.update(actions_cpu.astype(np.float64))) 
+        elif(control_mode_ == "rate"):
+            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
+            self.parallel_rate_control.set_q_world(root_quats_cpu.astype(np.float64))
+            # print("thrust", actions_cpu[0][-1])
+            self.cmd_thrusts = torch.tensor(self.parallel_rate_control.update(actions_cpu.astype(np.float64),ang_vel_cpu.astype(np.float64),0.01)) 
+            # print("thrust on prop", self.cmd_thrusts[0])
+        elif(control_mode_ == "prop"):
+            self.cmd_thrusts =  actions
+        else:
+            print("Mode error")
+
+        delta = .0*torch_rand_float(-1.0, 1.0, (self.num_envs, 1), device='cpu').repeat(1,4) + 9.59 
+        thrusts=(self.cmd_thrusts*delta).to('cuda')
+
+        force_x = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
+        force_y = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
+        force_xy = torch.cat((force_x, force_y), 1).reshape(-1, 4, 2)
+        thrusts = thrusts.reshape(-1, 4, 1)
+        thrusts = torch.cat((force_xy, thrusts), 2)
+
+        self.thrusts = thrusts
+
+        # # clear actions for reset envs
+        self.thrusts[reset_env_ids] = 0
+        # # spin spinning rotors
+        prop_rot = ((self.cmd_thrusts)*0.2).to('cuda')
+
+        self.torques[:, 1, 2] = -prop_rot[:, 0]
+        self.torques[:, 2, 2] = -prop_rot[:, 1]
+        self.torques[:, 3, 2] = prop_rot[:, 2]
+        self.torques[:, 4, 2] = prop_rot[:, 3]
+
+        self.forces[:, 1:5] = self.thrusts
+
+        # apply actions
+        self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
+            self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.LOCAL_SPACE)
+        # self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
+        #     self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.GLOBAL_SPACE)
+        # apply propeller rotation
+        # self.gym.set_joint_target_velocity(self.sim, )
+
+    def post_physics_step(self):
+        self.gym.refresh_actor_root_state_tensor(self.sim)
 
     def step(self, actions):
         # step physics and render each frame
@@ -298,13 +388,12 @@ class X152bPx4WithCam(X152bPx4):
             # NOTE: as per the isaacgym docs, self.gym.fetch_results must be called after self.gym.simulate, but not having it here seems to work fine
             # it is called in the render function.
             self.post_physics_step()
+            self.progress_buf += 1
 
         self.render(sync_frame_time=False)
         if self.enable_onboard_cameras:
             self.render_cameras()
         
-        self.progress_buf += 1
-
         self.check_collisions()
         self.compute_observations()
         self.compute_reward()
