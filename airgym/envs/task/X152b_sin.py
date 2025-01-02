@@ -123,10 +123,6 @@ class X152bSin(X152bPx4):
                 [0, 0, 0, 0], device=self.device, dtype=torch.float32)
         else:
             print("Mode Error!")
-        # parameters for the X152b
-        self.target_positions = torch.zeros((self.num_envs, 3), device=self.device, dtype=torch.float32)
-        self.target_positions[:, 2] = 1
-        self.all_indices = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
 
         self.forces = torch.zeros((self.num_envs, bodies_per_env, 3),
                                   dtype=torch.float32, device=self.device, requires_grad=False)
