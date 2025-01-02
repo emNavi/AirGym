@@ -35,6 +35,14 @@ except ImportError:
     traceback.print_exc()
 
 try:
+    from .task.X152b_target_visual_config import X152bTargetVisualConfig
+    from .task.X152b_target_visual import X152bTargetVisual
+    task_registry.register("X152b_target_visual", X152bTargetVisual, X152bTargetVisualConfig())
+except ImportError:
+    print("WARNING! X152bTargetVisual or X152bTargetVisualConfig cannot be imported. Ignore if using on real robot inference.")
+    traceback.print_exc()
+
+try:
     from .task.X152b_slit_config import X152bSlitConfig
     from .task.X152b_slit import X152bSlit
     task_registry.register("X152b_slit", X152bSlit, X152bSlitConfig())
