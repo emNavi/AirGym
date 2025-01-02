@@ -19,6 +19,9 @@ class X152bPx4Cfg(BaseConfig):
         env_spacing = 1
         episode_length_s = 24 # episode length in seconds
         num_control_steps_per_env_step = 1 # number of physics steps per env step
+        reset_on_collision = False # reset environment when contact force on quadrotor is above a threshold
+        create_ground_plane = False # create a ground plane
+
 
     # viewer camera:
     class viewer:

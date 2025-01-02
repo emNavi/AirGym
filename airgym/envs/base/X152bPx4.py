@@ -2,7 +2,6 @@ import math
 import numpy as np
 import os
 import torch
-import xml.etree.ElementTree as ET
 
 from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
 
@@ -14,7 +13,6 @@ from airgym.envs.base.X152bPx4_config import X152bPx4Cfg
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
 
-import matplotlib.pyplot as plt
 from airgym.utils.helpers import asset_class_to_AssetOptions
 from airgym.utils.rotations import quats_to_euler_angles
 import time
@@ -169,6 +167,8 @@ class X152bPx4(BaseTask):
     def create_sim(self):
         self.sim = self.gym.create_sim(
             self.sim_device_id, self.graphics_device_id, self.physics_engine, self.sim_params)
+        if self.cfg.env.create_ground_plane:
+            self._create_ground_plane()
         self._create_envs()
         self.progress_buf = torch.zeros(
             self.cfg.env.num_envs, device=self.sim_device, dtype=torch.long)
@@ -211,17 +211,109 @@ class X152bPx4(BaseTask):
             actor_handle = self.gym.create_actor(
                 env_handle, X152b, start_pose, self.cfg.asset_config.X152b.name, i, self.cfg.asset_config.X152b.collision_mask, 0)
             
-            self.robot_bodies = self.gym.get_actor_rigid_body_properties(
-                env_handle, actor_handle)
             self.envs.append(env_handle)
             self.actor_handles.append(actor_handle)
         
+        self.robot_bodies = self.gym.get_actor_rigid_body_properties(env_handle, actor_handle)
         self.robot_mass = 0
         for body in self.robot_bodies:
             self.robot_mass += body.mass
         print("Total robot mass: ", self.robot_mass)
         
         print("\n\n\n\n\n ENVIRONMENT CREATED \n\n\n\n\n\n")
+
+    def pre_physics_step(self, _actions):
+        # print(_actions[0])
+        # resets
+        if self.counter % 250 == 0:
+            print("self.counter:", self.counter)
+        self.counter += 1
+
+        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+        if len(reset_env_ids) > 0:
+            self.reset_idx(reset_env_ids)
+        self.actions = _actions.to(self.device)
+        
+        actions = self.actions
+        if self.ctl_mode == 'rate' or self.ctl_mode == 'atti': 
+            actions[..., -1] = 0.5 + 0.5 * self.actions[..., -1]
+        # print("actions:", actions[0])
+        actions = tensor_clamp(actions, self.action_lower_limits, self.action_upper_limits)
+        
+        actions_cpu = actions.cpu().numpy()
+        
+        #--------------- input state for pid controller. tensor [n,4] --------#
+        obs_buf_cpu = self.root_states.cpu().numpy()
+        # pos
+        root_pos_cpu = self.root_states[..., 0:3].cpu().numpy()
+        # quat. if w is negative, then set it to positive. x,y,z,w
+        self.root_states[..., 3:7] = torch.where(self.root_states[..., 6:7] < 0, 
+                                                 -self.root_states[..., 3:7], 
+                                                 self.root_states[..., 3:7])
+        root_quats_cpu = self.root_states[..., 3:7].cpu().numpy() # x,y,z,w
+        # lin vel
+        lin_vel_cpu = self.root_states[..., 7:10].cpu().numpy()
+        # ang vel
+        ang_vel_cpu = self.root_states[..., 10:13].cpu().numpy()
+
+        # print(actions)
+        control_mode_ = self.ctl_mode
+        if(control_mode_ == "pos"):
+            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
+            self.parallel_pos_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
+            self.cmd_thrusts = torch.tensor(self.parallel_pos_control.update(actions_cpu.astype(np.float64)))
+        elif(control_mode_ == "vel"):
+            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
+            self.parallel_vel_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
+            self.cmd_thrusts = torch.tensor(self.parallel_vel_control.update(actions_cpu.astype(np.float64)))
+        elif(control_mode_ == "atti"):
+            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]] # w, x, y, z
+            self.parallel_atti_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
+            self.cmd_thrusts = torch.tensor(self.parallel_atti_control.update(actions_cpu.astype(np.float64))) 
+        elif(control_mode_ == "rate"):
+            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
+            self.parallel_rate_control.set_q_world(root_quats_cpu.astype(np.float64))
+            # print("thrust", actions_cpu[0][-1])
+            self.cmd_thrusts = torch.tensor(self.parallel_rate_control.update(actions_cpu.astype(np.float64),ang_vel_cpu.astype(np.float64),0.01)) 
+            # print("thrust on prop", self.cmd_thrusts[0])
+        elif(control_mode_ == "prop"):
+            self.cmd_thrusts =  actions
+        else:
+            print("Mode error")
+
+        delta = .0*torch_rand_float(-1.0, 1.0, (self.num_envs, 1), device='cpu').repeat(1,4) + 9.59 
+        thrusts=(self.cmd_thrusts*delta).to('cuda')
+
+        force_x = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
+        force_y = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
+        force_xy = torch.cat((force_x, force_y), 1).reshape(-1, 4, 2)
+        thrusts = thrusts.reshape(-1, 4, 1)
+        thrusts = torch.cat((force_xy, thrusts), 2)
+
+        self.thrusts = thrusts
+
+        # # clear actions for reset envs
+        self.thrusts[reset_env_ids] = 0
+        # # spin spinning rotors
+        prop_rot = ((self.cmd_thrusts)*0.2).to('cuda')
+
+        self.torques[:, 1, 2] = -prop_rot[:, 0]
+        self.torques[:, 2, 2] = -prop_rot[:, 1]
+        self.torques[:, 3, 2] = prop_rot[:, 2]
+        self.torques[:, 4, 2] = prop_rot[:, 3]
+
+        self.forces[:, 1:5] = self.thrusts
+
+        # apply actions
+        self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
+            self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.LOCAL_SPACE)
+        # self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
+        #     self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.GLOBAL_SPACE)
+        # apply propeller rotation
+        # self.gym.set_joint_target_velocity(self.sim, )
+
+    def post_physics_step(self):
+        self.gym.refresh_actor_root_state_tensor(self.sim)
 
     def step(self, actions):
         # step physics and render each frame
@@ -293,115 +385,6 @@ class X152bPx4(BaseTask):
 
         if self.cfg.use_tcn:
             self.obs_seqs_buf[env_ids] = 0
-
-    def pre_physics_step(self, _actions):
-        # print(_actions[0])
-        # resets
-        if self.counter % 250 == 0:
-            print("self.counter:", self.counter)
-        self.counter += 1
-
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
-        if len(reset_env_ids) > 0:
-            self.reset_idx(reset_env_ids)
-        self.actions = _actions.to(self.device)
-
-        # debugging
-        # if self.cfg.env.ctl_mode == "atti":
-        #     print("actions:", actions[0])
-            # assert torch.all(actions[..., 0] >= 0), "w in q must be positive!"
-        
-        actions = self.actions
-        if self.ctl_mode == 'rate' or self.ctl_mode == 'atti': 
-            actions[..., -1] = 0.5 + 0.5 * self.actions[..., -1]
-        # print("actions:", actions[0])
-        actions = tensor_clamp(actions, self.action_lower_limits, self.action_upper_limits)
-        
-        actions_cpu = actions.cpu().numpy()
-        
-        #--------------- input state for pid controller. tensor [n,4] --------#
-        obs_buf_cpu = self.root_states.cpu().numpy()
-        # pos
-        root_pos_cpu = self.root_states[..., 0:3].cpu().numpy()
-        # quat. if w is negative, then set it to positive. x,y,z,w
-        self.root_states[..., 3:7] = torch.where(self.root_states[..., 6:7] < 0, 
-                                                 -self.root_states[..., 3:7], 
-                                                 self.root_states[..., 3:7])
-        root_quats_cpu = self.root_states[..., 3:7].cpu().numpy() # x,y,z,w
-        # lin vel
-        lin_vel_cpu = self.root_states[..., 7:10].cpu().numpy()
-        # ang vel
-        ang_vel_cpu = self.root_states[..., 10:13].cpu().numpy()
-
-        # print(actions)
-        control_mode_ = self.ctl_mode
-        if(control_mode_ == "pos"):
-            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
-            self.parallel_pos_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
-            self.cmd_thrusts = torch.tensor(self.parallel_pos_control.update(actions_cpu.astype(np.float64)))
-        elif(control_mode_ == "vel"):
-            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
-            self.parallel_vel_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
-            self.cmd_thrusts = torch.tensor(self.parallel_vel_control.update(actions_cpu.astype(np.float64)))
-        elif(control_mode_ == "atti"):
-            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]] # w, x, y, z
-            self.parallel_atti_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
-            self.cmd_thrusts = torch.tensor(self.parallel_atti_control.update(actions_cpu.astype(np.float64))) 
-        elif(control_mode_ == "rate"):
-            root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
-            self.parallel_rate_control.set_q_world(root_quats_cpu.astype(np.float64))
-            # print("thrust", actions_cpu[0][-1])
-            self.cmd_thrusts = torch.tensor(self.parallel_rate_control.update(actions_cpu.astype(np.float64),ang_vel_cpu.astype(np.float64),0.01)) 
-            # print("thrust on prop", self.cmd_thrusts[0])
-        elif(control_mode_ == "prop"):
-            self.cmd_thrusts =  actions
-        else:
-            print("Mode error")
-        # end
-
-        # debugging
-        # 使用 torch.isnan() 检查张量中的元素是否为 NaN
-        # nan_mask = torch.isnan(self.cmd_thrusts)
-        # # 如果有 NaN，则进行暂停
-        # if nan_mask.any():
-        #     print("Sleeping for 10 second...")
-        #     time.sleep(10)
-        # 
-        # thrusts=((self.cmd_thrusts**2)*9.57).to('cuda') # 9.57
-        delta = .0*torch_rand_float(-1.0, 1.0, (self.num_envs, 1), device='cpu').repeat(1,4) + 9.59 
-        thrusts=(self.cmd_thrusts*delta).to('cuda')
-        # print(self.cmd_thrusts[0])
-
-        force_x = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
-        force_y = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
-        force_xy = torch.cat((force_x, force_y), 1).reshape(-1, 4, 2)
-        thrusts = thrusts.reshape(-1, 4, 1)
-        thrusts = torch.cat((force_xy, thrusts), 2)
-
-        self.thrusts = thrusts
-
-        # # clear actions for reset envs
-        self.thrusts[reset_env_ids] = 0
-        # # spin spinning rotors
-        prop_rot = ((self.cmd_thrusts)*0.2).to('cuda')
-
-        self.torques[:, 1, 2] = -prop_rot[:, 0]
-        self.torques[:, 2, 2] = -prop_rot[:, 1]
-        self.torques[:, 3, 2] = prop_rot[:, 2]
-        self.torques[:, 4, 2] = prop_rot[:, 3]
-
-        self.forces[:, 1:5] = self.thrusts
-
-        # apply actions
-        self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
-            self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.LOCAL_SPACE)
-        # self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
-        #     self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.GLOBAL_SPACE)
-        # apply propeller rotation
-        # self.gym.set_joint_target_velocity(self.sim, )
-
-    def post_physics_step(self):
-        self.gym.refresh_actor_root_state_tensor(self.sim)
 
     def compute_observations(self):
         self.root_matrix = T.quaternion_to_matrix(self.root_quats[:, [3, 0, 1, 2]]).reshape(self.num_envs, 9)
@@ -480,13 +463,7 @@ class X152bPx4(BaseTask):
 
         # resets due to episode length
         reset = torch.where(self.progress_buf >= self.max_episode_length - 1, ones, die)
-
         reset = torch.where(torch.norm(relative_positions, dim=1) > 4, ones, reset)
-        
-        # reset = torch.where(torch.norm(relative_linvels, dim=1) > 6.0, ones, reset)
-        
-        # reset = torch.where(relative_angvels[..., 2] > 17.5, ones, reset)
-        # reset = torch.where(relative_angvels[..., 2] < -17.5, ones, reset)
         
         reset = torch.where(relative_positions[..., 2] < -2, ones, reset)
         reset = torch.where(relative_positions[..., 2] > 2, ones, reset)
@@ -502,184 +479,6 @@ class X152bPx4(BaseTask):
         item_reward_info["thrust_reward"] = thrust_reward
 
         return reward, reset, item_reward_info
-
-
-    
-    # def compute_quadcopter_reward(self, ctrl_mode, actions, pre_actions, cmd_thrusts, root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length, target_states):
-    #     # type: (Str, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float, Tensor) -> Tuple[Tensor, Tensor,Dict[str, Tensor]]
-        
-    #     # continous action
-    #     action_diff = actions - pre_actions
-    #     if ctrl_mode == "pos" or ctrl_mode == 'vel':
-    #         continous_action_reward =  C1 * (1 - torch.sqrt(action_diff.pow(2).sum(-1))/5)
-    #     else:
-    #         continous_action_reward = C1 * (1- torch.sqrt(action_diff[..., :-1].pow(2).sum(-1))/5) + C2 * (1-torch.sqrt(action_diff[..., -1].pow(2))/5)
-    #         thrust = actions[..., -1] # this thrust is the force on vertical axis
-    #         thrust_reward = TH * (1-torch.abs(0.1533 - thrust))
-
-    #     # distance
-    #     target_positions = target_states[..., 9:12]
-    #     relative_positions = target_positions - root_positions
-    #     pos_diff_h = torch.sqrt(relative_positions[..., 0] * relative_positions[..., 0] +
-    #                             relative_positions[..., 1] * relative_positions[..., 1])
-    #     pos_diff_v = torch.sqrt(relative_positions[..., 2] * relative_positions[..., 2])
-        
-    #     self.int_pos_error[..., 1:] = self.int_pos_error[..., :-1]
-    #     self.int_pos_error[..., 0] = pos_diff_h + pos_diff_v
-
-    #     pos_reward = P1 * (1.0 - 1/P2*pos_diff_h) + P3 * (1.0 - 1/P4*pos_diff_v) 
-    #     pos_error_reward = P5 * (1-self.int_pos_error.sum(-1) / 35)
-    #     _pos_reward = pos_reward + pos_error_reward
-
-    #     # velocity
-    #     target_linvels = target_states[..., 12:15]
-    #     relative_linvels = root_linvels - target_linvels
-    #     vel_diff = torch.norm(relative_linvels, dim=1)
-    #     vel_reward = V1 * (1-(1/V2)*vel_diff)
-
-    #     # velocity direction
-    #     tar_direction = relative_positions / torch.norm(relative_positions, dim=1, keepdim=True)
-    #     vel_direction = root_linvels / torch.norm(root_linvels, dim=1, keepdim=True)
-    #     dot_product = (tar_direction * vel_direction).sum(dim=1)
-    #     angle_difference = torch.acos(dot_product.clamp(-1.0, 1.0)).abs()
-    #     vel_direction_error_reward = V3 * (1 - angle_difference / torch.pi)
-    #     _vel_reward = vel_reward + vel_direction_error_reward
-
-    #     # yaw
-    #     target_matrix = target_states[..., 0:9].reshape(self.num_envs, 3,3)
-    #     target_euler = T.matrix_to_euler_angles(target_matrix, 'XYZ')
-
-    #     root_matrix = T.quaternion_to_matrix(root_quats[:, [3, 0, 1, 2]])
-    #     root_euler = T.matrix_to_euler_angles(root_matrix, convention='XYZ')
-
-    #     yaw_diff = torch.abs(compute_yaw_diff(target_euler[..., 2], root_euler[..., 2]))
-    #     yaw_reward = Y1 * (1. - (1./Y2)*yaw_diff)
-
-    #     self.int_yaw_error[..., 1:] = self.int_yaw_error[..., :-1]
-    #     self.int_yaw_error[..., 0] = yaw_diff
-    #     yaw_error_reward = Y3 * (1 - self.int_yaw_error.sum(-1)/(torch.pi*10))
-
-    #     spin = torch.square(self.root_angvels[:, 2])
-    #     fix_spin_reward = 0 #0.5 / (1+torch.square(spin))
-
-    #     _yaw_reward = yaw_reward + yaw_error_reward + fix_spin_reward
-
-    #     # angular velocity
-    #     target_angvels = target_states[..., 15:18]
-    #     relative_angvels = root_angvels - target_angvels
-    #     angvel_diff = torch.norm(relative_angvels, dim=1)
-    #     angvel_reward = A1 * (1.0 - (1/A2)*angvel_diff)
-
-    #     # uprightness
-    #     ups = quat_axis(root_quats, 2)
-
-    #     # effort reward
-    #     thrust_cmds = torch.clamp(cmd_thrusts, min=0.0, max=1.0).to('cuda')
-    #     effort_reward = E * (1 - thrust_cmds).sum(-1)/4
-
-    #     # combined reward
-    #     if ctrl_mode == "vel" or ctrl_mode == "pos":
-    #         reward = continous_action_reward + angvel_reward + _vel_reward + _pos_reward + effort_reward + _yaw_reward
-    #     elif ctrl_mode == "atti" or ctrl_mode == "rate":
-    #         reward = continous_action_reward + angvel_reward + _vel_reward + _pos_reward + effort_reward + _yaw_reward + thrust_reward
-    #     else:
-    #         reward = continous_action_reward + angvel_reward + _vel_reward + _pos_reward + effort_reward + _yaw_reward
-        
-    #     # reward = continous_action_reward + _pos_reward + effort_reward
-
-    #     # resets due to misbehavior
-    #     ones = torch.ones_like(reset_buf)
-    #     die = torch.zeros_like(reset_buf)
-
-    #     # resets due to episode length
-    #     reset = torch.where(progress_buf >= max_episode_length - 1, ones, die)
-
-    #     reset = torch.where(torch.norm(relative_positions, dim=1) > 4, ones, reset)
-        
-    #     reset = torch.where(torch.norm(relative_linvels, dim=1) > 6.0, ones, reset)
-        
-    #     reset = torch.where(relative_angvels[..., 2] > 17.5, ones, reset)
-    #     reset = torch.where(relative_angvels[..., 2] < -17.5, ones, reset)
-        
-    #     reset = torch.where(relative_positions[..., 2] < -2, ones, reset)
-    #     reset = torch.where(relative_positions[..., 2] > 2, ones, reset)
-
-    #     reset = torch.where(ups[..., 2] < 0.0, ones, reset) # orient_z 小于0 = 飞行器朝下了
-
-    #     # resets due to a negative w in quaternions
-    #     if ctrl_mode == "atti":
-    #         reset = torch.where(actions[..., 0] < 0, ones, reset)
-        
-    #     item_reward_info = {}
-    #     item_reward_info["angvel_reward"] = angvel_reward
-    #     item_reward_info["effort_reward"] = effort_reward
-    #     item_reward_info["pos_reward"] = pos_reward
-    #     item_reward_info["pos_error_reward"] = pos_error_reward
-    #     item_reward_info["vel_reward"] = vel_reward
-    #     item_reward_info["vel_direction_error_reward"] = vel_direction_error_reward
-    #     item_reward_info["yaw_reward"] = yaw_reward
-    #     item_reward_info["fix_spin_reward"] = fix_spin_reward
-    #     item_reward_info["yaw_error_reward"] = yaw_error_reward
-    #     item_reward_info["continous_action_reward"] = continous_action_reward
-
-    #     if ctrl_mode == "atti"  or ctrl_mode == "rate":
-    #         item_reward_info["thrust_reward"] = thrust_reward
-
-    #     return reward, reset, item_reward_info
-
-
-    # #---------------------- Original Reward Function ----------------------#
-    # def compute_quadcopter_reward(self, ctrl_mode, actions, pre_actions, cmd_thrusts, root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length, target_states):
-    #     # type: (Str, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float, Tensor) -> Tuple[Tensor, Tensor,Dict[str, Tensor]]
-        
-    #     # distance to target
-    #     # target_positions = torch.tensor([0, 5, 1], dtype=torch.float32, device='cuda').unsqueeze(0).expand_as(root_positions)
-    #     # relative_positions = root_positions - target_positions
-    #     target_dist = torch.sqrt(root_positions[..., 0] * root_positions[..., 0] +
-    #                             root_positions[..., 1] * root_positions[..., 1] +
-    #                             (root_positions[..., 2]) * (root_positions[..., 2]))
-    #     pos_reward = 2 * (1.0 - (1/6)*target_dist)
-
-    #     target_vel = torch.norm(root_linvels, dim=1)
-    #     target_ang = torch.norm(root_angvels, dim=1)
-
-    #     vel_reward = 0.4 * (1-(1/6)*target_vel)
-    #     ang_vel_reward =  0.2 * (1.0 - (1/6)*target_ang)
-
-    #     # uprightness
-    #     ups = quat_axis(root_quats, 2)
-
-    #     # effort reward
-    #     thrust_cmds = torch.clamp(cmd_thrusts, min=0.0, max=1.0).to('cuda')
-    #     effort_reward = 0.4 * (1 - thrust_cmds).sum(-1)/4
-
-    #     # combined reward
-    #     reward = ang_vel_reward + vel_reward + pos_reward + effort_reward
-    
-
-    #     # resets due to misbehavior
-    #     ones = torch.ones_like(reset_buf)
-    #     die = torch.zeros_like(reset_buf)
-    #     # die = torch.where(target_dist > 10.0, ones, die)
-
-    #     # resets due to episode length
-    #     reset = torch.where(progress_buf >= max_episode_length - 1, ones, die)
-    #     reset = torch.where(torch.norm(root_positions, dim=1) > 4.0, ones, reset)
-    #     reset = torch.where(torch.norm(root_linvels, dim=1) > 6.0, ones, reset)
-
-    #     reset = torch.where(root_positions[..., 2] < -2, ones, reset)
-    #     reset = torch.where(root_positions[..., 2] > 2, ones, reset)
-
-    #     reset = torch.where(ups[..., 2] < 0.0, ones, reset) # orient_z 小于0 = 飞行器朝下了
-        
-    #     item_reward_info = {}
-    #     item_reward_info["ang_vel_reward"] = ang_vel_reward
-    #     item_reward_info["effort_reward"] = effort_reward
-    #     item_reward_info["pos_reward"] = pos_reward
-    #     item_reward_info["vel_reward"] = vel_reward
-
-    #     return reward, reset, item_reward_info
-
 
 ###=========================jit functions=========================###
 #####################################################################
