@@ -17,12 +17,14 @@ class ModelA2CContinuousLogStd(BaseModel):
 
         if self.has_resnet:
             if self.resnet_type == 'resnet18':
-                self.actor_resnet = ResNetFeatureExtractor('resnet18', output_dim=32)
+                self.actor_resnet = ResNetFeatureExtractor('resnet18', output_dim=self.resnet_output_dim)
 
-        self.actor_mlp = MLP(input_shape[0], self.mlp_cfg['units'], self.mlp_cfg['activation'])
+        self.actor_mlp = MLP(input_shape[0]+self.resnet_output_dim, self.mlp_cfg['units'], self.mlp_cfg['activation']) if self.has_resnet else \
+            MLP(input_shape[0], self.mlp_cfg['units'], self.mlp_cfg['activation'])
         if self.separate:
-            self.critic_resnet = ResNetFeatureExtractor('resnet18', output_dim=32)
-            self.critic_mlp = MLP(input_shape[0], self.mlp_cfg['units'], self.mlp_cfg['activation'])
+            self.critic_resnet = ResNetFeatureExtractor('resnet18', output_dim=self.resnet_output_dim)
+            self.critic_mlp = MLP(input_shape[0]+self.resnet_output_dim, self.mlp_cfg['units'], self.mlp_cfg['activation']) if self.has_resnet else \
+            MLP(input_shape[0], self.mlp_cfg['units'], self.mlp_cfg['activation'])
 
         out_size = self.mlp_cfg['units'][-1]
         self.mu = nn.Linear(out_size, actions_num)
@@ -55,14 +57,15 @@ class ModelA2CContinuousLogStd(BaseModel):
                 c_out = torch.cat((out, c_resnet_out), dim=-1)
             else:
                 out = self.norm_obs(input_dict['obs'])
-                a_out = self.actor_mlp(out)
-                c_out = self.critic_mlp(out)
-                mu = self.mu_act(self.mu(a_out))
-                if self.fixed_sigma:
-                    logstd = mu * 0.0 + self.logstd_act(self.logstd)
-                else:
-                    logstd = self.logstd_act(self.logstd(a_out))
-                value = self.value_head_act(self.value_head(c_out))
+
+            a_out = self.actor_mlp(out)
+            c_out = self.critic_mlp(out)
+            mu = self.mu_act(self.mu(a_out))
+            if self.fixed_sigma:
+                logstd = mu * 0.0 + self.logstd_act(self.logstd)
+            else:
+                logstd = self.logstd_act(self.logstd(a_out))
+            value = self.value_head_act(self.value_head(c_out))
         else:
             if self.has_resnet:
                 resnet_out = self.actor_resnet(input_dict['obs']['image'])
@@ -70,13 +73,14 @@ class ModelA2CContinuousLogStd(BaseModel):
                 out = torch.cat((out, resnet_out), dim=-1)
             else:
                 out = self.norm_obs(input_dict['obs'])
-                a_out = c_out = self.actor_mlp(out)
-                mu = self.mu_act(self.mu(a_out))
-                if self.fixed_sigma:
-                    logstd = mu * 0.0 + self.logstd_act(self.logstd)
-                else:
-                    logstd = self.logstd_act(self.logstd(a_out))
-                value = self.value_head_act(self.value_head(c_out))
+            
+            a_out = c_out = self.actor_mlp(out)
+            mu = self.mu_act(self.mu(a_out))
+            if self.fixed_sigma:
+                logstd = mu * 0.0 + self.logstd_act(self.logstd)
+            else:
+                logstd = self.logstd_act(self.logstd(a_out))
+            value = self.value_head_act(self.value_head(c_out))
                 
         sigma = torch.exp(logstd)
         distr = torch.distributions.Normal(mu, sigma, validate_args=False)
@@ -126,3 +130,4 @@ class ModelA2CContinuousLogStd(BaseModel):
         
         if self.has_resnet:
             self.resnet_type = params['resnet']['type']
+            self.resnet_output_dim = params['resnet']['output_dim']

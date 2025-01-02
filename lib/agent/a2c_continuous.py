@@ -292,37 +292,7 @@ class ContinuousA2CBase(A2CBase):
 
             if should_exit:
                 return self.last_mean_rewards, epoch_num
-
-class A2CAgent(ContinuousA2CBase):
-
-    def __init__(self, base_name, params):
-        ContinuousA2CBase.__init__(self, base_name, params)        
-        self.model.to(self.ppo_device)
-        self.states = None
-        self.last_lr = float(self.last_lr)
-        self.bound_loss_type = self.config.get('bound_loss_type', 'bound') # 'regularisation' or 'bound'
-        self.optimizer = optim.Adam(self.model.parameters(), float(self.last_lr), eps=1e-08, weight_decay=self.weight_decay)
-
-        self.use_experimental_cv = self.config.get('use_experimental_cv', True)
-        self.dataset = datasets.PPODataset(self.batch_size, self.minibatch_size, self.is_discrete, self.ppo_device)
-        if self.normalize_value:
-            self.value_mean_std = self.model.value_mean_std
-
-        self.has_value_loss = self.use_experimental_cv
-        self.algo_observer.after_init(self)
-
-    def update_epoch(self):
-        self.epoch_num += 1
-        return self.epoch_num
-        
-    def save(self, fn):
-        state = self.get_full_state_weights()
-        torch_ext.save_checkpoint(fn, state)
-
-    def restore(self, fn, set_epoch=True):
-        checkpoint = torch_ext.load_checkpoint(fn)
-        self.set_full_state_weights(checkpoint, set_epoch=set_epoch)
-
+    
     def get_masked_action_values(self, obs, action_masks):
         assert False
 
@@ -419,4 +389,36 @@ class A2CAgent(ContinuousA2CBase):
             b_loss = 0
         return b_loss
 
+
+class A2CAgent(ContinuousA2CBase):
+
+    def __init__(self, base_name, params):
+        ContinuousA2CBase.__init__(self, base_name, params)        
+        self.model.to(self.ppo_device)
+        self.states = None
+        self.last_lr = float(self.last_lr)
+        self.bound_loss_type = self.config.get('bound_loss_type', 'bound') # 'regularisation' or 'bound'
+        self.optimizer = optim.Adam(self.model.parameters(), float(self.last_lr), eps=1e-08, weight_decay=self.weight_decay)
+
+        self.use_experimental_cv = self.config.get('use_experimental_cv', True)
+        self.dataset = datasets.PPODataset(self.batch_size, self.minibatch_size, self.is_discrete, self.ppo_device)
+        if self.normalize_value:
+            self.value_mean_std = self.model.value_mean_std
+
+        self.has_value_loss = self.use_experimental_cv
+        self.algo_observer.after_init(self)
+
+    def update_epoch(self):
+        self.epoch_num += 1
+        return self.epoch_num
+        
+    def save(self, fn):
+        state = self.get_full_state_weights()
+        torch_ext.save_checkpoint(fn, state)
+
+    def restore(self, fn, set_epoch=True):
+        checkpoint = torch_ext.load_checkpoint(fn)
+        self.set_full_state_weights(checkpoint, set_epoch=set_epoch)
+
+    
 

@@ -14,7 +14,7 @@ import torch.distributed as dist
 from lib.core import common_losses
 from lib.core.dignostics import DefaultDiagnostics, PpoDiagnostics
 from lib.core.interval_summary_writer import IntervalSummaryWriter
-from lib.core.experience import ExperienceBuffer
+from lib.core.experience import ExperienceBuffer, ExperienceBufferWithImage
 from lib.core import schedulers
 from lib.core import torch_ext
 from lib.core.moving_mean_std import GeneralizedMovingStats
@@ -81,6 +81,7 @@ class BaseAlgorithm(ABC):
 class A2CBase(BaseAlgorithm):
 
     def __init__(self, base_name, params):
+        self.network_config = params['network']
         self.config = config = params['config']
         pbt_str = ''
 
@@ -92,7 +93,6 @@ class A2CBase(BaseAlgorithm):
         else:
             self.experiment_name = config['name'] + pbt_str + datetime.now().strftime("_%d-%H-%M-%S")
 
-        self.config = config
         self.algo_observer = config['features']['observer']
         self.algo_observer.before_init(base_name, config, self.experiment_name)
         # self.load_networks(params) 
@@ -135,13 +135,9 @@ class A2CBase(BaseAlgorithm):
         self.num_actors = config['num_actors']
         self.env_name = config['env_name']
 
-        self.vec_env = None
-        self.env_info = config.get('env_info')
-        if self.env_info is None:
-            self.vec_env = vecenv.create_vec_env(self.env_name, self.num_actors, **self.env_config)
-            self.env_info = self.vec_env.get_env_info()
-        else:
-            self.vec_env = config.get('vec_env', None)
+        # self.env_info is environment config class cfg.env
+        self.vec_env = vecenv.create_vec_env(self.env_name, self.num_actors, **self.env_config)
+        self.env_info = self.vec_env.get_env_info()
 
         self.ppo_device = config.get('device', 'cuda:0')
         self.value_size = self.env_info.get('value_size',1)
@@ -399,7 +395,10 @@ class A2CBase(BaseAlgorithm):
             'horizon_length' : self.horizon_length,
             'use_action_masks' : self.use_action_masks
         }
-        self.experience_buffer = ExperienceBuffer(self.env_info, algo_info, self.ppo_device)
+        if 'resnet' in self.network_config:
+            self.experience_buffer = ExperienceBufferWithImage(self.env_info, algo_info, self.ppo_device)
+        else:
+            self.experience_buffer = ExperienceBuffer(self.env_info, algo_info, self.ppo_device)
 
         val_shape = (self.horizon_length, batch_size, self.value_size)
         current_rewards_shape = (batch_size, self.value_size)
