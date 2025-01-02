@@ -51,7 +51,7 @@ class X152bPx4WithCam(BaseTask):
         self.enable_onboard_cameras = self.cfg.env.enable_onboard_cameras
 
         self.env_asset_manager = AssetManager(self.cfg, sim_device)
-        self.cam_resolution = (128, 128) if not hasattr(self, 'cam_resolution') else self.cam_resolution
+        self.cam_resolution = cfg.env.cam_resolution if not hasattr(self, 'cam_resolution') else self.cam_resolution
 
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
         self.root_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
@@ -408,7 +408,8 @@ class X152bPx4WithCam(BaseTask):
             self.post_physics_step()
         
         self.render(sync_frame_time=False)
-        if self.counter % 4 == 0:
+        rate = self.cfg.env.cam_dt / self.cfg.sim.dt
+        if self.counter % rate == 0:
             if self.enable_onboard_cameras:
                 self.render_cameras()
 
@@ -427,9 +428,12 @@ class X152bPx4WithCam(BaseTask):
 
         self.time_out_buf = self.progress_buf > self.max_episode_length
         self.extras["time_outs"] = self.time_out_buf
-        self.extras["item_reward_info"] = self.item_reward_info
 
-        return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
+        obs = {
+            'state': self.obs_buf,
+            'image': self.full_camera_array,
+        }
+        return obs, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
@@ -492,10 +496,10 @@ class X152bPx4WithCam(BaseTask):
             self.full_camera_array[env_id, :] = -self.camera_tensors[env_id].T
             self.full_camera_array[env_id, :] = torch.clamp(self.full_camera_array[env_id, :], 0, 6)
  
-            # depth_image = self.full_camera_array[env_id, :].T.cpu().numpy()
-            # dist = cv2.normalize(depth_image, None, 255,0, cv2.NORM_MINMAX, cv2.CV_8UC1)
-            # cv2.imshow(str(env_id), dist)
-            # cv2.waitKey(1)
+            depth_image = self.full_camera_array[env_id, :].T.cpu().numpy()
+            dist = cv2.normalize(depth_image, None, 255,0, cv2.NORM_MINMAX, cv2.CV_8UC1)
+            cv2.imshow(str(env_id), dist)
+            cv2.waitKey(1)
 
             # color
             # if(self.camera_tensors[env_id].shape[0] != 0):
