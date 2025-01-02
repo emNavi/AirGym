@@ -46,11 +46,11 @@ class X152bTargetVisual(X152bPx4WithCam):
         self.cam_resolution = cfg.env.cam_resolution # recover camera resolution
 
         # get states of red balloon
-        self.target_ball_states = self.env_asset_root_states[:, 0, :]
-        self.target_ball_positions = self.target_ball_states[..., 0:3]
-        self.target_ball_quats = self.target_ball_states[..., 3:7] # x,y,z,w
-        self.target_ball_linvels = self.target_ball_states[..., 7:10]
-        self.target_ball_angvels = self.target_ball_states[..., 10:13]
+        self.balloon_states = self.env_asset_root_states[:, 0, :]
+        self.balloon_positions = self.balloon_states[..., 0:3]
+        self.balloon_quats = self.balloon_states[..., 3:7] # x,y,z,w
+        self.balloon_linvels = self.balloon_states[..., 7:10]
+        self.balloon_angvels = self.balloon_states[..., 10:13]
 
         if self.cfg.env.enable_onboard_cameras:
             print("Onboard cameras enabled...")
@@ -75,11 +75,11 @@ class X152bTargetVisual(X152bPx4WithCam):
         self.env_asset_manager.randomize_pose()
 
         # reset target red ball position
-        self.target_ball_states[env_ids, 0:1] = .5*torch_rand_float(-1.0, 1.0, (num_resets, 1), self.device) + torch.tensor([1.5], device=self.device)
-        self.target_ball_states[env_ids, 1:2] = 1.*torch_rand_float(-1.0, 1.0, (num_resets, 1), self.device) + torch.tensor([0.], device=self.device)
-        self.target_ball_states[env_ids, 2:3] = .3*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
-        # self.target_ball_states[env_ids, 0:2] = 0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([1.5, 0.], device=self.device)
-        # self.target_ball_states[env_ids, 2:3] = .0*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
+        self.balloon_states[env_ids, 0:1] = .5*torch_rand_float(-1.0, 1.0, (num_resets, 1), self.device) + torch.tensor([1.5], device=self.device)
+        self.balloon_states[env_ids, 1:2] = 1.*torch_rand_float(-1.0, 1.0, (num_resets, 1), self.device) + torch.tensor([0.], device=self.device)
+        self.balloon_states[env_ids, 2:3] = .3*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
+        # self.balloon_states[env_ids, 0:2] = 0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([1.5, 0.], device=self.device)
+        # self.balloon_states[env_ids, 2:3] = .0*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
 
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
@@ -122,12 +122,14 @@ class X152bTargetVisual(X152bPx4WithCam):
             # NOTE: as per the isaacgym docs, self.gym.fetch_results must be called after self.gym.simulate, but not having it here seems to work fine
             # it is called in the render function.
             self.post_physics_step()
-            self.progress_buf += 1
 
         self.render(sync_frame_time=False)
-        if self.enable_onboard_cameras:
-            self.render_cameras()
+        rate = self.cfg.env.cam_dt / self.cfg.sim.dt
+        if self.counter % rate == 0:
+            if self.enable_onboard_cameras:
+                self.render_cameras()
         
+        self.progress_buf += 1
         self.check_collisions()
         self.compute_observations()
         self.compute_reward()
@@ -199,12 +201,12 @@ class X152bTargetVisual(X152bPx4WithCam):
         return r
 
     def compute_quadcopter_reward(self):
-        relative_positions = self.target_ball_positions - self.root_positions
+        relative_positions = self.balloon_positions - self.root_positions
         
-        guidance_reward = self.guidance_reward(self.root_positions, self.pre_root_positions, self.target_ball_positions)
-        hit_reward, progress_r, check = self.hit_reward(self.root_positions, self.target_ball_positions, self.progress_buf)
+        guidance_reward = self.guidance_reward(self.root_positions, self.pre_root_positions, self.balloon_positions)
+        hit_reward, progress_r, check = self.hit_reward(self.root_positions, self.balloon_positions, self.progress_buf)
         continous_action_reward = self.continous_action_reward(self.root_angvels, self.pre_root_angvels, self.actions, self.pre_actions)
-        vel_dir_reward = self.vel_dir_reward(self.root_linvels, self.target_ball_positions, self.root_positions)
+        vel_dir_reward = self.vel_dir_reward(self.root_linvels, self.balloon_positions, self.root_positions)
         
         reward = (
             guidance_reward

@@ -9,6 +9,7 @@ class X152bTargetVisualConfig(BaseConfig):
     controller_test = False
 
     class env:
+        target_state = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]) 
         num_envs = 4 # must be a square number
         num_observations = 22
         headless = True
@@ -19,7 +20,9 @@ class X152bTargetVisualConfig(BaseConfig):
         enable_onboard_cameras = True # enable onboard cameras
         reset_on_collision = True # reset environment when contact force on quadrotor is above a threshold
         create_ground_plane = True # create a ground plane
+
         cam_resolution = (212, 120) # (width, hight)
+        cam_dt = 0.04 # camera render time interval
 
     class viewer:
         ref_env = 0
