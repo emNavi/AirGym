@@ -184,8 +184,7 @@ class X152bPx4(BaseTask):
 
         asset_options = asset_class_to_AssetOptions(self.cfg.asset_config.X152b)
 
-        X152b = self.gym.load_asset(
-            self.sim, asset_root, asset_file, asset_options)
+        X152b = self.gym.load_asset(self.sim, asset_root, asset_file, asset_options)
 
         self.robot_num_bodies = self.gym.get_asset_rigid_body_count(X152b)
 
@@ -199,13 +198,11 @@ class X152bPx4(BaseTask):
         self.envs = []
         for i in range(self.num_envs):
             # create env instance
-            env_handle = self.gym.create_env(
-                self.sim, env_lower, env_upper, int(np.sqrt(self.num_envs)))
-            pos = torch.tensor([0, 0, 1], device=self.device)
+            env_handle = self.gym.create_env(self.sim, env_lower, env_upper, int(np.sqrt(self.num_envs)))
+            pos = torch.tensor([0, 0, 0], device=self.device)
             start_pose.p = gymapi.Vec3(*pos)
 
-            actor_handle = self.gym.create_actor(
-                env_handle, X152b, start_pose, self.cfg.asset_config.X152b.name, i, self.cfg.asset_config.X152b.collision_mask, 0)
+            actor_handle = self.gym.create_actor(env_handle, X152b, start_pose, self.cfg.asset_config.X152b.name, i, self.cfg.asset_config.X152b.collision_mask, 0)
             
             self.envs.append(env_handle)
             self.actor_handles.append(actor_handle)
@@ -339,27 +336,21 @@ class X152bPx4(BaseTask):
             return self.obs_seqs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
         return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
-    def reset(self):
-        """ Reset all robots"""
-        self.reset_idx(torch.arange(self.num_envs, device=self.device))
-        obs, privileged_obs, _, _, _ = self.step(torch.zeros(self.num_envs, self.num_actions, device=self.device, requires_grad=False))
-        return obs, privileged_obs
-
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
 
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
         # randomize root states
-        self.root_states[env_ids, 0:2] = .0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) # 2.0
-        self.root_states[env_ids, 2:3] = .0*torch_rand_float(-1., 1., (num_resets, 1), self.device) # 2
+        self.root_states[env_ids, 0:2] = .2*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) # .2
+        self.root_states[env_ids, 2:3] = .2*torch_rand_float(-1., 1., (num_resets, 1), self.device) # .2
         # self.root_states[env_ids, 0] = 0 # debug
         # self.root_states[env_ids, 1] = 0 # debug
         # self.root_states[env_ids, 2] = 0 # debug
 
         # randomize root orientation
-        root_angle = torch.concatenate([0.*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .1
-                                       0.*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2
+        root_angle = torch.concatenate([0.01*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .01
+                                       0.05*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.05
         # root_angle = torch.concatenate([0.*torch.ones((num_resets, 1), device=self.device), # debug
         #                                 0.*torch.ones((num_resets, 1), device=self.device), # debug
         #                                 0.8*torch.pi*torch.ones((num_resets, 1), device=self.device)], dim=-1) # debug
