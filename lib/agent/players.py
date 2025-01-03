@@ -33,19 +33,13 @@ class BasePlayer(object):
         self.clip_actions = config.get('clip_actions', True)
         self.seed = self.env_config.pop('seed', None)
 
-        if self.env_info is None:
-            use_vecenv = self.player_config.get('use_vecenv', False)
-            if use_vecenv:
-                print('[BasePlayer] Creating vecenv: ', self.env_name)
-                self.env = vecenv.create_vec_env(
-                    self.env_name, self.config['num_actors'], **self.env_config)
-                self.env_info = self.env.get_env_info()
-            else:
-                print('[BasePlayer] Creating regular env: ', self.env_name)
-                self.env = self.create_env()
-                self.env_info = env_configurations.get_env_info(self.env)
-        else:
-            self.env = config.get('vec_env')
+        use_vecenv = self.player_config.get('use_vecenv', False)
+        if use_vecenv:
+            print('[BasePlayer] Creating vecenv: ', self.env_name)
+            self.env = vecenv.create_vec_env(
+                self.env_name, self.config['num_actors'], **self.env_config)
+            self.env_info = self.env.get_env_info()
+
 
         self.num_agents = self.env_info.get('agents', 1)
         self.value_size = self.env_info.get('value_size', 1)

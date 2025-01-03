@@ -69,6 +69,7 @@ class ExtractObsWrapper(gym.Wrapper):
 class AirGymRLGPUEnv(IVecEnv):
     def __init__(self, config_name, num_actors, **kwargs):
         print("AirGymRLGPUEnv:", config_name, num_actors, kwargs)
+        self.use_image = kwargs.get('use_image', False)
         # print(env_configurations.configurations)
         self.env, self.env_info = env_configurations.configurations[config_name]['env_creator'](**kwargs)
 
@@ -90,8 +91,15 @@ class AirGymRLGPUEnv(IVecEnv):
         info = get_class_attributes(self.env_info.env)
         info['action_space'] = spaces.Box(
             np.ones(self.env.num_actions) * -1., np.ones(self.env.num_actions) * 1.)
-        info['observation_space'] =  spaces.Box(
-            np.ones(self.env.num_obs) * -np.Inf, np.ones(self.env.num_obs) * np.Inf)
+        if self.use_image:
+            info['observation_space'] = spaces.Dict({
+                'image': spaces.Box(0, 255, shape=(self.env.cam_channel, self.env.cam_resolution[0], self.env.cam_resolution[1])),
+                'observation': spaces.Box(
+                    np.ones(self.env.num_obs) * -np.Inf, np.ones(self.env.num_obs) * np.Inf)
+            })
+        else:
+            info['observation_space'] =  spaces.Box(
+                np.ones(self.env.num_obs) * -np.Inf, np.ones(self.env.num_obs) * np.Inf)
 
         print("Vecenv is reading env config from task_config.py:\n", info)
 
@@ -109,7 +117,7 @@ env_configurations.register('X152b_with_cam', {'env_creator': lambda **kwargs : 
 env_configurations.register('X152b_target', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_target',args=Namespace(**kwargs)),
         'vecenv_type': 'AirGym-RLGPU'})
 
-env_configurations.register('X152b_target_visual', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_target_visual',args=Namespace(**kwargs)),
+env_configurations.register('X152b_balloon', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_balloon',args=Namespace(**kwargs)),
         'vecenv_type': 'AirGym-RLGPU'})
 
 env_configurations.register('X152b_slit', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_slit',args=Namespace(**kwargs)),

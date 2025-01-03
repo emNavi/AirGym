@@ -14,7 +14,7 @@ import torch.distributed as dist
 from lib.core import common_losses
 from lib.core.dignostics import DefaultDiagnostics, PpoDiagnostics
 from lib.core.interval_summary_writer import IntervalSummaryWriter
-from lib.core.experience import ExperienceBuffer, ExperienceBufferWithImage
+from lib.core.experience import ExperienceBuffer
 from lib.core import schedulers
 from lib.core import torch_ext
 from lib.core.moving_mean_std import GeneralizedMovingStats
@@ -395,10 +395,8 @@ class A2CBase(BaseAlgorithm):
             'horizon_length' : self.horizon_length,
             'use_action_masks' : self.use_action_masks
         }
-        if 'resnet' in self.network_config:
-            self.experience_buffer = ExperienceBufferWithImage(self.env_info, algo_info, self.ppo_device)
-        else:
-            self.experience_buffer = ExperienceBuffer(self.env_info, algo_info, self.ppo_device)
+
+        self.experience_buffer = ExperienceBuffer(self.env_info, algo_info, self.ppo_device)
 
         val_shape = (self.horizon_length, batch_size, self.value_size)
         current_rewards_shape = (batch_size, self.value_size)
@@ -640,7 +638,7 @@ class A2CBase(BaseAlgorithm):
     def _preproc_obs(self, obs_batch):
         if type(obs_batch) is dict:
             obs_batch = copy.copy(obs_batch)
-            for k,v in obs_batch.items():
+            for k, v in obs_batch.items():
                 if v.dtype == torch.uint8:
                     obs_batch[k] = v.float() / 255.0
                 else:
