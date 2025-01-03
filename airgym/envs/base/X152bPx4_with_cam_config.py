@@ -21,6 +21,7 @@ class X152bPx4WithCamCfg(BaseConfig):
         reset_on_collision = True # reset environment when contact force on quadrotor is above a threshold
         create_ground_plane = True # create a ground plane
         
+        cam_channel = 1
         cam_resolution = (128, 128) # (width, hight)
         cam_dt = 0.04 # camera render time interval
 

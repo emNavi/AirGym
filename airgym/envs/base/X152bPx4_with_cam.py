@@ -52,6 +52,7 @@ class X152bPx4WithCam(BaseTask):
 
         self.env_asset_manager = AssetManager(self.cfg, sim_device)
         self.cam_resolution = cfg.env.cam_resolution if not hasattr(self, 'cam_resolution') else self.cam_resolution
+        self.cam_channel = cfg.env.cam_channel if not hasattr(self, 'cam_channel') else self.cam_channel
 
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
         self.root_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
@@ -148,7 +149,7 @@ class X152bPx4WithCam(BaseTask):
         if self.cfg.env.enable_onboard_cameras:
             print("Onboard cameras enabled...")
             print("camera resolution =========== ", self.cam_resolution)
-            self.full_camera_array = torch.zeros((self.num_envs, 1, self.cam_resolution[0], self.cam_resolution[1]), device=self.device) # 1 for depth
+            self.full_camera_array = torch.zeros((self.num_envs, self.cam_channel, self.cam_resolution[0], self.cam_resolution[1]), device=self.device) # 1 for depth
 
         if self.viewer:
             cam_pos_x, cam_pos_y, cam_pos_z = self.cfg.viewer.pos[0], self.cfg.viewer.pos[1], self.cfg.viewer.pos[2]
@@ -314,7 +315,7 @@ class X152bPx4WithCam(BaseTask):
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(reset_env_ids) > 0:
             self.reset_idx(reset_env_ids)
-        self.actions = _actions.to(self.device)
+        self.actions = _actions.to(self.device) # [-1, 1]
         
         actions = self.actions
         if self.ctl_mode == 'rate' or self.ctl_mode == 'atti': 
@@ -363,8 +364,8 @@ class X152bPx4WithCam(BaseTask):
         else:
             print("Mode error")
 
-        delta = .0*torch_rand_float(-1.0, 1.0, (self.num_envs, 1), device='cpu').repeat(1,4) + 9.59 
-        thrusts=(self.cmd_thrusts*delta).to('cuda')
+        delta = .0*torch_rand_float(-1.0, 1.0, (self.num_envs, 1), device=self.device).repeat(1,4) + 9.59 
+        thrusts=(self.cmd_thrusts.to(self.device) *delta)
 
         force_x = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
         force_y = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
@@ -377,7 +378,7 @@ class X152bPx4WithCam(BaseTask):
         # # clear actions for reset envs
         self.thrusts[reset_env_ids] = 0
         # # spin spinning rotors
-        prop_rot = ((self.cmd_thrusts)*0.2).to('cuda')
+        prop_rot = ((self.cmd_thrusts)*0.2).to(self.device)
 
         self.torques[:, 1, 2] = -prop_rot[:, 0]
         self.torques[:, 2, 2] = -prop_rot[:, 1]
@@ -428,10 +429,11 @@ class X152bPx4WithCam(BaseTask):
 
         self.time_out_buf = self.progress_buf > self.max_episode_length
         self.extras["time_outs"] = self.time_out_buf
+        self.extras["item_reward_info"] = self.item_reward_info
 
         obs = {
-            'state': self.obs_buf,
             'image': self.full_camera_array,
+            'observation': self.obs_buf,
         }
         return obs, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
@@ -494,12 +496,13 @@ class X152bPx4WithCam(BaseTask):
         for env_id in range(self.num_envs):
             # the depth values are in -ve z axis, so we need to flip it to positive
             self.full_camera_array[env_id, :] = -self.camera_tensors[env_id].T
-            self.full_camera_array[env_id, :] = torch.clamp(self.full_camera_array[env_id, :], 0, 6)
- 
-            depth_image = self.full_camera_array[env_id, :].T.cpu().numpy()
-            dist = cv2.normalize(depth_image, None, 255,0, cv2.NORM_MINMAX, cv2.CV_8UC1)
-            cv2.imshow(str(env_id), dist)
-            cv2.waitKey(1)
+            self.full_camera_array[env_id, :] = torch.clamp(self.full_camera_array[env_id, :], 0, 6) / 6.
+            # self.full_camera_array[env_id, :] = torch.clamp(self.full_camera_array[env_id, :], 0, 3.5) / 3.5
+             
+            # depth_image = self.full_camera_array[env_id, :].T.cpu().numpy()
+            # dist = cv2.normalize(depth_image, None, 0,255, cv2.NORM_MINMAX, cv2.CV_8UC1)
+            # cv2.imshow(str(env_id), dist)
+            # cv2.waitKey(1)
 
             # color
             # if(self.camera_tensors[env_id].shape[0] != 0):
