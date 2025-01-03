@@ -196,25 +196,6 @@ class X152bBalloon(X152bPx4WithCam):
                                         (1 - torch.clamp(progress_buf / self.max_episode_length, 0.0, 1.0)), 
                                         torch.tensor(0, device=self.device))
         return hit_r, 0, check
-    
-    # def vel_dir_reward(self, root_linvels, target_positions, root_positions):
-    #     relative_positions = target_positions - root_positions
-    #     tar_direction = relative_positions / torch.norm(relative_positions, dim=1, keepdim=True)
-    #     vel_direction = root_linvels / torch.norm(root_linvels, dim=1, keepdim=True)
-    #     dot_product = (tar_direction * vel_direction).sum(dim=1) # [-1, 1]
-    #     return torch.pow((dot_product + 1) / 2, 5)
-    
-    def heading_reward(self, root_quats, target_positions, root_positions):
-        direction_to_target = target_positions - root_positions
-        direction_to_target = F.normalize(direction_to_target, dim=-1)
-
-        forward_vector = torch.tensor([1., 0., 0.], device=self.device).repeat(self.num_envs, 1)
-        forward_direction = quat_rotate(root_quats, forward_vector)
-
-        dot_product = torch.sum(forward_direction * direction_to_target, dim=-1)
-
-        reward = torch.pow((dot_product + 1) / 2, 7)
-        return reward
 
     def compute_quadcopter_reward(self):
         relative_positions = self.balloon_positions- self.root_positions
@@ -236,13 +217,9 @@ class X152bBalloon(X152bPx4WithCam):
         
         hit_reward, progress_reward, check = self.hit_reward(self.root_positions, self.balloon_positions, self.progress_buf)
         effort_reward = .1 * torch.exp(-self.actions.pow(2).sum(-1))
-
-        # heading_reward = self.heading_reward(self.root_quats, self.balloon_positions, self.root_positions)
         
         action_diff = torch.norm(self.actions - self.pre_actions, dim=-1)
         action_smoothness_reward = .1 * torch.exp(-action_diff)
-
-        # vel_dir_reward = self.vel_dir_reward(self.root_linvels, self.balloon_positions, self.root_positions)
 
         reward = (
             guidance_reward
@@ -250,10 +227,8 @@ class X152bBalloon(X152bPx4WithCam):
             + hit_reward
             + progress_reward
             + action_smoothness_reward
-            # + vel_dir_reward
             + ups_reward
             + effort_reward
-            # + heading_reward
         )
 
         # resets due to misbehavior
@@ -262,11 +237,6 @@ class X152bBalloon(X152bPx4WithCam):
 
         # resets due to episode length
         reset = torch.where(self.progress_buf >= self.max_episode_length - 1, ones, die)
-
-        # # reset if altitude is too low or too high
-        # reset = torch.where(torch.logical_or(
-        #     torch.logical_and(self.flag, self.root_positions[..., 2] > target_positions[..., 2]), 
-        #     torch.logical_and(~self.flag, self.root_positions[..., 2] < target_positions[..., 2])), ones, reset)
         
         # thrust must be clamp to -1 and 1
         reset = torch.where(self.actions[..., -1] < -1, ones, reset)
@@ -288,13 +258,9 @@ class X152bBalloon(X152bPx4WithCam):
         item_reward_info["hit_reward"] = hit_reward
         item_reward_info["progress_reward"] = progress_reward
         item_reward_info["action_smoothness_reward"] = action_smoothness_reward
-        # item_reward_info["vel_dir_reward"] = vel_dir_reward
         item_reward_info["effort_reward"] = effort_reward
         item_reward_info["ups_reward"] = ups_reward
-        # item_reward_info["heading_reward"] = heading_reward
         item_reward_info["reward"] = reward
-
-        # print(guidance_reward[0], hit_reward[0], progress_r[0], continous_action_reward[0], vel_dir_reward[0], reward[0])
 
         return reward, reset, item_reward_info
         
