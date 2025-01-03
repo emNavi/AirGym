@@ -5,14 +5,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="ellipsoid_balloon.stl" scale=".1 .1 .1"/>
+        <mesh filename="ellipsoid_balloon.stl" scale=".2 .2 .2"/>
       </geometry>
     </visual>
     <!-- 碰撞 -->
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="ellipsoid_balloon.stl" scale=".1 .1 .1"/>
+        <mesh filename="ellipsoid_balloon.stl" scale=".2 .2 .2"/>
       </geometry>
     </collision>
     <!-- 惯性 -->
