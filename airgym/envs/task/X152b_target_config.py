@@ -19,8 +19,8 @@ class X152bTargetConfig(BaseConfig):
         episode_length_s = 8 # episode length in seconds
         num_control_steps_per_env_step = 1 # number of control & physics steps between camera renders
         enable_onboard_cameras = False # enable onboard cameras
-        reset_on_collision = True # reset environment when contact force on quadrotor is above a threshold
-        create_ground_plane = True # create a ground plane
+        reset_on_collision = False # reset environment when contact force on quadrotor is above a threshold
+        create_ground_plane = False # create a ground plane
 
     class viewer:
         ref_env = 0
@@ -121,6 +121,8 @@ class X152bTargetConfig(BaseConfig):
         class ground(asset_register.ground):
             num_assets = 1
             collision_mask = 1
+            specified_position = [[0, 0, .05]]
+            specified_euler_angle = [[.0, .0, .0]]
 
         class left_wall(asset_register.left_wall):
             num_assets = 1
