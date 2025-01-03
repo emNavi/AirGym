@@ -274,8 +274,8 @@ class X152bPx4(BaseTask):
         else:
             print("Mode error")
 
-        delta = .0*torch_rand_float(-1.0, 1.0, (self.num_envs, 1), device='cpu').repeat(1,4) + 9.59 
-        thrusts=(self.cmd_thrusts*delta).to('cuda')
+        delta = .0*torch_rand_float(-1.0, 1.0, (self.num_envs, 1), device=self.device).repeat(1,4) + 9.59 
+        thrusts=(self.cmd_thrusts.to(self.device) *delta)
 
         force_x = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
         force_y = torch.zeros(self.num_envs, 4, dtype=torch.float32, device=self.device)
@@ -288,7 +288,7 @@ class X152bPx4(BaseTask):
         # # clear actions for reset envs
         self.thrusts[reset_env_ids] = 0
         # # spin spinning rotors
-        prop_rot = ((self.cmd_thrusts)*0.2).to('cuda')
+        prop_rot = ((self.cmd_thrusts)*0.2).to(self.device)
 
         self.torques[:, 1, 2] = -prop_rot[:, 0]
         self.torques[:, 2, 2] = -prop_rot[:, 1]
@@ -424,7 +424,7 @@ class X152bPx4(BaseTask):
 
         reward_pose = 1.0 / (1.0 + torch.square(1.6 * distance))
         ups = quat_axis(self.root_quats, axis=2)
-        reward_up = torch.square((ups[..., 2] + 1) / 2)
+        reward_ups = torch.square((ups[..., 2] + 1) / 2)
 
         spinnage = torch.square(self.root_angvels[:, -1])
         reward_spin = 1.0 / (1.0 + torch.square(spinnage))
@@ -435,10 +435,10 @@ class X152bPx4(BaseTask):
         thrust_reward = .05 * (1-torch.abs(0.1533 - self.actions[..., -1]))
         reward_action_smoothness = .1 * torch.exp(-throttle_difference)
 
-        assert reward_pose.shape == reward_up.shape == reward_spin.shape
+        assert reward_pose.shape == reward_ups.shape == reward_spin.shape
         reward = (
             reward_pose
-            + reward_pose * (reward_up + reward_spin)
+            + reward_pose * (reward_ups + reward_spin)
             + reward_effort
             + reward_action_smoothness
             + thrust_reward
@@ -459,7 +459,7 @@ class X152bPx4(BaseTask):
 
         item_reward_info = {}
         item_reward_info["reward_pose"] = reward_pose
-        item_reward_info["reward_up"] = reward_up
+        item_reward_info["reward_ups"] = reward_ups
         item_reward_info["reward_spin"] = reward_spin
         item_reward_info["reward_effort"] = reward_effort
         item_reward_info["reward_action_smoothness"] = reward_action_smoothness
