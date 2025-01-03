@@ -305,12 +305,6 @@ class X152bTarget(X152bPx4):
         self.reset_buf[env_ids] = 1
         self.progress_buf[env_ids] = 0
 
-        self.thrust_cmds_damp[env_ids] = 0
-        self.thrust_rot_damp[env_ids] = 0
-
-        self.int_pos_error[env_ids] = 0
-        self.int_yaw_error[env_ids] = 0
-
         self.pre_actions[env_ids] = 0
         self.pre_root_positions[env_ids] = 0
 
@@ -338,17 +332,7 @@ class X152bTarget(X152bPx4):
     def compute_reward(self):
         # print(self.root_quats)
         # print(self.pre_root_positions[0])
-        self.rew_buf[:], self.reset_buf[:] ,self.item_reward_info = self.compute_quadcopter_reward(
-            self.target_ball_positions,
-            self.root_positions,
-            self.pre_root_positions,
-            self.root_quats,
-            self.root_linvels,
-            self.root_angvels,
-            self.reset_buf, 
-            self.progress_buf, 
-            self.max_episode_length, 
-        )
+        self.rew_buf[:], self.reset_buf[:] ,self.item_reward_info = self.compute_quadcopter_reward()
         # print(self.actions[0])
         # update prev
         self.pre_actions = self.actions.clone()
@@ -386,21 +370,21 @@ class X152bTarget(X152bPx4):
         r = 3 * (1 - angle_difference / torch.pi)
         return r
 
-    def compute_quadcopter_reward(self, target_positions, root_positions, pre_root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length):
-        relative_positions = target_positions - root_positions
+    def compute_quadcopter_reward(self):
+        relative_positions = self.target_ball_positions - self.root_positions
         
-        guidance_reward = self.guidance_reward(root_positions, pre_root_positions, target_positions)
-        hit_reward, progress_r, check = self.hit_reward(root_positions, target_positions, progress_buf)
-        continous_action_reward = self.continous_action_reward(root_angvels, self.pre_root_angvels, self.actions, self.pre_actions)
-        vel_dir_reward = self.vel_dir_reward(root_linvels, target_positions, root_positions)
+        guidance_reward = self.guidance_reward(self.root_positions, self.pre_root_positions, self.target_ball_positions)
+        hit_reward, progress_r, check = self.hit_reward(self.root_positions, self.target_ball_positions, self.progress_buf)
+        continous_action_reward = self.continous_action_reward(self.root_angvels, self.pre_root_angvels, self.actions, self.pre_actions)
+        vel_dir_reward = self.vel_dir_reward(self.root_linvels, self.target_ball_positions, self.root_positions)
         reward = guidance_reward + hit_reward + progress_r + continous_action_reward + vel_dir_reward
 
         # resets due to misbehavior
-        ones = torch.ones_like(reset_buf)
-        die = torch.zeros_like(reset_buf)
+        ones = torch.ones_like(self.reset_buf)
+        die = torch.zeros_like(self.reset_buf)
 
         # resets due to episode length
-        reset = torch.where(progress_buf >= max_episode_length - 1, ones, die)
+        reset = torch.where(self.progress_buf >= self.max_episode_length - 1, ones, die)
 
         # # reset if altitude is too low or too high
         # reset = torch.where(torch.logical_or(
@@ -417,8 +401,8 @@ class X152bTarget(X152bPx4):
         reset = torch.where(relative_positions[..., 2] < -2, ones, reset)
         reset = torch.where(relative_positions[..., 2] > 2, ones, reset)
 
-        reset = torch.where(root_positions[..., 2] < 0, ones, reset)
-        reset = torch.where(root_positions[..., 2] > 3, ones, reset)
+        reset = torch.where(self.root_positions[..., 2] < 0, ones, reset)
+        reset = torch.where(self.root_positions[..., 2] > 3, ones, reset)
 
         reset = torch.where(check < 0.1, ones, reset)
                 
