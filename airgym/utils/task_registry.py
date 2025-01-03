@@ -32,7 +32,7 @@ import os
 import torch
 import numpy as np
 
-from .helpers import get_args, update_cfg_from_args, class_to_dict, parse_sim_params
+from airgym.utils.helpers import get_args, update_cfg_from_args, class_to_dict, parse_sim_params
 
 class TaskRegistry():
     def __init__(self):

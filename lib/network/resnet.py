@@ -5,9 +5,12 @@ class ResNetFeatureExtractor(nn.Module):
     def __init__(self, type, output_dim):
         super(ResNetFeatureExtractor, self).__init__()
         if type == 'resnet18':
-            self.resnet = resnet18(pretrained=False)
+            self.resnet = resnet18(pretrained=True)
             self.resnet.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
             self.resnet.fc = nn.Linear(self.resnet.fc.in_features, output_dim)
+
+            for param in self.resnet.parameters():
+                param.requires_grad = False
 
     def forward(self, x):
         return self.resnet(x)
