@@ -4,23 +4,24 @@ from airgym.utils import asset_register
 import numpy as np
 from airgym import AIRGYM_ROOT_DIR
 
-class X152bTargetVisualConfig(BaseConfig):
+class X152bBalloonConfig(BaseConfig):
     seed = 1
     controller_test = False
 
     class env:
         target_state = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]) 
         num_envs = 4 # must be a square number
-        num_observations = 22
+        num_observations = 18
         headless = True
         get_privileged_obs = True # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned
         env_spacing = 10  # not used with heightfields/trimeshes
         episode_length_s = 8 # episode length in seconds
-        num_control_steps_per_env_step = 10 # number of control & physics steps between camera renders
-        enable_onboard_cameras = True # enable onboard cameras
-        reset_on_collision = True # reset environment when contact force on quadrotor is above a threshold
-        create_ground_plane = True # create a ground plane
+        num_control_steps_per_env_step = 1 # number of control & physics steps between camera renders
+        enable_onboard_cameras = False # enable onboard cameras
+        reset_on_collision = False # reset environment when contact force on quadrotor is above a threshold
+        create_ground_plane = False # create a ground plane
 
+        cam_channel = 1
         cam_resolution = (212, 120) # (width, hight)
         cam_dt = 0.04 # camera render time interval
 
@@ -128,7 +129,7 @@ class X152bTargetVisualConfig(BaseConfig):
 
         class ground(asset_register.ground):
             num_assets = 1
-            collision_mask = 0
+            collision_mask = 1
             specified_position = [[0, 0, .05]]
             specified_euler_angle = [[.0, .0, .0]]
 

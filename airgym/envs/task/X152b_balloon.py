@@ -10,7 +10,7 @@ from isaacgym import gymutil, gymtorch, gymapi
 from isaacgym.torch_utils import *
 from airgym.envs.base.X152bPx4_with_cam import X152bPx4WithCam
 import airgym.utils.rotations as rot_utils
-from airgym.envs.task.X152b_target_visual_config import X152bTargetVisualConfig
+from airgym.envs.task.X152b_balloon_config import X152bBalloonConfig
 from airgym.utils.asset_manager import AssetManager
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
@@ -21,6 +21,7 @@ from airgym.utils.rotations import quats_to_euler_angles
 import time
 
 import pytorch3d.transforms as T
+import torch.nn.functional as F
 
 def quaternion_conjugate(q: torch.Tensor):
     """Compute the conjugate of a quaternion."""
@@ -38,12 +39,18 @@ def quaternion_multiply(q1: torch.Tensor, q2: torch.Tensor):
     w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
     return torch.stack((x, y, z, w), dim=-1)
 
-class X152bTargetVisual(X152bPx4WithCam):
+def quaternion_norm(q):
+    norm = torch.sqrt(q.pow(2).sum(dim=1, keepdim=True))
+    return q / norm
 
-    def __init__(self, cfg: X152bTargetVisualConfig, sim_params, physics_engine, sim_device, headless):
+class X152bBalloon(X152bPx4WithCam):
+
+    def __init__(self, cfg: X152bBalloonConfig, sim_params, physics_engine, sim_device, headless):
         self.cam_resolution = cfg.env.cam_resolution # set camera resolution
+        self.cam_channel = cfg.env.cam_channel # set camera channel
         super().__init__(cfg, sim_params, physics_engine, sim_device, headless)
         self.cam_resolution = cfg.env.cam_resolution # recover camera resolution
+        self.cam_channel = cfg.env.cam_channel # recover camera channel
 
         # get states of red balloon
         self.balloon_states = self.env_asset_root_states[:, 0, :]
@@ -55,7 +62,7 @@ class X152bTargetVisual(X152bPx4WithCam):
         if self.cfg.env.enable_onboard_cameras:
             print("Onboard cameras enabled...")
             print("Checking camera resolution =========== ", self.cam_resolution)
-            self.full_camera_array = torch.zeros((self.num_envs, 1, self.cam_resolution[0], self.cam_resolution[1]), device=self.device) # 1 for depth
+            self.full_camera_array = torch.zeros((self.num_envs, self.cam_channel, self.cam_resolution[0], self.cam_resolution[1]), device=self.device) # 1 for depth
 
         self.pre_root_positions = torch.zeros_like(self.root_positions)
         self.pre_root_linvels = torch.zeros_like(self.root_linvels)
@@ -75,24 +82,28 @@ class X152bTargetVisual(X152bPx4WithCam):
         self.env_asset_manager.randomize_pose()
 
         # reset target red ball position
-        self.balloon_states[env_ids, 0:1] = .5*torch_rand_float(-1.0, 1.0, (num_resets, 1), self.device) + torch.tensor([1.5], device=self.device)
-        self.balloon_states[env_ids, 1:2] = 1.*torch_rand_float(-1.0, 1.0, (num_resets, 1), self.device) + torch.tensor([0.], device=self.device)
+        self.balloon_states[env_ids, 0:1] = .5*torch_rand_float(-1.0, 1.0, (num_resets, 1), self.device) + torch.tensor([2.5], device=self.device)
+        self.balloon_states[env_ids, 1:2] = 2.*torch_rand_float(-1.0, 1.0, (num_resets, 1), self.device) + torch.tensor([0.], device=self.device)
         self.balloon_states[env_ids, 2:3] = .3*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
-        # self.balloon_states[env_ids, 0:2] = 0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([1.5, 0.], device=self.device)
-        # self.balloon_states[env_ids, 2:3] = .0*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
+        # self.balloon_states[env_ids, 0:2] = 1.5*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0, 0.], device=self.device)
+        # self.balloon_states[env_ids, 2:3] = .5*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
 
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
         # randomize root states
-        self.root_states[env_ids, 0:2] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0., 0.], device=self.device)
-        self.root_states[env_ids, 2:3] = 0.2*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
+        self.root_states[env_ids, 0:2] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0., 0.], device=self.device) # 0.1
+        self.root_states[env_ids, 2:3] = 0.*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1. # 0.2
         # self.root_states[env_ids, 0] = 0 # debug
         # self.root_states[env_ids, 1] = 0 # debug
         # self.root_states[env_ids, 2:3] = 1 # debug
 
         # randomize root orientation
-        root_angle = torch.concatenate([0.01*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .1
-                                       0.01*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2
+        """
+        Note: randomed initial angle can encourage exploration at the beginning.
+        """
+        root_angle = torch.concatenate([0.1*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device), # .1
+                                        0.1*torch_rand_float(0., torch.pi, (num_resets, 1), self.device), # .1
+                                       0.2*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2
         # root_angle = torch.concatenate([0.*torch.ones((num_resets, 1), device=self.device), # debug
         #                                 0.*torch.ones((num_resets, 1), device=self.device), # debug
         #                                 0.8*torch.pi*torch.ones((num_resets, 1), device=self.device)], dim=-1) # debug
@@ -115,6 +126,7 @@ class X152bTargetVisual(X152bPx4WithCam):
         self.pre_root_angvels[env_ids] = 0
 
     def step(self, actions):
+        # print("actions: ", actions)
         # step physics and render each frame
         for i in range(self.cfg.env.num_control_steps_per_env_step):
             self.pre_physics_step(actions)
@@ -124,11 +136,13 @@ class X152bTargetVisual(X152bPx4WithCam):
             self.post_physics_step()
 
         self.render(sync_frame_time=False)
-        rate = self.cfg.env.cam_dt / self.cfg.sim.dt
+        rate = 1 #self.cfg.env.cam_dt / self.cfg.sim.dt
+        # print(self.counter)
         if self.counter % rate == 0:
             if self.enable_onboard_cameras:
                 self.render_cameras()
-        
+        # print(self.full_camera_array[0], self.obs_buf[0])
+
         self.progress_buf += 1
         self.check_collisions()
         self.compute_observations()
@@ -144,11 +158,13 @@ class X152bTargetVisual(X152bPx4WithCam):
 
         self.time_out_buf = self.progress_buf > self.max_episode_length
         self.extras["time_outs"] = self.time_out_buf
+        self.extras["item_reward_info"] = self.item_reward_info
 
-        obs = {
-            'state': self.obs_buf,
-            'image': self.full_camera_array,
-        }
+        # obs = {
+        #     'image': self.full_camera_array,
+        #     'observation': self.obs_buf,
+        # }
+        obs = self.obs_buf
         return obs, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def compute_observations(self):
@@ -159,7 +175,11 @@ class X152bTargetVisual(X152bPx4WithCam):
         self.obs_buf[..., 15:18] = self.root_angvels
         self.add_noise()
 
-        self.obs_buf[..., 18:22] = self.actions
+        # add relative position of target ball
+        self.balloon_matrix = T.quaternion_to_matrix(self.balloon_quats[:, [3, 0, 1, 2]]).reshape(self.num_envs, 9)
+        self.obs_buf[..., 0:9] -= self.balloon_matrix
+        self.obs_buf[..., 9:12] -= self.balloon_positions
+
         return self.obs_buf
 
     def compute_reward(self):
@@ -175,45 +195,65 @@ class X152bTargetVisual(X152bPx4WithCam):
         progress_r = 800 * torch.where(check < 0.1, 
                                         (1 - torch.clamp(progress_buf / self.max_episode_length, 0.0, 1.0)), 
                                         torch.tensor(0, device=self.device))
-        return hit_r, progress_r, check
+        return hit_r, 0, check
     
-    def guidance_reward(self, root_positions, pre_root_positions, target_positions):
-        if torch.all(pre_root_positions == 0):
-            pre_root_positions = root_positions # avoid a high wrong reward value cause by the first root_positions
-        r = 500 * (torch.norm(target_positions-pre_root_positions, dim=-1) - torch.norm(target_positions-root_positions, dim=-1))
-        return r
+    # def vel_dir_reward(self, root_linvels, target_positions, root_positions):
+    #     relative_positions = target_positions - root_positions
+    #     tar_direction = relative_positions / torch.norm(relative_positions, dim=1, keepdim=True)
+    #     vel_direction = root_linvels / torch.norm(root_linvels, dim=1, keepdim=True)
+    #     dot_product = (tar_direction * vel_direction).sum(dim=1) # [-1, 1]
+    #     return torch.pow((dot_product + 1) / 2, 5)
     
-    def continous_action_reward(self, root_angvels, pre_root_angvels, actions, pre_actions):
-        angular_diff = root_angvels - pre_root_angvels
-        max_angular_change = 1.0
-        r1 = 0.4 * (1 - torch.clamp(angular_diff.norm(dim=1) / max_angular_change, 0.0, 1.0))
-        action_diff = actions - pre_actions
-        r2 = 0.4 * (1- torch.sqrt(action_diff[..., :-1].pow(2).sum(-1))/5) + 0.8 * (1-torch.sqrt(action_diff[..., -1].pow(2))/5)
-        return r1+r2
-    
-    def vel_dir_reward(self, root_linvels, target_positions, root_positions):
-        relative_positions = target_positions - root_positions
-        tar_direction = relative_positions / torch.norm(relative_positions, dim=1, keepdim=True)
-        vel_direction = root_linvels / torch.norm(root_linvels, dim=1, keepdim=True)
-        dot_product = (tar_direction * vel_direction).sum(dim=1)
-        angle_difference = torch.acos(dot_product.clamp(-1.0, 1.0)).abs()
-        r = 3 * (1 - angle_difference / torch.pi)
-        return r
+    def heading_reward(self, root_quats, target_positions, root_positions):
+        direction_to_target = target_positions - root_positions
+        direction_to_target = F.normalize(direction_to_target, dim=-1)
+
+        forward_vector = torch.tensor([1., 0., 0.], device=self.device).repeat(self.num_envs, 1)
+        forward_direction = quat_rotate(root_quats, forward_vector)
+
+        dot_product = torch.sum(forward_direction * direction_to_target, dim=-1)
+
+        reward = torch.pow((dot_product + 1) / 2, 7)
+        return reward
 
     def compute_quadcopter_reward(self):
-        relative_positions = self.balloon_positions - self.root_positions
+        relative_positions = self.balloon_positions- self.root_positions
+
+        direction_vector = F.normalize(relative_positions, dim=-1)
+        direction_yaw = torch.atan2(direction_vector[..., 1], direction_vector[..., 0])
+        root_matrix = T.quaternion_to_matrix(self.root_quats[:, [3, 0, 1, 2]])
+        root_euler = T.matrix_to_euler_angles(root_matrix, convention='XYZ')
+        relative_heading = compute_yaw_diff(root_euler[..., 2], direction_yaw)
+
+        yaw_distance = torch.norm(relative_heading.unsqueeze(-1), dim=1)
+        yaw_reward = 1.0 / (1.0 + torch.square(1.6 * yaw_distance)) 
+
+        guidance_reward = 30 * (torch.norm(self.balloon_positions-self.pre_root_positions, dim=-1) - 
+                                        torch.norm(self.balloon_positions-self.root_positions, dim=-1))
+
+        ups = quat_axis(self.root_quats, axis=2)
+        ups_reward = torch.pow((ups[..., 2] + 1) / 2, 2)
         
-        guidance_reward = self.guidance_reward(self.root_positions, self.pre_root_positions, self.balloon_positions)
-        hit_reward, progress_r, check = self.hit_reward(self.root_positions, self.balloon_positions, self.progress_buf)
-        continous_action_reward = self.continous_action_reward(self.root_angvels, self.pre_root_angvels, self.actions, self.pre_actions)
-        vel_dir_reward = self.vel_dir_reward(self.root_linvels, self.balloon_positions, self.root_positions)
+        hit_reward, progress_reward, check = self.hit_reward(self.root_positions, self.balloon_positions, self.progress_buf)
+        effort_reward = .1 * torch.exp(-self.actions.pow(2).sum(-1))
+
+        # heading_reward = self.heading_reward(self.root_quats, self.balloon_positions, self.root_positions)
         
+        action_diff = torch.norm(self.actions - self.pre_actions, dim=-1)
+        action_smoothness_reward = .1 * torch.exp(-action_diff)
+
+        # vel_dir_reward = self.vel_dir_reward(self.root_linvels, self.balloon_positions, self.root_positions)
+
         reward = (
             guidance_reward
+            + yaw_reward
             + hit_reward
-            + progress_r
-            + continous_action_reward
-            + vel_dir_reward
+            + progress_reward
+            + action_smoothness_reward
+            # + vel_dir_reward
+            + ups_reward
+            + effort_reward
+            # + heading_reward
         )
 
         # resets due to misbehavior
@@ -228,9 +268,12 @@ class X152bTargetVisual(X152bPx4WithCam):
         #     torch.logical_and(self.flag, self.root_positions[..., 2] > target_positions[..., 2]), 
         #     torch.logical_and(~self.flag, self.root_positions[..., 2] < target_positions[..., 2])), ones, reset)
         
-        # # thrust must be clamp to -1 and 1
-        # reset = torch.where(self.actions[..., -1] < -1, ones, reset)
-        # reset = torch.where(self.actions[..., -1] > 1, ones, reset)
+        # thrust must be clamp to -1 and 1
+        reset = torch.where(self.actions[..., -1] < -1, ones, reset)
+        reset = torch.where(self.actions[..., -1] > 1, ones, reset)
+
+        # kill if far away from the target along x axis
+        reset = torch.where(relative_positions[..., 0] < -0.2, ones, reset)
 
         # resets due to out of bounds
         reset = torch.where(torch.norm(relative_positions, dim=1) > 4, ones, reset)
@@ -243,17 +286,29 @@ class X152bTargetVisual(X152bPx4WithCam):
         item_reward_info = {}
         item_reward_info["guidance_reward"] = guidance_reward
         item_reward_info["hit_reward"] = hit_reward
-        item_reward_info["progress_r"] = progress_r
-        item_reward_info["continous_action_reward"] = continous_action_reward
-        item_reward_info["vel_dir_reward"] = vel_dir_reward
+        item_reward_info["progress_reward"] = progress_reward
+        item_reward_info["action_smoothness_reward"] = action_smoothness_reward
+        # item_reward_info["vel_dir_reward"] = vel_dir_reward
+        item_reward_info["effort_reward"] = effort_reward
+        item_reward_info["ups_reward"] = ups_reward
+        # item_reward_info["heading_reward"] = heading_reward
         item_reward_info["reward"] = reward
 
         # print(guidance_reward[0], hit_reward[0], progress_r[0], continous_action_reward[0], vel_dir_reward[0], reward[0])
 
         return reward, reset, item_reward_info
+        
 
 ###=========================jit functions=========================###
 #####################################################################
+
+@torch.jit.script
+def compute_yaw_diff(a: torch.Tensor, b: torch.Tensor):
+    """Compute the difference between two sets of Euler angles. a & b in [-pi, pi]"""
+    diff = b - a
+    diff = torch.where(diff < -torch.pi, diff + 2*torch.pi, diff)
+    diff = torch.where(diff > torch.pi, diff - 2*torch.pi, diff)
+    return diff
 
 @torch.jit.script
 def quat_rotate(q, v):
