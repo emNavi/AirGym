@@ -195,10 +195,7 @@ class X152bBalloon(X152bPx4WithCam):
     def hit_reward(self, root_positions, target_positions, progress_buf):
         check = torch.norm(target_positions-root_positions, dim=-1)
         hit_r = 800 * torch.where(check < 0.1, torch.tensor(1, device=self.device), torch.tensor(0, device=self.device))
-        progress_r = 800 * torch.where(check < 0.1, 
-                                        (1 - torch.clamp(progress_buf / self.max_episode_length, 0.0, 1.0)), 
-                                        torch.tensor(0, device=self.device))
-        return hit_r, 0, check
+        return hit_r, check
 
     def compute_quadcopter_reward(self):
         relative_positions = self.balloon_positions- self.root_positions
@@ -221,7 +218,7 @@ class X152bBalloon(X152bPx4WithCam):
         ups = quat_axis(self.root_quats, axis=2)
         ups_reward = 0.5 * torch.pow((ups[..., 2] + 1) / 2, 2)
         
-        hit_reward, progress_reward, check = self.hit_reward(self.root_positions, self.balloon_positions, self.progress_buf)
+        hit_reward, check = self.hit_reward(self.root_positions, self.balloon_positions, self.progress_buf)
         effort_reward = .1 * torch.exp(-self.actions.pow(2).sum(-1))
         
         action_diff = torch.norm(self.actions - self.pre_actions, dim=-1)
@@ -231,7 +228,6 @@ class X152bBalloon(X152bPx4WithCam):
             guidance_reward
             + yaw_reward
             + hit_reward
-            + progress_reward
             + action_smoothness_reward
             + ups_reward
             + effort_reward
@@ -264,7 +260,6 @@ class X152bBalloon(X152bPx4WithCam):
         item_reward_info = {}
         item_reward_info["guidance_reward"] = guidance_reward
         item_reward_info["hit_reward"] = hit_reward
-        item_reward_info["progress_reward"] = progress_reward
         item_reward_info["action_smoothness_reward"] = action_smoothness_reward
         item_reward_info["effort_reward"] = effort_reward
         item_reward_info["ups_reward"] = ups_reward
