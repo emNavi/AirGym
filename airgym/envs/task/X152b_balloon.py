@@ -63,10 +63,12 @@ class X152bBalloon(X152bPx4WithCam):
             print("Onboard cameras enabled...")
             print("Checking camera resolution =========== ", self.cam_resolution)
             self.full_camera_array = torch.zeros((self.num_envs, self.cam_channel, self.cam_resolution[0], self.cam_resolution[1]), device=self.device) # 1 for depth
+        self.full_camera_array = torch.zeros((self.num_envs, self.cam_channel, self.cam_resolution[0], self.cam_resolution[1]), device=self.device) # 1 for depth
 
         self.pre_root_positions = torch.zeros_like(self.root_positions)
         self.pre_root_linvels = torch.zeros_like(self.root_linvels)
         self.pre_root_angvels = torch.zeros_like(self.root_angvels)
+        self.initial_root_pos = torch.zeros_like(self.root_positions)
 
         if self.viewer:
             cam_pos_x, cam_pos_y, cam_pos_z = self.cfg.viewer.pos[0], self.cfg.viewer.pos[1], self.cfg.viewer.pos[2]
@@ -87,8 +89,6 @@ class X152bBalloon(X152bPx4WithCam):
         self.balloon_states[env_ids, 2:3] = .3*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
         # self.balloon_states[env_ids, 0:2] = 1.5*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0, 0.], device=self.device)
         # self.balloon_states[env_ids, 2:3] = .5*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
-
-        self.root_states[env_ids] = self.initial_root_states[env_ids]
 
         # randomize root states
         self.root_states[env_ids, 0:2] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0., 0.], device=self.device) # 0.1
@@ -125,6 +125,8 @@ class X152bBalloon(X152bPx4WithCam):
         self.pre_root_positions[env_ids] = 0
         self.pre_root_angvels[env_ids] = 0
 
+        self.initial_root_pos[env_ids] = self.root_positions[env_ids, 0:3].clone()
+
     def step(self, actions):
         # print("actions: ", actions)
         # step physics and render each frame
@@ -160,11 +162,12 @@ class X152bBalloon(X152bPx4WithCam):
         self.extras["time_outs"] = self.time_out_buf
         self.extras["item_reward_info"] = self.item_reward_info
 
-        # obs = {
-        #     'image': self.full_camera_array,
-        #     'observation': self.obs_buf,
-        # }
+        obs = {
+            'image': self.full_camera_array,
+            'observation': self.obs_buf,
+        }
         obs = self.obs_buf
+
         return obs, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def compute_observations(self):
@@ -209,11 +212,14 @@ class X152bBalloon(X152bPx4WithCam):
         yaw_distance = torch.norm(relative_heading.unsqueeze(-1), dim=1)
         yaw_reward = 1.0 / (1.0 + torch.square(1.6 * yaw_distance)) 
 
-        guidance_reward = 30 * (torch.norm(self.balloon_positions-self.pre_root_positions, dim=-1) - 
-                                        torch.norm(self.balloon_positions-self.root_positions, dim=-1))
+        # # this rewarding causes high speed and high acceleration. If use this guidance reward
+        # guidance_reward = 30 * (torch.norm(self.balloon_positions-self.pre_root_positions, dim=-1) - 
+        #                                 torch.norm(self.balloon_positions-self.root_positions, dim=-1)) 
+        initial_relative_positions = self.balloon_positions - self.initial_root_pos
+        guidance_reward = 1 * torch.exp(-torch.norm(self.balloon_positions-self.root_positions, dim=-1) / torch.norm(initial_relative_positions, dim=-1))
 
         ups = quat_axis(self.root_quats, axis=2)
-        ups_reward = torch.pow((ups[..., 2] + 1) / 2, 2)
+        ups_reward = 0.5 * torch.pow((ups[..., 2] + 1) / 2, 2)
         
         hit_reward, progress_reward, check = self.hit_reward(self.root_positions, self.balloon_positions, self.progress_buf)
         effort_reward = .1 * torch.exp(-self.actions.pow(2).sum(-1))
@@ -244,6 +250,8 @@ class X152bBalloon(X152bPx4WithCam):
 
         # kill if far away from the target along x axis
         reset = torch.where(relative_positions[..., 0] < -0.2, ones, reset)
+
+        reset = torch.where(self.root_linvels[..., 0] < 0, ones, reset)
 
         # resets due to out of bounds
         reset = torch.where(torch.norm(relative_positions, dim=1) > 4, ones, reset)
