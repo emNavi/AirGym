@@ -93,7 +93,7 @@ class AirGymRLGPUEnv(IVecEnv):
             np.ones(self.env.num_actions) * -1., np.ones(self.env.num_actions) * 1.)
         if self.use_image:
             info['observation_space'] = spaces.Dict({
-                'image': spaces.Box(0, 255, shape=(self.env.cam_channel, self.env.cam_resolution[0], self.env.cam_resolution[1])),
+                'image': spaces.Box(0, 1, shape=(self.env.cam_channel, self.env.cam_resolution[0], self.env.cam_resolution[1])),
                 'observation': spaces.Box(
                     np.ones(self.env.num_obs) * -np.Inf, np.ones(self.env.num_obs) * np.Inf)
             })
