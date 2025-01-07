@@ -23,13 +23,15 @@ params:
         scale: 2
     # resnet:
     #   type: resnet18
-    #   output_dim: 32
+    #   output_dim: 12
+    cnn:
+      output_dim: 12
 
   config:
     env_name: X152b_balloon
     env_config:
       num_envs: 4
-      # use_image: True
+      use_image: True
     
     name: ppo_X152b_balloon
     reward_shaper:
@@ -51,7 +53,7 @@ params:
     e_clip: 0.2
     clip_value: False
     num_actors: 64 #256
-    horizon_length: 16 #16
+    horizon_length: 32 #16
     minibatch_size: 2048 #2048
     mini_epochs: 5
     critic_coef: 2
