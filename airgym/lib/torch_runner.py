@@ -5,10 +5,10 @@ import random
 from copy import deepcopy
 import torch
 
-from lib.utils import tr_helpers
-from lib.agent import a2c_continuous
-from lib.agent import players
-from lib.core.algo_observer import DefaultAlgoObserver
+from airgym.lib.utils import tr_helpers
+from airgym.lib.agent import a2c_continuous
+from airgym.lib.agent import players
+from airgym.lib.core.algo_observer import DefaultAlgoObserver
 
 def _restore(agent, args):
     if 'checkpoint' in args and args['checkpoint'] is not None and args['checkpoint'] !='':

@@ -9,10 +9,10 @@ import shutil
 import threading
 import time
 
-from lib.utils import vecenv
-from lib.utils import env_configurations
-from lib.core import torch_ext
-from lib.utils.tr_helpers import unsqueeze_obs
+from airgym.lib.utils import vecenv
+from airgym.lib.utils import env_configurations
+from airgym.lib.core import torch_ext
+from airgym.lib.utils.tr_helpers import unsqueeze_obs
 
 def rescale_actions(low, high, action):
     d = (high - low) / 2.0
@@ -324,7 +324,7 @@ class A2CPlayer(BasePlayer):
         self.normalize_input = self.config['normalize_input']
         self.normalize_value = self.config.get('normalize_value', False)
 
-        from lib.model.a2c_continuous_logstd_model import ModelA2CContinuousLogStd
+        from airgym.lib.model.a2c_continuous_logstd_model import ModelA2CContinuousLogStd
         keys = {
             'actions_num' : self.actions_num,
             'input_shape' : self.obs_shape,

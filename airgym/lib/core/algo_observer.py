@@ -1,4 +1,4 @@
-from lib.core import torch_ext
+from airgym.lib.core import torch_ext
 import torch
 import numpy as np
 

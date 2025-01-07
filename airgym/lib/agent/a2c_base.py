@@ -11,14 +11,14 @@ import torch
 from torch import nn
 import torch.distributed as dist
 
-from lib.core import common_losses
-from lib.core.dignostics import DefaultDiagnostics, PpoDiagnostics
-from lib.core.interval_summary_writer import IntervalSummaryWriter
-from lib.core.experience import ExperienceBuffer
-from lib.core import schedulers
-from lib.core import torch_ext
-from lib.core.moving_mean_std import GeneralizedMovingStats
-from lib.utils import vecenv
+from airgym.lib.core import common_losses
+from airgym.lib.core.dignostics import DefaultDiagnostics, PpoDiagnostics
+from airgym.lib.core.interval_summary_writer import IntervalSummaryWriter
+from airgym.lib.core.experience import ExperienceBuffer
+from airgym.lib.core import schedulers
+from airgym.lib.core import torch_ext
+from airgym.lib.core.moving_mean_std import GeneralizedMovingStats
+from airgym.lib.utils import vecenv
 
 from abc import ABC
 from abc import abstractmethod, abstractproperty

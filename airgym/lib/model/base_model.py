@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch
-from lib.core.running_mean_std import RunningMeanStd, RunningMeanStdObs
+from airgym.lib.core.running_mean_std import RunningMeanStd, RunningMeanStdObs
 
 class BaseModel(nn.Module):
     def __init__(self, input_shape, config):

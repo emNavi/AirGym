@@ -6,8 +6,8 @@ from argparse import Namespace
 from airgym.envs import *
 from airgym.utils import task_registry
 
-from lib.utils import env_configurations
-from lib.utils.ivecenv import IVecEnv
+from airgym.lib.utils import env_configurations
+from airgym.lib.utils.ivecenv import IVecEnv
 
 vecenv_config = {}
 

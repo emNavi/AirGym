@@ -2,8 +2,8 @@ import numpy as np
 import random
 import gym
 import torch
-from lib.core.segment_tree import SumSegmentTree, MinSegmentTree
-from lib.core.torch_ext import numpy_to_torch_dtype_dict
+from airgym.lib.core.segment_tree import SumSegmentTree, MinSegmentTree
+from airgym.lib.core.torch_ext import numpy_to_torch_dtype_dict
 
 class ReplayBuffer(object):
     def __init__(self, size, ob_space):

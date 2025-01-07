@@ -1,7 +1,7 @@
-from lib.core import torch_ext
-from lib.core import common_losses
-from lib.core import datasets
-from lib.agent.a2c_base import A2CBase
+from airgym.lib.core import torch_ext
+from airgym.lib.core import common_losses
+from airgym.lib.core import datasets
+from airgym.lib.agent.a2c_base import A2CBase
 
 import os
 import torch

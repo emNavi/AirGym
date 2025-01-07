@@ -3,7 +3,7 @@ from distutils.core import setup
 
 setup(
     name='airgym',
-    version='0.0.0',
+    version='0.0.1beta',
     author='emNavi Tech',
     license="BSD 3-Clause",
     packages=find_packages(),
@@ -12,9 +12,6 @@ setup(
     install_requires=['matplotlib',
                       'numpy',
                       'torch',
-                      'pytorch3d',
-                      'usd-core',
                       'rospkg',
-                      'gym==0.23.1',
-                      'rl_games==1.6.1',]
+                      'gym==0.23.1',]
 )
