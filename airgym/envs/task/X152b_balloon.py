@@ -91,8 +91,8 @@ class X152bBalloon(X152bPx4WithCam):
         # self.balloon_states[env_ids, 2:3] = .5*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
 
         # randomize root states
-        self.root_states[env_ids, 0:2] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0., 0.], device=self.device) # 0.1
-        self.root_states[env_ids, 2:3] = 0.*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1. # 0.2
+        self.root_states[env_ids, 0:2] = 0.1*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0., 0.], device=self.device) # 0.1
+        self.root_states[env_ids, 2:3] = 0.2*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1. # 0.2
         # self.root_states[env_ids, 0] = 0 # debug
         # self.root_states[env_ids, 1] = 0 # debug
         # self.root_states[env_ids, 2:3] = 1 # debug
@@ -166,7 +166,7 @@ class X152bBalloon(X152bPx4WithCam):
             'image': self.full_camera_array,
             'observation': self.obs_buf,
         }
-        obs = self.obs_buf
+        # obs = self.obs_buf
 
         return obs, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
@@ -219,8 +219,8 @@ class X152bBalloon(X152bPx4WithCam):
         ups_reward = 0.5 * torch.pow((ups[..., 2] + 1) / 2, 2)
         
         hit_reward, check = self.hit_reward(self.root_positions, self.balloon_positions, self.progress_buf)
+
         effort_reward = .1 * torch.exp(-self.actions.pow(2).sum(-1))
-        
         action_diff = torch.norm(self.actions - self.pre_actions, dim=-1)
         action_smoothness_reward = .1 * torch.exp(-action_diff)
 
