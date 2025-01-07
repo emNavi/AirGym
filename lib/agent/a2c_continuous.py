@@ -420,5 +420,18 @@ class A2CAgent(ContinuousA2CBase):
         checkpoint = torch_ext.load_checkpoint(fn)
         self.set_full_state_weights(checkpoint, set_epoch=set_epoch)
 
+    def set_weights(self, weights):
+        print(weights['model'].keys)
+        try:
+            self.model.load_state_dict(weights['model'])
+        except:
+            self.model.actor_mlp.load_state_dict(weights['model']['actor_mlp'])
+            self.model.mu.load_state_dict(weights['model']['mu'])
+            self.model.logstd.load_state_dict(weights['model']['logstd'])
+            self.model.value_head.load_state_dict(weights['model']['value_head'])
+            self.model.value_mean_std.load_state_dict(weights['model']['value_mean_std'])
+            self.model.running_mean_std['observation'].load_state_dict(weights['model']['running_mean_std'])
+
+
     
 

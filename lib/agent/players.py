@@ -361,17 +361,73 @@ class A2CPlayer(BasePlayer):
         else:
             return current_action
 
+    # def restore(self, fn):
+    #     checkpoint = torch_ext.load_checkpoint(fn)
+    #     print(checkpoint['model'].keys())
+    #     # print(self.model)
+    #     self.model.load_state_dict(checkpoint['model'])
+    #     if self.normalize_input and 'running_mean_std' in checkpoint:
+    #         self.model.running_mean_std.load_state_dict(checkpoint['running_mean_std'])
+
+    #     env_state = checkpoint.get('env_state', None)
+    #     if self.env is not None and env_state is not None:
+    #         self.env.set_env_state(env_state)
+
     def restore(self, fn):
         checkpoint = torch_ext.load_checkpoint(fn)
-        print(checkpoint['model'].keys())
-        # print(self.model)
-        self.model.load_state_dict(checkpoint['model'])
-        if self.normalize_input and 'running_mean_std' in checkpoint:
-            self.model.running_mean_std.load_state_dict(checkpoint['running_mean_std'])
+        self.set_full_state_weights(checkpoint)
 
-        env_state = checkpoint.get('env_state', None)
-        if self.env is not None and env_state is not None:
-            self.env.set_env_state(env_state)
+    def set_full_state_weights(self, checkpoint):
+        weights = checkpoint
+        print(weights['model'].keys())
+        try:
+            self.model.load_state_dict(weights['model'])
+        except:
+            """
+            Load pretrained mlp.
+            ['logstd', 
+            'value_mean_std.running_mean', 
+            'value_mean_std.running_var', 
+            'value_mean_std.count', 
+            'running_mean_std.running_mean', 
+            'running_mean_std.running_var', 
+            'running_mean_std.count', 
+            'actor_mlp.layers.0.weight', 
+            'actor_mlp.layers.0.bias', 
+            'actor_mlp.layers.1.weight', 
+            'actor_mlp.layers.1.bias', 
+            'actor_mlp.layers.2.weight', 
+            'actor_mlp.layers.2.bias', 
+            'mu.weight', 
+            'mu.bias', 
+            'value_head.weight', 
+            'value_head.bias']
+            """
+            print("Missing CNN part. Loading Pretrained MLP Model......")
+            with torch.no_grad():
+                self.model.logstd.copy_(weights['model']['logstd'])
+
+            running_mean_std_state_dict = {'running_mean': weights['model']['running_mean_std.running_mean'], 
+                                           'running_var': weights['model']['running_mean_std.running_var'], 
+                                           'count': weights['model']['running_mean_std.count']}
+            self.model.running_mean_std.running_mean_std["observation"].load_state_dict(running_mean_std_state_dict)
+
+            value_mean_std_state_dict = {'running_mean': weights['model']['value_mean_std.running_mean'], 
+                                         'running_var': weights['model']['value_mean_std.running_var'], 
+                                         'count': weights['model']['value_mean_std.count']}
+            self.model.value_mean_std.load_state_dict(value_mean_std_state_dict)
+
+            mlp_keys = [key for key in weights['model'].keys() if 'actor_mlp' in key]
+            mlp_state_dict = {key: weights['model'][key] for key in mlp_keys}
+            self.model.actor_mlp.load_state_dict(mlp_state_dict, strict=False)
+
+            mu_state_dict = {'weight': weights['model']['mu.weight'], 'bias': weights['model']['mu.bias']}
+            self.model.mu.load_state_dict(mu_state_dict)
+            
+            value_state_dict = {'weight': weights['model']['value_head.weight'], 'bias': weights['model']['value_head.bias']}
+            self.model.value_head.load_state_dict(value_state_dict)
+
+            
 
     def reset(self):
         pass
