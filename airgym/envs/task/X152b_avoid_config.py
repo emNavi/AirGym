@@ -7,20 +7,23 @@ from airgym import AIRGYM_ROOT_DIR
 class X152bAvoidConfig(BaseConfig):
     seed = 1
     controller_test = False
-    use_tcn = False # if use TCN
-    tcn_seqs_len = 25 # if use TCN
 
     class env:
+        target_state = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0]) 
         num_envs = 4 # must be a square number
-        num_observations = 18 + 6
+        num_observations = 22 #34
         headless = True
         get_privileged_obs = True # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned
-        env_spacing = 10  # not used with heightfields/trimeshes
-        episode_length_s = 8 # episode length in seconds
+        env_spacing = 4  # not used with heightfields/trimeshes
+        episode_length_s = 8#24 # episode length in seconds
         num_control_steps_per_env_step = 1 # number of control & physics steps between camera renders
-        enable_onboard_cameras = False # enable onboard cameras
+        enable_onboard_cameras = True # enable onboard cameras
         reset_on_collision = True # reset environment when contact force on quadrotor is above a threshold
-        create_ground_plane = True # create a ground plane
+        create_ground_plane = False # create a ground plane
+
+        cam_channel = 1
+        cam_resolution = (212, 120) # (width, hight)
+        cam_dt = 0.04 # camera render time interval
 
     class viewer:
         ref_env = 0
@@ -76,6 +79,9 @@ class X152bAvoidConfig(BaseConfig):
             "balls": False,
         }
         
+        """
+        Note: specific assets will be loaded as the sequence. Please make sure the sequence is correct.
+        """
         include_specific_asset = {
             "boundaries/front_wall": False, 
             "boundaries/left_wall": False, 
@@ -83,9 +89,10 @@ class X152bAvoidConfig(BaseConfig):
             "boundaries/back_wall": False,
             "boundaries/right_wall": False, 
             "boundaries/bottom_wall": False, 
-            "boundaries/8X18ground": True,
             "boundaries/18X18ground": False,
             "cubes/1X1": True,
+            "balls/ball": False,
+            "boundaries/8X18ground": False,
         }
 
         env_lower_bound_min = [-4.0, -8.0, 0.0] # lower bound for the environment space
@@ -100,6 +107,13 @@ class X152bAvoidConfig(BaseConfig):
 
         class ball_asset_params(asset_register.ball_asset_params):
             num_assets = 1
+            collision_mask = 0
+            specified_position = [[1.0, 0.0, 0.0]] # if > -900, use this value instead of randomizing the ratios
+            specified_euler_angle = [[0.0, 0.0, 0.0]] # if > -900, use this value instead of randomizing
+
+            density = 0.5
+            color = [255,102,102]
+            fix_base_link = False # this value determines whether the base link of the asset is fixed or not
         
         class thin_asset_params(asset_register.thin_asset_params):
             num_assets = 10
@@ -164,6 +178,7 @@ class X152bAvoidConfig(BaseConfig):
             "boundaries/top_wall": top_wall,
             "boundaries/8X18ground": ground,
             "boundaries/18X18ground": ground,
-            "cubes/1X1": cube1X1_asset_params
+            "cubes/1X1": cube1X1_asset_params,
+            "balls/ball": ball_asset_params,
             }
  
