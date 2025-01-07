@@ -490,19 +490,18 @@ class X152bPx4WithCam(BaseTask):
         ones = torch.ones((self.num_envs), device=self.device)
         zeros = torch.zeros((self.num_envs), device=self.device)
         self.collisions[:] = 0
-        self.collisions = torch.where(torch.norm(self.contact_forces, dim=1) > 0.1, ones, zeros)
+        self.collisions = torch.where(torch.norm(self.contact_forces, dim=-1) > 0.1, ones, zeros)
 
     def dump_images(self):
         for env_id in range(self.num_envs):
             # the depth values are in -ve z axis, so we need to flip it to positive
             self.full_camera_array[env_id, :] = -self.camera_tensors[env_id].T
             self.full_camera_array[env_id, :] = torch.clamp(self.full_camera_array[env_id, :], 0, 6) / 6.
-            # self.full_camera_array[env_id, :] = torch.clamp(self.full_camera_array[env_id, :], 0, 3.5) / 3.5
-             
-            # depth_image = self.full_camera_array[env_id, :].T.cpu().numpy()
-            # dist = cv2.normalize(depth_image, None, 0,255, cv2.NORM_MINMAX, cv2.CV_8UC1)
-            # cv2.imshow(str(env_id), dist)
-            # cv2.waitKey(1)
+            
+            depth_image = self.full_camera_array[env_id, :].T.cpu().numpy()
+            dist = cv2.normalize(depth_image, None, 0,255, cv2.NORM_MINMAX, cv2.CV_8UC1)
+            cv2.imshow(str(env_id), dist)
+            cv2.waitKey(1)
 
             # color
             # if(self.camera_tensors[env_id].shape[0] != 0):
