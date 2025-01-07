@@ -50,7 +50,7 @@ if viewer is None:
 
 # load asset
 asset_root = "../../resources/models/environment_assets"
-asset_file = "balls/ellipsoid.urdf"
+asset_file = "balls/ball/model.urdf"
 # asset_file = "balls/ball.urdf"
 
 asset_options = gymapi.AssetOptions()

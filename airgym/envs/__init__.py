@@ -19,14 +19,6 @@ except ImportError:
     traceback.print_exc()
 
 try:
-    from airgym.envs.task.X152bPx4_planning_config import X152bPx4PlanningCfg
-    from airgym.envs.task.X152bPx4_planning import X152bPx4Planning
-    task_registry.register("X152b_planning", X152bPx4Planning, X152bPx4PlanningCfg())
-except ImportError:
-    print("WARNING! X152bPx4PlanningCfg or X152bPx4Planning cannot be imported. Ignore if using on real robot inference.")
-    traceback.print_exc()
-
-try:
     from .task.X152b_target_config import X152bTargetConfig
     from .task.X152b_target import X152bTarget
     task_registry.register("X152b_target", X152bTarget, X152bTargetConfig())
@@ -35,11 +27,11 @@ except ImportError:
     traceback.print_exc()
 
 try:
-    from .task.X152b_target_visual_config import X152bTargetVisualConfig
-    from .task.X152b_target_visual import X152bTargetVisual
-    task_registry.register("X152b_target_visual", X152bTargetVisual, X152bTargetVisualConfig())
+    from .task.X152b_balloon_config import X152bBalloonConfig
+    from .task.X152b_balloon import X152bBalloon
+    task_registry.register("X152b_balloon", X152bBalloon, X152bBalloonConfig())
 except ImportError:
-    print("WARNING! X152bTargetVisual or X152bTargetVisualConfig cannot be imported. Ignore if using on real robot inference.")
+    print("WARNING! X152bBalloon or X152bBalloonConfig cannot be imported. Ignore if using on real robot inference.")
     traceback.print_exc()
 
 try:
