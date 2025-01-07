@@ -479,7 +479,7 @@ class X152bPx4WithCam(BaseTask):
 
         self.pre_actions[env_ids] = 0
         
-    def render_cameras(self):        
+    def render_cameras(self):
         self.gym.render_all_camera_sensors(self.sim)
         self.gym.start_access_image_tensors(self.sim)
         self.dump_images()
@@ -498,10 +498,10 @@ class X152bPx4WithCam(BaseTask):
             self.full_camera_array[env_id, :] = -self.camera_tensors[env_id].T
             self.full_camera_array[env_id, :] = torch.clamp(self.full_camera_array[env_id, :], 0, 6) / 6.
             
-            depth_image = self.full_camera_array[env_id, :].T.cpu().numpy()
-            dist = cv2.normalize(depth_image, None, 0,255, cv2.NORM_MINMAX, cv2.CV_8UC1)
-            cv2.imshow(str(env_id), dist)
-            cv2.waitKey(1)
+            # depth_image = self.full_camera_array[env_id, :].T.cpu().numpy()
+            # dist = cv2.normalize(depth_image, None, 0,255, cv2.NORM_MINMAX, cv2.CV_8UC1)
+            # cv2.imshow(str(env_id), dist)
+            # cv2.waitKey(1)
 
             # color
             # if(self.camera_tensors[env_id].shape[0] != 0):

@@ -11,11 +11,11 @@ class X152bAvoidConfig(BaseConfig):
     class env:
         target_state = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0]) 
         num_envs = 4 # must be a square number
-        num_observations = 22 #34
+        num_observations = 22
         headless = True
         get_privileged_obs = True # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned
         env_spacing = 4  # not used with heightfields/trimeshes
-        episode_length_s = 8#24 # episode length in seconds
+        episode_length_s = 24 # episode length in seconds
         num_control_steps_per_env_step = 1 # number of control & physics steps between camera renders
         enable_onboard_cameras = True # enable onboard cameras
         reset_on_collision = True # reset environment when contact force on quadrotor is above a threshold

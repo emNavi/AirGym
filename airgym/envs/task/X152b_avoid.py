@@ -295,7 +295,7 @@ class X152bAvoid(X152bPx4WithCam):
         thrust_reward = .05 * (1-torch.abs(0.1533 - self.actions[..., -1]))
         action_smoothness_reward = .1 * torch.exp(-action_diff)
 
-        alive_reward = torch.where(self.collisions > 0, -800., torch.log(self.progress_buf))
+        alive_reward = torch.where(self.collisions > 0, -800., 0.2 * torch.log(self.progress_buf))
 
         assert pose_reward.shape == ups_reward.shape == spin_reward.shape
         reward = (
