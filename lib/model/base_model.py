@@ -21,6 +21,14 @@ class BaseModel(nn.Module):
     def norm_obs(self, observation):
         with torch.no_grad():
             return self.running_mean_std(observation) if self.normalize_input else observation
+        
+    def norm_image(self, image):
+        with torch.no_grad():
+            return self.running_mean_std.running_mean_std["image"](image) if self.normalize_input else image
+        
+    def norm_observation(self, observation):
+        with torch.no_grad():
+            return self.running_mean_std.running_mean_std["observation"](observation) if self.normalize_input else observation
 
     def denorm_value(self, value):
         with torch.no_grad():

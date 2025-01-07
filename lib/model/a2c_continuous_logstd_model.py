@@ -4,33 +4,37 @@ import torch.nn as nn
 from lib.model.base_model import BaseModel
 from lib.network.mlp import MLP
 from lib.network.resnet import ResNetFeatureExtractor
+from lib.network.cnn import CNNFeatureExtractor
+from lib.core.running_mean_std import RunningMeanStd, RunningMeanStdObs
 
 class ModelA2CContinuousLogStd(BaseModel):
     def __init__(self, params, keys):
+        super(BaseModel, self).__init__()
         actions_num = keys.get('actions_num')
         input_shape = keys.get('input_shape')
-        self.value_size = keys.get('value_size', 1)
+        self.normalize_value = params["config"].get('normalize_value', False)
+        self.normalize_input = params["config"].get('normalize_input', False)
+        self.value_size = params["config"].get('value_size', 1)
         self.num_seqs = num_seqs = keys.get('num_seqs', 1)
-        super().__init__(input_shape, params['config'])
 
         self.load(params['network'])
 
         if self.has_resnet:
-            self.actor_resnet = ResNetFeatureExtractor(self.resnet_type, output_dim=self.resnet_output_dim)
-            self.actor_feature_norm = nn.LayerNorm(self.resnet_output_dim)
-            # self.actor_feature_linear = nn.Linear(self.resnet_output_dim, 6)
-            # self.resnet_output_dim = 6
-            # self.alpha = nn.Parameter(torch.tensor(0.5, requires_grad=True))
-
-            self.actor_mlp = MLP(input_shape['observation'][0]+self.resnet_output_dim, self.mlp_cfg['units'], self.mlp_cfg['activation'])
+            self.actor_resnet = ResNetFeatureExtractor(self.resnet_type, output_dim=self.feature_dim)
+            self.actor_mlp = MLP(input_shape['observation'][0]+self.feature_dim, self.mlp_cfg['units'], self.mlp_cfg['activation'])
+        elif self.has_cnn:
+            self.actor_cnn = CNNFeatureExtractor(feature_dim=self.feature_dim)
+            self.actor_mlp = MLP(input_shape['observation'][0]+self.feature_dim, self.mlp_cfg['units'], self.mlp_cfg['activation'])
         else:
             self.actor_mlp = MLP(input_shape[0], self.mlp_cfg['units'], self.mlp_cfg['activation'])
         
         if self.separate:
             if self.has_resnet:
-                self.critic_resnet = ResNetFeatureExtractor(self.resnet_type, output_dim=self.resnet_output_dim)
-                self.critic_feature_norm = nn.LayerNorm(self.resnet_output_dim)
-                self.critic_mlp = MLP(input_shape['observation'][0]+self.resnet_output_dim, self.mlp_cfg['units'], self.mlp_cfg['activation'])
+                self.critic_resnet = ResNetFeatureExtractor(self.resnet_type, output_dim=self.feature_dim)
+                self.critic_mlp = MLP(input_shape['observation'][0]+self.feature_dim, self.mlp_cfg['units'], self.mlp_cfg['activation'])
+            elif self.has_cnn:
+                self.critic_cnn = CNNFeatureExtractor(feature_dim=self.feature_dim)
+                self.critic_mlp = MLP(input_shape['observation'][0]+self.feature_dim, self.mlp_cfg['units'], self.mlp_cfg['activation'])
             else:
                 self.critic_mlp = MLP(input_shape[0], self.mlp_cfg['units'], self.mlp_cfg['activation'])
 
@@ -53,24 +57,52 @@ class ModelA2CContinuousLogStd(BaseModel):
         self.value_head.weight.data.mul_(0.1)
         self.value_head.bias.data.mul_(0.0)
 
+        if self.normalize_value:
+            self.value_mean_std = RunningMeanStd((self.value_size,)) #   GeneralizedMovingStats((self.value_size,)) #   
+        if self.normalize_input:
+            if isinstance(input_shape, dict):
+                # add feature_dim to input_shape["observation"]
+                input_shape["observation"] = (input_shape["observation"][0] + self.feature_dim,)
+                self.running_mean_std = RunningMeanStdObs(input_shape)
+            else:
+                self.running_mean_std = RunningMeanStd(input_shape)
+
     def forward(self, input_dict):
         is_train = input_dict.get('is_train', True)
         prev_actions = input_dict.get('prev_actions', None)
-        norm_out = self.norm_obs(input_dict['obs'])
+        # norm_out = self.norm_obs(input_dict['obs'])
+        
         if self.separate:
             if self.has_resnet:
-                a_resnet_out = self.actor_resnet(norm_out['image'])
-                c_resnet_out = self.critic_resnet(norm_out['image'])
-
-                a_resnet_out = self.actor_feature_norm(a_resnet_out)
-                c_resnet_out = self.critic_feature_norm(c_resnet_out)
+                normed_image = self.norm_image(input_dict['obs']['image'])
+                a_resnet_out = self.actor_resnet(normed_image)
+                c_resnet_out = self.critic_resnet(normed_image)
                 
-                a_out = torch.cat((norm_out['observation'], a_resnet_out), dim=-1)
-                c_out = torch.cat((norm_out['observation'], c_resnet_out), dim=-1)
+                a_out = torch.cat((input_dict['obs']['observation'], a_resnet_out), dim=-1)
+                c_out = torch.cat((input_dict['obs']['observation'], c_resnet_out), dim=-1)
 
-                a_out = self.actor_mlp(a_out)
-                c_out = self.critic_mlp(c_out)
+                normed_a_out = self.norm_observation(a_out)
+                normed_c_out = self.norm_observation(c_out)
+
+                a_out = self.actor_mlp(normed_a_out)
+                c_out = self.critic_mlp(normed_c_out)
+
+            elif self.has_cnn:
+                normed_image = self.norm_image(input_dict['obs']['image'])
+                a_cnn_out = self.actor_cnn(normed_image)
+                c_cnn_out = self.critic_cnn(normed_image)
+                
+                a_out = torch.cat((input_dict['obs']['observation'], a_cnn_out), dim=-1)
+                c_out = torch.cat((input_dict['obs']['observation'], c_cnn_out), dim=-1)
+
+                normed_a_out = self.norm_observation(a_out)
+                normed_c_out = self.norm_observation(c_out)
+
+                a_out = self.actor_mlp(normed_a_out)
+                c_out = self.critic_mlp(normed_c_out)
+
             else:
+                norm_out = self.norm_obs(input_dict['obs'])
                 a_out = self.actor_mlp(norm_out)
                 c_out = self.critic_mlp(norm_out)
 
@@ -83,16 +115,19 @@ class ModelA2CContinuousLogStd(BaseModel):
 
         else:
             if self.has_resnet:
-                a_resnet_out = c_resnet_out = self.actor_resnet(norm_out['image'])
-                a_resnet_out = self.actor_feature_norm(a_resnet_out)
-                # a_resnet_out = self.actor_feature_linear(a_resnet_out)
-                a_resnet_out = 0. * a_resnet_out
-                out = torch.cat((norm_out['observation'], a_resnet_out), dim=-1)
-                # out = torch.cat((self.alpha * norm_out['observation'], (1-self.alpha) * a_resnet_out), dim=-1)
+                normed_image = self.norm_image(input_dict['obs']['image'])
+                a_resnet_out = c_resnet_out = self.actor_resnet(normed_image)
+                out = torch.cat((input_dict['obs']['observation'], a_resnet_out), dim=-1)
+                norm_out = self.norm_observation(out)
+            elif self.has_cnn:
+                normed_image = self.norm_image(input_dict['obs']['image'])
+                a_cnn_out = c_cnn_out = self.actor_cnn(normed_image)
+                out = torch.cat((input_dict['obs']['observation'], a_cnn_out), dim=-1)
+                norm_out = self.norm_observation(out)
             else:
-                out = norm_out
+                norm_out = self.norm_obs(input_dict['obs'])
             
-            a_out = c_out = self.actor_mlp(out)
+            a_out = c_out = self.actor_mlp(norm_out)
             mu = self.mu_act(self.mu(a_out))
             if self.fixed_sigma:
                 logstd = mu * 0.0 + self.logstd_act(self.logstd)
@@ -135,6 +170,7 @@ class ModelA2CContinuousLogStd(BaseModel):
         self.mlp_cfg = params['mlp']
         self.has_space = 'space' in params
         self.has_resnet = 'resnet' in params
+        self.has_cnn = 'cnn' in params
 
         if self.has_space:
             self.is_continuous = 'continuous'in params['space']
@@ -148,4 +184,7 @@ class ModelA2CContinuousLogStd(BaseModel):
         
         if self.has_resnet:
             self.resnet_type = params['resnet']['type']
-            self.resnet_output_dim = params['resnet']['output_dim']
+            self.feature_dim = params['resnet']['output_dim']
+        
+        if self.has_cnn:
+            self.feature_dim = params['cnn']['output_dim']
