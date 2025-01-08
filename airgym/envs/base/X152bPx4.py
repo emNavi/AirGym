@@ -474,7 +474,7 @@ class X152bPx4(BaseTask):
 
         # continous action
         action_diff = self.actions - self.pre_actions
-        continous_action_reward = .2 * torch.exp(-torch.norm(action_diff[..., :-1], dim=-1)) + .3 / (1.0 + torch.square(3 * action_diff[..., -1]))
+        continous_action_reward = .2 * torch.exp(-torch.norm(action_diff[..., :-1], dim=-1)) + .5 / (1.0 + torch.square(3 * action_diff[..., -1]))
         thrust = self.actions[..., -1] # this thrust is the force on vertical axis
         thrust_reward = .1 * (1-torch.abs(0.1533 - thrust))
         print(thrust)
