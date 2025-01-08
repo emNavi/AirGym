@@ -1,11 +1,11 @@
 import torch
 import numpy as np
 import torch.nn as nn
-from lib.model.base_model import BaseModel
-from lib.network.mlp import MLP
-from lib.network.resnet import ResNetFeatureExtractor
-from lib.network.cnn import CNNFeatureExtractor
-from lib.core.running_mean_std import RunningMeanStd, RunningMeanStdObs
+from airgym.lib.model.base_model import BaseModel
+from airgym.lib.network.mlp import MLP
+from airgym.lib.network.resnet import ResNetFeatureExtractor
+from airgym.lib.network.cnn import CNNFeatureExtractor
+from airgym.lib.core.running_mean_std import RunningMeanStd, RunningMeanStdObs
 
 class ModelA2CContinuousLogStd(BaseModel):
     def __init__(self, params, keys):
@@ -67,11 +67,11 @@ class ModelA2CContinuousLogStd(BaseModel):
             else:
                 self.running_mean_std = RunningMeanStd(input_shape)
 
-        for param in self.actor_mlp.parameters():
-            param.requires_grad = False
-        for param in self.mu.parameters():
-            param.requires_grad = False
-        self.logstd.requires_grad = False
+        # for param in self.actor_mlp.parameters():
+        #     param.requires_grad = False
+        # for param in self.mu.parameters():
+        #     param.requires_grad = False
+        # self.logstd.requires_grad = False
 
     def forward(self, input_dict):
         is_train = input_dict.get('is_train', True)

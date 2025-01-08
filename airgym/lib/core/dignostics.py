@@ -1,5 +1,5 @@
 import torch
-from lib.core import torch_ext
+from airgym.lib.core import torch_ext
 
 class DefaultDiagnostics(object):
     def __init__(self):

@@ -385,8 +385,8 @@ class X152bPx4(BaseTask):
         if not self.cfg.controller_test:
             self.obs_buf[..., 0:18] -= self.target_states
         
-        self.obs_buf[..., 18:22] = self.actions
-        self.obs_buf[..., 22:34] = torch.rand((self.num_envs, 12), device=self.device)
+        # self.obs_buf[..., 18:22] = self.actions
+        # self.obs_buf[..., 22:34] = torch.rand((self.num_envs, 12), device=self.device)
 
         return self.obs_buf
 
