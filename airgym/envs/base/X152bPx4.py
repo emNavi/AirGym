@@ -227,12 +227,10 @@ class X152bPx4(BaseTask):
             self.reset_idx(reset_env_ids)
         self.actions = _actions.to(self.device)
         
-        actions = self.actions
         if self.ctl_mode == 'rate' or self.ctl_mode == 'atti': 
-            actions[..., -1] = 0.5 + 0.5 * self.actions[..., -1]
-        # print("actions:", actions[0])
-        actions = tensor_clamp(actions, self.action_lower_limits, self.action_upper_limits)
-        actions_cpu = actions.cpu().numpy()
+            self.actions[..., -1] = 0.5 + 0.5 * self.actions[..., -1]
+        self.actions = tensor_clamp(self.actions, self.action_lower_limits, self.action_upper_limits)
+        actions_cpu = self.actions.cpu().numpy()
         
         #--------------- input state for pid controller. tensor [n,4] --------#
         obs_buf_cpu = self.root_states.cpu().numpy()
@@ -477,9 +475,9 @@ class X152bPx4(BaseTask):
         effort_reward = .1 * (1 - thrust_cmds).sum(-1)/4
 
         # continous action
-        action_diff = torch.norm(self.actions - self.pre_actions, dim=-1)
-        continous_action_reward = .3 * torch.exp(-action_diff)
-        thrust = self.actions[..., -1]*0.5 + 0.5 # this thrust is the force on vertical axis
+        action_diff = self.actions - self.pre_actions
+        continous_action_reward = .3 * torch.exp(-torch.norm(action_diff[..., :-1], dim=-1)) + 1. * torch.exp(-torch.square(action_diff[..., -1]))
+        thrust = self.actions[..., -1] # this thrust is the force on vertical axis
         thrust_reward = .1 * (1-torch.abs(0.1533 - thrust))
 
         # distance
