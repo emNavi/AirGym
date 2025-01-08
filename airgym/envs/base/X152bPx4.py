@@ -342,8 +342,8 @@ class X152bPx4(BaseTask):
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
         # randomize root states
-        self.root_states[env_ids, 0:2] = .2*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) # .2
-        self.root_states[env_ids, 2:3] = .2*torch_rand_float(-1., 1., (num_resets, 1), self.device) # .2
+        self.root_states[env_ids, 0:2] = 1*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) # .2
+        self.root_states[env_ids, 2:3] = 1*torch_rand_float(-1., 1., (num_resets, 1), self.device) # .2
         # self.root_states[env_ids, 0] = 0 # debug
         # self.root_states[env_ids, 1] = 0 # debug
         # self.root_states[env_ids, 2] = 0 # debug
