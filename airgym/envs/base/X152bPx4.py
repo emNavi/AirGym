@@ -342,8 +342,8 @@ class X152bPx4(BaseTask):
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
         # randomize root states
-        self.root_states[env_ids, 0:2] = 1*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) # .2
-        self.root_states[env_ids, 2:3] = 1*torch_rand_float(-1., 1., (num_resets, 1), self.device) # .2
+        self.root_states[env_ids, 0:2] = .2*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) # .2
+        self.root_states[env_ids, 2:3] = .2*torch_rand_float(-1., 1., (num_resets, 1), self.device) # .2
         # self.root_states[env_ids, 0] = 0 # debug
         # self.root_states[env_ids, 1] = 0 # debug
         # self.root_states[env_ids, 2] = 0 # debug
@@ -359,8 +359,8 @@ class X152bPx4(BaseTask):
         self.root_states[env_ids, 3:7] = root_quats[:, [1, 2, 3, 0]] #x,y,z,w
 
         # randomize root linear and angular velocities
-        self.root_states[env_ids, 7:10] = 0.5*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.5
-        self.root_states[env_ids, 10:13] = 0.3*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.2
+        self.root_states[env_ids, 7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.5
+        self.root_states[env_ids, 10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.2
         # self.root_states[env_ids, 7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # debug
         # self.root_states[env_ids, 10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # debug
 
@@ -434,7 +434,7 @@ class X152bPx4(BaseTask):
         thrust_cmds = torch.clamp(self.cmd_thrusts, min=0.0, max=1.0).to(self.device)
         effort_reward = .1 * (1 - thrust_cmds).sum(-1)/4
         # effort_reward = .1 * torch.exp(-self.actions.pow(2).sum(-1))
-        action_diff = torch.norm(self.actions[..., :-1] - self.pre_actions[..., :-1], dim=-1)
+        action_diff = torch.norm(self.actions[..., :] - self.pre_actions[..., :], dim=-1)
         thrust_reward = .05 * (1-torch.abs(0.1533 - self.actions[..., -1]))
         action_smoothness_reward = .1 * torch.exp(-action_diff)
 
