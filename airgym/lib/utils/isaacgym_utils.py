@@ -27,9 +27,9 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import torch
-from lib.core import torch_ext
-from lib.utils import ivecenv 
-from lib.utils import env_configurations
+from airgym.lib.core import torch_ext
+from airgym.lib.utils import ivecenv 
+from airgym.lib.utils import env_configurations
 
 class AlgoObserver:
     def __init__(self):

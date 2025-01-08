@@ -47,7 +47,7 @@ class ContinuousA2CBase(A2CBase):
         self.actions_low = torch.from_numpy(action_space.low.copy()).float().to(self.ppo_device)
         self.actions_high = torch.from_numpy(action_space.high.copy()).float().to(self.ppo_device)
 
-        from lib.model.a2c_continuous_logstd_model import ModelA2CContinuousLogStd
+        from airgym.lib.model.a2c_continuous_logstd_model import ModelA2CContinuousLogStd
         keys = {
             'actions_num' : self.actions_num,
             'input_shape' : self.obs_shape,

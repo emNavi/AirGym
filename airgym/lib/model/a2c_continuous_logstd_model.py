@@ -67,11 +67,11 @@ class ModelA2CContinuousLogStd(BaseModel):
             else:
                 self.running_mean_std = RunningMeanStd(input_shape)
 
-        for param in self.actor_mlp.parameters():
-            param.requires_grad = False
-        for param in self.mu.parameters():
-            param.requires_grad = False
-        self.logstd.requires_grad = False
+        # for param in self.actor_mlp.parameters():
+        #     param.requires_grad = False
+        # for param in self.mu.parameters():
+        #     param.requires_grad = False
+        # self.logstd.requires_grad = False
 
     def forward(self, input_dict):
         is_train = input_dict.get('is_train', True)

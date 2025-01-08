@@ -11,7 +11,7 @@ except ImportError:
     from airgym.utils.gym_utils import gymutil
     print("gymutil imported successful from gym_utils.")
 
-from lib.utils.isaacgym_utils import RLGPUAlgoObserver
+from airgym.lib.utils.isaacgym_utils import RLGPUAlgoObserver
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 from airgym.utils.helpers import get_args
 
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     
         config = update_config(config, args)
 
-        from lib.torch_runner import Runner
+        from airgym.lib.torch_runner import Runner
         runner = Runner(RLGPUAlgoObserver())
         try:
             runner.load(config)
