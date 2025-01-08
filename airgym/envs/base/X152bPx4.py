@@ -267,7 +267,7 @@ class X152bPx4(BaseTask):
             self.cmd_thrusts = torch.tensor(self.parallel_rate_control.update(actions_cpu.astype(np.float64),ang_vel_cpu.astype(np.float64),0.01)) 
             # print("thrust on prop", self.cmd_thrusts[0])
         elif(control_mode_ == "prop"):
-            self.cmd_thrusts =  actions
+            self.cmd_thrusts =  self.actions
         else:
             print("Mode error")
 
@@ -476,7 +476,7 @@ class X152bPx4(BaseTask):
 
         # continous action
         action_diff = self.actions - self.pre_actions
-        continous_action_reward = .3 * torch.exp(-torch.norm(action_diff[..., :-1], dim=-1)) + 1. * torch.exp(-torch.square(action_diff[..., -1]))
+        continous_action_reward = .3 * torch.exp(-torch.norm(action_diff[..., :-1], dim=-1)) + 2. * torch.exp(-torch.square(action_diff[..., -1]))
         thrust = self.actions[..., -1] # this thrust is the force on vertical axis
         thrust_reward = .1 * (1-torch.abs(0.1533 - thrust))
 
