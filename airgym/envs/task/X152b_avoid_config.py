@@ -92,7 +92,7 @@ class X152bAvoidConfig(BaseConfig):
             "boundaries/18X18ground": False,
             "cubes/1X1": True,
             "balls/ball": False,
-            "boundaries/8X18ground": False,
+            "boundaries/8X18ground": True,
         }
 
         env_lower_bound_min = [-4.0, -8.0, 0.0] # lower bound for the environment space

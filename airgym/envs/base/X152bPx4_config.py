@@ -14,7 +14,7 @@ class X152bPx4Cfg(BaseConfig):
     class env:
         target_state = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]) 
         num_envs = 256
-        num_observations = 18 #22 + 12
+        num_observations = 22 + 12
         get_privileged_obs = True # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned
         env_spacing = 1
         episode_length_s = 24 # episode length in seconds
