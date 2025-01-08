@@ -382,9 +382,7 @@ class X152bPx4(BaseTask):
         if not self.cfg.controller_test:
             self.obs_buf[..., 0:18] -= self.target_states
         
-        self.obs_buf[..., 18:22] = self.actions
-        self.obs_buf[..., 22:34] = torch.rand((self.num_envs, 12), device=self.device)
-
+        self.obs_buf[..., 18:30] = torch.rand((self.num_envs, 12), device=self.device)
         return self.obs_buf
 
     def add_noise(self):
@@ -479,7 +477,7 @@ class X152bPx4(BaseTask):
         continous_action_reward = .2 * torch.exp(-torch.norm(action_diff[..., :-1], dim=-1)) + .3 / (1.0 + torch.square(3 * action_diff[..., -1]))
         thrust = self.actions[..., -1] # this thrust is the force on vertical axis
         thrust_reward = .1 * (1-torch.abs(0.1533 - thrust))
-        # print(thrust)
+        print(thrust)
 
         # distance
         target_positions = self.target_states[..., 9:12]
