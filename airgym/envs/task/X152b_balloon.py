@@ -82,6 +82,7 @@ class X152bBalloon(X152bPx4WithCam):
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
         self.env_asset_manager.randomize_pose()
+        self.env_asset_manager.specify_pose()
 
         # reset target red ball position
         self.balloon_states[env_ids, 0:1] = .5*torch_rand_float(-1.0, 1.0, (num_resets, 1), self.device) + torch.tensor([2.5], device=self.device)

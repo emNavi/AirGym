@@ -259,12 +259,15 @@ class X152bSin(X152bPx4):
 
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
-
+        
         # set asset root states
+        self.env_asset_manager.randomize_pose()
+        self.env_asset_manager.specify_pose()
         self.env_asset_root_states[env_ids, :, 0:3] = self.env_asset_manager.asset_pose_tensor[env_ids, :, 0:3]
         euler_angles = self.env_asset_manager.asset_pose_tensor[env_ids, :, 3:6]
         self.env_asset_root_states[env_ids, :, 3:7] = quat_from_euler_xyz(euler_angles[..., 0], euler_angles[..., 1], euler_angles[..., 2])
         self.env_asset_root_states[env_ids, :, 7:13] = 0.0
+        
 
         # set drone root state
         self.root_states[env_ids] = self.initial_root_states[env_ids]
@@ -392,7 +395,8 @@ class X152bSin(X152bPx4):
         
         dist_r, heading_r, dist = self.tracking_reward()
 
-        reward = dist_r + heading_r + continous_action_reward + thrust_reward
+        # reward = dist_r + heading_r + continous_action_reward + thrust_reward
+        reward = dist_r + heading_r + continous_action_reward 
 
         # resets due to misbehavior
         ones = torch.ones_like(reset_buf)
@@ -410,7 +414,7 @@ class X152bSin(X152bPx4):
         item_reward_info["dist_r"] = dist_r
         item_reward_info["heading_r"] = heading_r
         item_reward_info["continous_action_reward"] = continous_action_reward
-        item_reward_info["thrust_reward"] = thrust_reward
+        # item_reward_info["thrust_reward"] = thrust_reward
 
         return reward, reset, item_reward_info
 

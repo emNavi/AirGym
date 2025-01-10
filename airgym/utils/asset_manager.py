@@ -71,6 +71,7 @@ class AssetManager:
         
         self.load_asset_tensors()
         self.randomize_pose()
+        self.specify_pose()
 
 
     def _add_asset_2_tensor(self, asset_class):
@@ -263,14 +264,20 @@ class AssetManager:
         self.asset_random_pose_tensor[:, :, :3]  = self.env_lower_bound.unsqueeze(1) + self.env_bound_diff.unsqueeze(1)* pos_ratio_euler_asbolute[:,:,:3]
         self.asset_random_pose_tensor[:, :, 3:6] = pos_ratio_euler_asbolute[:, :, 3:6]
 
-        if self.asset_random_pose_tensor is None and self.asset_specified_pose_tensor is not None:
-            self.asset_pose_tensor = self.asset_specified_pose_tensor
-        elif self.asset_random_pose_tensor is not None and self.asset_specified_pose_tensor is None:
+        if self.asset_specified_pose_tensor is None:
             self.asset_pose_tensor = self.asset_random_pose_tensor
-        elif self.asset_random_pose_tensor is not None and self.asset_specified_pose_tensor is not None:
+        else:
             self.asset_pose_tensor = torch.cat([self.asset_random_pose_tensor, self.asset_specified_pose_tensor], dim=1)
-        return
     
+    def specify_pose(self):
+        if self.asset_specified_pose_tensor is None:
+            return
+        
+        if self.asset_random_pose_tensor is None:
+            self.asset_pose_tensor = self.asset_specified_pose_tensor
+        else:
+            self.asset_pose_tensor = torch.cat([self.asset_random_pose_tensor, self.asset_specified_pose_tensor], dim=1)
+
     def get_env_link_count(self):
         return self.env_link_count
 

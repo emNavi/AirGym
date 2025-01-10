@@ -440,6 +440,7 @@ class X152bPx4WithCam(BaseTask):
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
         self.env_asset_manager.randomize_pose()
+        self.env_asset_manager.specify_pose()
 
         self.env_asset_root_states[env_ids, :, 0:3] = self.env_asset_manager.asset_pose_tensor[env_ids, :, 0:3]
 

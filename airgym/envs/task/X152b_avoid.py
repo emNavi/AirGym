@@ -134,6 +134,7 @@ class X152bAvoid(X152bPx4WithCam):
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
         self.env_asset_manager.randomize_pose()
+        self.env_asset_manager.specify_pose()
 
         # Generate random values with correct shape (num_resets, 1)
         random_values = torch_rand_float(0.0, 1.0, (num_resets, 1), self.device)
@@ -241,7 +242,7 @@ class X152bAvoid(X152bPx4WithCam):
             'observation': self.obs_buf,
         }
 
-        # obs = self.obs_buf
+        obs = self.obs_buf
         return obs, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def compute_observations(self):
@@ -253,12 +254,17 @@ class X152bAvoid(X152bPx4WithCam):
         self.add_noise()
 
         self.obs_buf[..., 0:18] -= self.target_states
-        self.obs_buf[..., 18:22] = self.actions
         
         # add position of object
-        # self.object_matrix = T.quaternion_to_matrix(self.object_quats[:, [3, 0, 1, 2]]).reshape(self.num_envs, 9)
+        self.object_matrix = T.quaternion_to_matrix(self.object_quats[:, [3, 0, 1, 2]]).reshape(self.num_envs, 9)
+        # self.obs_buf[..., 18:27] = self.object_matrix
+        # self.obs_buf[..., 27:30] = self.object_positions
+
+        self.obs_buf[..., 18:22] = self.actions
         # self.obs_buf[..., 22:31] = self.object_matrix
         # self.obs_buf[..., 31:34] = self.object_positions
+        self.obs_buf[..., 22:34] = torch.rand((self.num_envs, 12), device=self.device)
+
 
         # self.full_camera_array = torch.rand((self.num_envs, self.cam_channel, self.cam_resolution[0], self.cam_resolution[1]), device=self.device)
         return self.obs_buf
@@ -294,8 +300,9 @@ class X152bAvoid(X152bPx4WithCam):
         # action_diff = torch.norm(self.actions - self.pre_actions, dim=-1)
         thrust_reward = .05 * (1-torch.abs(0.1533 - self.actions[..., -1]))
         action_smoothness_reward = .1 * torch.exp(-action_diff)
+        # print(self.actions[..., -1])
 
-        alive_reward = torch.where(self.collisions > 0, -800., 0.2 * torch.log(self.progress_buf))
+        alive_reward = torch.where(self.collisions > 0, -500., 0.5)
 
         assert pose_reward.shape == ups_reward.shape == spin_reward.shape
         reward = (
@@ -332,6 +339,77 @@ class X152bAvoid(X152bPx4WithCam):
         item_reward_info["reward"] = reward
 
         return reward, reset, item_reward_info
+        
+    # def compute_quadcopter_reward(self):
+    #     # effort reward
+    #     thrust_cmds = torch.clamp(self.cmd_thrusts, min=0.0, max=1.0).to('cuda')
+    #     effort_reward = .1 * (1 - thrust_cmds).sum(-1)/4
+
+    #      # continous action
+    #     action_diff = self.actions - self.pre_actions
+    #     continous_action_reward = .2 * torch.exp(-torch.norm(action_diff[..., :-1], dim=-1)) + .5 / (1.0 + torch.square(3 * action_diff[..., -1]))
+    #     thrust = self.actions[..., -1] # this thrust is the force on vertical axis
+    #     thrust_reward = .1 * (1-torch.abs(0.1533 - thrust))
+    #     # print(thrust)
+
+    #     # distance
+    #     target_positions = self.target_states[..., 9:12]
+    #     relative_positions = target_positions - self.root_positions
+    #     pos_diff = torch.norm(relative_positions, dim=-1)
+    #     pos_reward = .7 / (1.0 + torch.square(1.6 * pos_diff))
+
+    #     # yaw
+    #     target_matrix = self.target_states[..., 0:9].reshape(self.num_envs, 3,3)
+    #     target_euler = T.matrix_to_euler_angles(target_matrix, 'XYZ')
+    #     root_matrix = T.quaternion_to_matrix(self.root_quats[:, [3, 0, 1, 2]])
+    #     root_euler = T.matrix_to_euler_angles(root_matrix, convention='XYZ')
+    #     yaw_diff = compute_yaw_diff(target_euler[..., 2], root_euler[..., 2]) / torch.pi
+    #     yaw_reward = 1.0 / (1.0 + torch.square(3 * yaw_diff))
+
+    #     spinnage = torch.square(self.root_angvels[:, -1])
+    #     spin_reward = 1.0 / (1.0 + torch.square(3 * spinnage))
+
+    #     # uprightness
+    #     ups = quat_axis(self.root_quats, 2)
+    #     ups_reward = torch.square((ups[..., 2] + 1) / 2)
+        
+    #     # alive_reward = torch.where(self.collisions > 0, -800., 0.2 * torch.log(self.progress_buf))
+    #     alive_reward = torch.where(self.collisions > 0, -500., 0.5)
+
+    #     reward = (
+    #         pos_reward
+    #         + pos_reward * (ups_reward + spin_reward + yaw_reward)
+    #         + effort_reward
+    #         + continous_action_reward
+    #         + thrust_reward
+    #         + alive_reward
+    #     )
+
+    #     # resets due to misbehavior
+    #     ones = torch.ones_like(self.reset_buf)
+    #     die = torch.zeros_like(self.reset_buf)
+
+    #     # resets due to episode length
+    #     reset = torch.where(self.progress_buf >= self.max_episode_length - 1, ones, die)
+        
+    #     reset = torch.where(self.root_positions[..., 2] < .3, ones, reset)
+    #     reset = torch.where(self.root_positions[..., 2] > 1.7, ones, reset)
+
+    #     reset = torch.where(relative_positions.norm(dim=-1) > 2.0, ones, reset)
+
+    #     reset = torch.where(ups[..., 2] < 0.0, ones, reset) # orient_z 小于0 = 飞行器朝下了
+
+    #     item_reward_info = {}
+    #     item_reward_info["pos_reward"] = pos_reward
+    #     item_reward_info["ups_reward"] = ups_reward
+    #     item_reward_info["spin_reward"] = spin_reward
+    #     item_reward_info["effort_reward"] = effort_reward
+    #     item_reward_info["continous_action_reward"] = continous_action_reward
+    #     item_reward_info["thrust_reward"] = thrust_reward
+    #     item_reward_info["alive_reward"] = alive_reward
+    #     item_reward_info["reward"] = reward
+
+    #     return reward, reset, item_reward_info
 
 ###=========================jit functions=========================###
 #####################################################################
