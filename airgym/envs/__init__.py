@@ -50,9 +50,9 @@ except ImportError:
     print("WARNING! X152bAvoid or X152bAvoidConfig cannot be imported. Ignore if using on real robot inference.")
     traceback.print_exc()
 try:
-    from .task.X152b_sin_config import X152bSinConfig
-    from .task.X152b_sin import X152bSin
-    task_registry.register("X152b_sin", X152bSin, X152bSinConfig())
+    from .task.X152b_tracking_config import X152bTrackingConfig
+    from .task.X152b_tracking import X152bTracking
+    task_registry.register("X152b_tracking", X152bTracking, X152bTrackingConfig())
 except ImportError:
-    print("WARNING! X152bSin or X152bSinConfig cannot be imported. Ignore if using on real robot inference.")
+    print("WARNING! X152bTracking or X152bTrackingConfig cannot be imported. Ignore if using on real robot inference.")
     traceback.print_exc()

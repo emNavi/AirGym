@@ -10,7 +10,7 @@ from isaacgym import gymutil, gymtorch, gymapi
 from isaacgym.torch_utils import *
 from airgym.envs.base.X152bPx4 import X152bPx4
 import airgym.utils.rotations as rot_utils
-from airgym.envs.task.X152b_sin_config import X152bSinConfig
+from airgym.envs.task.X152b_tracking_config import X152bTrackingConfig
 from airgym.utils.asset_manager import AssetManager
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
@@ -38,9 +38,9 @@ def quaternion_multiply(q1: torch.Tensor, q2: torch.Tensor):
     w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
     return torch.stack((x, y, z, w), dim=-1)
 
-class X152bSin(X152bPx4):
+class X152bTracking(X152bPx4):
 
-    def __init__(self, cfg: X152bSinConfig, sim_params, physics_engine, sim_device, headless):
+    def __init__(self, cfg: X152bTrackingConfig, sim_params, physics_engine, sim_device, headless):
         self.cfg = cfg
         assert cfg.env.ctl_mode is not None, "Please specify one control mode!"
         print("ctl mode =========== ", cfg.env.ctl_mode)
@@ -263,28 +263,22 @@ class X152bSin(X152bPx4):
         # set asset root states
         self.env_asset_manager.randomize_pose()
         self.env_asset_manager.specify_pose()
-        self.env_asset_root_states[env_ids, :, 0:3] = self.env_asset_manager.asset_pose_tensor[env_ids, :, 0:3]
-        euler_angles = self.env_asset_manager.asset_pose_tensor[env_ids, :, 3:6]
-        self.env_asset_root_states[env_ids, :, 3:7] = quat_from_euler_xyz(euler_angles[..., 0], euler_angles[..., 1], euler_angles[..., 2])
-        self.env_asset_root_states[env_ids, :, 7:13] = 0.0
-        
+        # self.env_asset_root_states[env_ids, :, 0:3] = self.env_asset_manager.asset_pose_tensor[env_ids, :, 0:3]
+        # euler_angles = self.env_asset_manager.asset_pose_tensor[env_ids, :, 3:6]
+        # self.env_asset_root_states[env_ids, :, 3:7] = quat_from_euler_xyz(euler_angles[..., 0], euler_angles[..., 1], euler_angles[..., 2])
+        # self.env_asset_root_states[env_ids, :, 7:13] = 0.0
 
         # set drone root state
         self.root_states[env_ids] = self.initial_root_states[env_ids]
 
         # randomize root states
-        self.root_states[env_ids, 0:2] = .0*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device)
-        self.root_states[env_ids, 2:3] = .0*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
-        # self.root_states[env_ids, 0] = 0 # debug
-        # self.root_states[env_ids, 1] = 0 # debug
-        # self.root_states[env_ids, 2] = 0 # debug
+        self.root_states[env_ids, 0:2] = .1*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device)
+        self.root_states[env_ids, 2:3] = .1*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
 
         # randomize root orientation
-        root_angle = torch.concatenate([0.*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .1
-                                       0.*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2
-        # root_angle = torch.concatenate([0.*torch.ones((num_resets, 1), device=self.device), # debug
-        #                                 0.*torch.ones((num_resets, 1), device=self.device), # debug
-        #                                 0.8*torch.pi*torch.ones((num_resets, 1), device=self.device)], dim=-1) # debug
+        root_angle = torch.concatenate([0.01*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .1
+                                       0.02*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2
+
         matrix = T.euler_angles_to_matrix(root_angle, 'XYZ')
         root_quats = T.matrix_to_quaternion(matrix) # w,x,y,z
         self.root_states[env_ids, 3:7] = root_quats[:, [1, 2, 3, 0]] #x,y,z,w
@@ -292,8 +286,6 @@ class X152bSin(X152bPx4):
         # randomize root linear and angular velocities
         self.root_states[env_ids, 7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.5
         self.root_states[env_ids, 10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.2
-        # self.root_states[env_ids, 7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # debug
-        # self.root_states[env_ids, 10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # debug
 
         self.gym.set_actor_root_state_tensor(self.sim, self.root_tensor)
         self.reset_buf[env_ids] = 1
@@ -337,19 +329,7 @@ class X152bSin(X152bPx4):
         return self.obs_buf
 
     def compute_reward(self):
-        self.rew_buf[:], self.reset_buf[:] ,self.item_reward_info = self.compute_quadcopter_reward(
-            self.ctl_mode,
-            self.actions,
-            self.pre_actions,
-            self.root_positions,
-            self.pre_root_positions,
-            self.root_quats,
-            self.root_linvels,
-            self.root_angvels,
-            self.reset_buf, 
-            self.progress_buf, 
-            self.max_episode_length, 
-        )
+        self.rew_buf[:], self.reset_buf[:] ,self.item_reward_info = self.compute_quadcopter_reward()
         
         # update prev
         self.pre_actions = self.actions.clone()
@@ -372,18 +352,7 @@ class X152bSin(X152bPx4):
         fix_spin_r = 0.5 / (1+torch.square(spin))
         return dist_r, fix_spin_r, norm
 
-    def compute_quadcopter_reward(self, 
-                                  ctrl_mode, 
-                                  actions, 
-                                  pre_actions, 
-                                  root_positions, 
-                                  pre_root_positions, 
-                                  root_quats, 
-                                  root_linvels, 
-                                  root_angvels, 
-                                  reset_buf, 
-                                  progress_buf, 
-                                  max_episode_length):
+    def compute_quadcopter_reward(self):
         # continous actions
         action_diff = actions - pre_actions
         if ctrl_mode == "pos" or ctrl_mode == 'vel':

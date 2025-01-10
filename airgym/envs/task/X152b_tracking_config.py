@@ -4,7 +4,7 @@ from airgym.utils import asset_register
 import numpy as np
 from airgym import AIRGYM_ROOT_DIR
 
-class X152bSinConfig(X152bPx4Cfg):
+class X152bTrackingConfig(X152bPx4Cfg):
     seed = 1
     controller_test = False
     use_tcn = False # if use TCN
@@ -19,7 +19,7 @@ class X152bSinConfig(X152bPx4Cfg):
         episode_length_s = 16 # episode length in seconds
         num_control_steps_per_env_step = 1 # number of control & physics steps between camera renders
         enable_onboard_cameras = False # enable onboard cameras
-        reset_on_collision = True # reset environment when contact force on quadrotor is above a threshold
+        reset_on_collision = False # reset environment when contact force on quadrotor is above a threshold
         create_ground_plane = True # create a ground plane
 
     class sim:
@@ -77,9 +77,9 @@ class X152bSinConfig(X152bPx4Cfg):
             "boundaries/back_wall": False,
             "boundaries/right_wall": False, 
             "boundaries/bottom_wall": False, 
-            "boundaries/8X18ground": True,
+            "boundaries/8X18ground": False,
             "boundaries/18X18ground": False,
-            "cubes/1X4": True,
+            "cubes/1X4": False,
         }
 
         env_lower_bound_min = [-4.0, -8.0, 0.0] # lower bound for the environment space
