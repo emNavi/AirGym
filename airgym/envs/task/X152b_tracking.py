@@ -38,6 +38,13 @@ def quaternion_multiply(q1: torch.Tensor, q2: torch.Tensor):
     w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
     return torch.stack((x, y, z, w), dim=-1)
 
+def compute_yaw_diff(a: torch.Tensor, b: torch.Tensor):
+    """Compute the difference between two sets of Euler angles. a & b in [-pi, pi]"""
+    diff = b - a
+    diff = torch.where(diff < -torch.pi, diff + 2*torch.pi, diff)
+    diff = torch.where(diff > torch.pi, diff - 2*torch.pi, diff)
+    return diff
+
 class X152bTracking(X152bPx4):
 
     def __init__(self, cfg: X152bTrackingConfig, sim_params, physics_engine, sim_device, headless):
@@ -133,6 +140,9 @@ class X152bTracking(X152bPx4):
         self.thrusts = torch.zeros((self.num_envs, 4, 3), dtype=torch.float32, device=self.device)
         self.thrust_cmds_damp = torch.zeros((self.num_envs, 4), dtype=torch.float32, device=self.device)
         self.thrust_rot_damp = torch.zeros((self.num_envs, 4), dtype=torch.float32, device=self.device)
+
+        # set target states
+        self.target_states = torch.tensor(self.cfg.env.target_state, device=self.device).repeat(self.num_envs, 1)
 
         # actions
         self.actions = torch.zeros((self.num_envs, self.num_actions), device=self.device)
@@ -335,55 +345,71 @@ class X152bTracking(X152bPx4):
         self.pre_actions = self.actions.clone()
         self.pre_root_positions = self.root_positions.clone()
         
-    def tracking_reward(self):
-        diff = self.ref_positions[:, 0]-self.root_positions
-        norm = torch.norm(diff, dim=-1)
-        dist_r = torch.exp(-norm)
-
-        # heading difference
-        # heading_tar = diff / torch.clamp(norm.unsqueeze(-1), min=1e-6)
-        # root_matrix = T.quaternion_to_matrix(self.root_quats[:, [3, 0, 1, 2]])
-        # root_euler = T.matrix_to_euler_angles(root_matrix, convention='XYZ')
-        # yaw_angle = root_euler[:, 2]
-        # yaw_vector = torch.stack((torch.cos(yaw_angle), torch.sin(yaw_angle), torch.zeros_like(yaw_angle)), dim=-1)
-        # dot_product = torch.sum(heading_tar * yaw_vector, dim=1)
-        # heading_r = torch.exp(dot_product) / torch.e
-        spin = torch.square(self.root_angvels[:, 2])
-        fix_spin_r = 0.5 / (1+torch.square(spin))
-        return dist_r, fix_spin_r, norm
 
     def compute_quadcopter_reward(self):
+        # effort reward
+        thrust_cmds = torch.clamp(self.cmd_thrusts, min=0.0, max=1.0).to('cuda')
+        effort_reward = .1 * (1 - thrust_cmds).sum(-1)/4
+
         # continous actions
-        action_diff = actions - pre_actions
-        if ctrl_mode == "pos" or ctrl_mode == 'vel':
+        action_diff = self.actions - self.pre_actions
+        if self.ctl_mode == "pos" or self.ctl_mode == 'vel':
             continous_action_reward =  .1 * (1 - torch.sqrt(action_diff.pow(2).sum(-1))/5)
         else:
-            continous_action_reward = .1 * (1- torch.sqrt(action_diff[..., :-1].pow(2).sum(-1))/5) + .3 * (1-torch.sqrt(action_diff[..., -1].pow(2))/5)
-            thrust = actions[..., -1] # this thrust is the force on vertical axis
+            continous_action_reward = .2 * (1- torch.sqrt(action_diff[..., :-1].pow(2).sum(-1))/5) + .3 * (1-torch.sqrt(action_diff[..., -1].pow(2))/5)
+            thrust = self.actions[..., -1] # this thrust is the force on vertical axis
             thrust_reward = .1 * (1-torch.abs(0.1533 - thrust))
+            # print(thrust)
         
-        dist_r, heading_r, dist = self.tracking_reward()
+        # dist reward
+        dist_diff = self.ref_positions[:, 0]-self.root_positions
+        dist_norm = torch.norm(dist_diff, dim=-1)
+        dist_reward = 1.5 / (1.0 + torch.square(1.6 * dist_norm))
 
-        # reward = dist_r + heading_r + continous_action_reward + thrust_reward
-        reward = dist_r + heading_r + continous_action_reward 
+        # heading reward
+        target_matrix = self.target_states[..., 0:9].reshape(self.num_envs, 3,3)
+        target_euler = T.matrix_to_euler_angles(target_matrix, 'XYZ')
+        root_matrix = T.quaternion_to_matrix(self.root_quats[:, [3, 0, 1, 2]])
+        root_euler = T.matrix_to_euler_angles(root_matrix, convention='XYZ')
+        yaw_diff = compute_yaw_diff(target_euler[..., 2], root_euler[..., 2]) / torch.pi
+        yaw_reward = 1 / (1.0 + torch.square(3 * yaw_diff))
+
+        spinnage = torch.square(self.root_angvels[:, -1])
+        spin_reward = 1 / (1.0 + torch.square(3 * spinnage))
+
+        # uprightness
+        ups = quat_axis(self.root_quats, 2)
+        ups_reward = torch.square((ups[..., 2] + 1) / 2)
+
+        reward = (
+            continous_action_reward
+            + effort_reward
+            + thrust_reward
+            + dist_reward
+            + dist_reward * (spin_reward + yaw_reward + ups_reward)
+        )
 
         # resets due to misbehavior
-        ones = torch.ones_like(reset_buf)
-        die = torch.zeros_like(reset_buf)
+        ones = torch.ones_like(self.reset_buf)
+        die = torch.zeros_like(self.reset_buf)
 
         # resets due to episode length
-        reset = torch.where(progress_buf >= max_episode_length - 1, ones, die)
-        reset = torch.where(dist > 1.0, ones, reset)
+        reset = torch.where(self.progress_buf >= self.max_episode_length - 1, ones, die)
+        reset = torch.where(dist_norm > 1.0, ones, reset)
 
         # resets due to a negative w in quaternions
-        if ctrl_mode == "atti":
-            reset = torch.where(actions[..., 0] < 0, ones, reset)
+        if self.ctl_mode == "atti":
+            reset = torch.where(self.actions[..., 0] < 0, ones, reset)
         
         item_reward_info = {}
-        item_reward_info["dist_r"] = dist_r
-        item_reward_info["heading_r"] = heading_r
+        item_reward_info["dist_reward"] = dist_reward
+        item_reward_info["yaw_reward"] = yaw_reward
+        item_reward_info["spin_reward"] = spin_reward
         item_reward_info["continous_action_reward"] = continous_action_reward
-        # item_reward_info["thrust_reward"] = thrust_reward
+        item_reward_info["thrust_reward"] = thrust_reward
+        item_reward_info["effort_reward"] = effort_reward
+        item_reward_info["ups_reward"] = ups_reward
+        item_reward_info["reward"] = reward
 
         return reward, reset, item_reward_info
 

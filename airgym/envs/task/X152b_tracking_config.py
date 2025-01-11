@@ -11,6 +11,7 @@ class X152bTrackingConfig(X152bPx4Cfg):
     tcn_seqs_len = 25 # if use TCN
  
     class env:
+        target_state = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]) 
         num_envs = 4 # must be a square number
         num_observations = 18 + 30
         headless = True
