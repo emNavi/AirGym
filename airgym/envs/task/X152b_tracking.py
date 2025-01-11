@@ -314,12 +314,12 @@ class X152bTracking(X152bPx4):
 
         if self.cfg.use_tcn:
             self.obs_seqs_buf[env_ids] = 0
-
-    def compute_traj(self, n_steps=10, step_size=5):
+    
+    def compute_traj_lemniscate(self, n_steps=10, step_size=5, scale=0.25):
         step = self.progress_buf.unsqueeze(1).expand(-1, n_steps) + torch.arange(n_steps, device=self.device).repeat(self.num_envs, 1) * step_size
-        t = step * self.dt
-        ref_x = 0.5*t
-        ref_y = torch.sin(torch.pi / 8 * t)
+        t = step * self.dt * scale
+        ref_x = 3 * torch.sin(t) / (1 + torch.cos(t) ** 2)
+        ref_y = 3 * torch.sin(t) * torch.cos(t) / (1 + torch.cos(t) ** 2)
         ref_z = torch.ones_like(ref_x)
         return torch.stack((ref_x, ref_y, ref_z), dim=-1)
 
@@ -331,7 +331,8 @@ class X152bTracking(X152bPx4):
         self.obs_buf[..., 12:15] = self.root_linvels
         self.obs_buf[..., 15:18] = self.root_angvels
 
-        self.ref_positions = self.compute_traj(10, 5)
+        # self.ref_positions = self.compute_traj_sin()
+        self.ref_positions = self.compute_traj_lemniscate()
         self.related_future_pos = (self.ref_positions - self.root_positions.clone().unsqueeze(1)).reshape(self.num_envs, -1)
         self.obs_buf[..., 18:48] = self.related_future_pos
 
@@ -344,7 +345,6 @@ class X152bTracking(X152bPx4):
         # update prev
         self.pre_actions = self.actions.clone()
         self.pre_root_positions = self.root_positions.clone()
-        
 
     def compute_quadcopter_reward(self):
         # effort reward
@@ -356,15 +356,14 @@ class X152bTracking(X152bPx4):
         if self.ctl_mode == "pos" or self.ctl_mode == 'vel':
             continous_action_reward =  .1 * (1 - torch.sqrt(action_diff.pow(2).sum(-1))/5)
         else:
-            continous_action_reward = .2 * (1- torch.sqrt(action_diff[..., :-1].pow(2).sum(-1))/5) + .3 * (1-torch.sqrt(action_diff[..., -1].pow(2))/5)
+            continous_action_reward = .1 * (1- torch.sqrt(action_diff[..., :-1].pow(2).sum(-1))/5) + .5 * (1-torch.sqrt(action_diff[..., -1].pow(2))/5)
             thrust = self.actions[..., -1] # this thrust is the force on vertical axis
             thrust_reward = .1 * (1-torch.abs(0.1533 - thrust))
-            # print(thrust)
         
         # dist reward
         dist_diff = self.ref_positions[:, 0]-self.root_positions
         dist_norm = torch.norm(dist_diff, dim=-1)
-        dist_reward = 1.5 / (1.0 + torch.square(1.6 * dist_norm))
+        dist_reward = 1. / (1.0 + torch.square(1.6 * dist_norm))
 
         # heading reward
         target_matrix = self.target_states[..., 0:9].reshape(self.num_envs, 3,3)
@@ -372,10 +371,10 @@ class X152bTracking(X152bPx4):
         root_matrix = T.quaternion_to_matrix(self.root_quats[:, [3, 0, 1, 2]])
         root_euler = T.matrix_to_euler_angles(root_matrix, convention='XYZ')
         yaw_diff = compute_yaw_diff(target_euler[..., 2], root_euler[..., 2]) / torch.pi
-        yaw_reward = 1 / (1.0 + torch.square(3 * yaw_diff))
+        yaw_reward = 1 / (1.0 + torch.square(4 * yaw_diff))
 
         spinnage = torch.square(self.root_angvels[:, -1])
-        spin_reward = 1 / (1.0 + torch.square(3 * spinnage))
+        spin_reward = .7 / (1.0 + torch.square(3 * spinnage))
 
         # uprightness
         ups = quat_axis(self.root_quats, 2)

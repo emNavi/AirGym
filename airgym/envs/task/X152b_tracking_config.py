@@ -17,7 +17,7 @@ class X152bTrackingConfig(X152bPx4Cfg):
         headless = True
         get_privileged_obs = True # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned
         env_spacing = 10  # not used with heightfields/trimeshes
-        episode_length_s = 16 # episode length in seconds
+        episode_length_s = 36 # episode length in seconds
         num_control_steps_per_env_step = 1 # number of control & physics steps between camera renders
         enable_onboard_cameras = False # enable onboard cameras
         reset_on_collision = False # reset environment when contact force on quadrotor is above a threshold
