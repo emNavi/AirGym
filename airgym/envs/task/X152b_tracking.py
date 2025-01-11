@@ -331,7 +331,6 @@ class X152bTracking(X152bPx4):
         self.obs_buf[..., 12:15] = self.root_linvels
         self.obs_buf[..., 15:18] = self.root_angvels
 
-        # self.ref_positions = self.compute_traj_sin()
         self.ref_positions = self.compute_traj_lemniscate()
         self.related_future_pos = (self.ref_positions - self.root_positions.clone().unsqueeze(1)).reshape(self.num_envs, -1)
         self.obs_buf[..., 18:48] = self.related_future_pos
@@ -354,16 +353,17 @@ class X152bTracking(X152bPx4):
         # continous actions
         action_diff = self.actions - self.pre_actions
         if self.ctl_mode == "pos" or self.ctl_mode == 'vel':
-            continous_action_reward =  .1 * (1 - torch.sqrt(action_diff.pow(2).sum(-1))/5)
+            continous_action_reward =  .2 * torch.exp(-torch.norm(action_diff[..., :], dim=-1))
         else:
-            continous_action_reward = .1 * (1- torch.sqrt(action_diff[..., :-1].pow(2).sum(-1))/5) + .5 * (1-torch.sqrt(action_diff[..., -1].pow(2))/5)
+            continous_action_reward = .1 * torch.exp(-torch.norm(action_diff[..., :-1], dim=-1)) + .5 / (1.0 + torch.square(2 * action_diff[..., -1]))
             thrust = self.actions[..., -1] # this thrust is the force on vertical axis
             thrust_reward = .1 * (1-torch.abs(0.1533 - thrust))
+            # print(thrust[0])
         
         # dist reward
         dist_diff = self.ref_positions[:, 0]-self.root_positions
         dist_norm = torch.norm(dist_diff, dim=-1)
-        dist_reward = 1. / (1.0 + torch.square(1.6 * dist_norm))
+        dist_reward = 1. / (1.0 + torch.square(1.8 * dist_norm))
 
         # heading reward
         target_matrix = self.target_states[..., 0:9].reshape(self.num_envs, 3,3)
@@ -374,7 +374,7 @@ class X152bTracking(X152bPx4):
         yaw_reward = 1 / (1.0 + torch.square(4 * yaw_diff))
 
         spinnage = torch.square(self.root_angvels[:, -1])
-        spin_reward = .7 / (1.0 + torch.square(3 * spinnage))
+        spin_reward = 1 / (1.0 + torch.square(2 * spinnage))
 
         # uprightness
         ups = quat_axis(self.root_quats, 2)
