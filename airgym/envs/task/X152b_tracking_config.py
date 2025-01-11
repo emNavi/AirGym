@@ -1,4 +1,4 @@
-from airgym.envs.base.X152bPx4 import X152bPx4Cfg
+from airgym.envs.base.X152bPx4_config import X152bPx4Cfg
 from airgym.utils import asset_register
 
 import numpy as np
