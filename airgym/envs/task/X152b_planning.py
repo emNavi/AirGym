@@ -8,9 +8,9 @@ from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
 
 from isaacgym import gymutil, gymtorch, gymapi
 from airgym.utils.torch_utils import *
-from airgym.envs.base.X152bPx4 import X152bPx4
+from airgym.envs.base.X152bPx4_with_cam import X152bPx4WithCam
 import airgym.utils.rotations as rot_utils
-from airgym.envs.task.X152b_tracking_config import X152bTrackingConfig
+from airgym.envs.task.X152b_planning_config import X152bPlanningConfig
 from airgym.utils.asset_manager import AssetManager
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
@@ -45,114 +45,25 @@ def compute_yaw_diff(a: torch.Tensor, b: torch.Tensor):
     diff = torch.where(diff > torch.pi, diff - 2*torch.pi, diff)
     return diff
 
-class X152bTracking(X152bPx4):
+class X152bPlanning(X152bPx4WithCam):
 
-    def __init__(self, cfg: X152bTrackingConfig, sim_params, physics_engine, sim_device, headless):
-        self.cfg = cfg
-        assert cfg.env.ctl_mode is not None, "Please specify one control mode!"
-        print("ctl mode =========== ", cfg.env.ctl_mode)
-        self.ctl_mode = cfg.env.ctl_mode
-        self.cfg.env.num_actions = 5 if cfg.env.ctl_mode == "atti" else 4
-        self.episode_length_s = self.cfg.env.episode_length_s
-        self.max_episode_length = int(self.cfg.env.episode_length_s / self.cfg.sim.dt)
-        self.debug_viz = False
-        num_actors = 1
+    def __init__(self, cfg: X152bPlanningConfig, sim_params, physics_engine, sim_device, headless):
+        self.cam_resolution = cfg.env.cam_resolution # set camera resolution
+        self.cam_channel = cfg.env.cam_channel # set camera channel
+        super().__init__(cfg, sim_params, physics_engine, sim_device, headless)
+        self.cam_resolution = cfg.env.cam_resolution # recover camera resolution
+        self.cam_channel = cfg.env.cam_channel # recover camera channel
 
-        self.sim_params = sim_params
-        self.physics_engine = physics_engine
-        self.sim_device_id = sim_device
-        self.headless = headless
+        if self.cfg.env.enable_onboard_cameras:
+            print("Onboard cameras enabled...")
+            print("Checking camera resolution =========== ", self.cam_resolution)
+            self.full_camera_array = torch.zeros((self.num_envs, self.cam_channel, self.cam_resolution[0], self.cam_resolution[1]), device=self.device) # 1 for depth
 
-        self.env_asset_manager = AssetManager(self.cfg, sim_device)
+        self.full_camera_array = torch.zeros((self.num_envs, self.cam_channel, self.cam_resolution[0], self.cam_resolution[1]), device=self.device) # 1 for depth
 
-        super(X152bPx4, self).__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
-        self.root_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
-
-        self.contact_force_tensor = self.gym.acquire_net_contact_force_tensor(self.sim)
-
-        self.gym.refresh_actor_root_state_tensor(self.sim)
-        self.gym.refresh_net_contact_force_tensor(self.sim)
-
-        num_actors = self.env_asset_manager.get_env_actor_count() + 1 # Number of obstacles in the environment + one robot
-        bodies_per_env = self.env_asset_manager.get_env_link_count() + self.robot_num_bodies # Number of links in the environment + robot
-
-        self.vec_root_tensor = gymtorch.wrap_tensor(
-            self.root_tensor).view(self.num_envs, num_actors, 13)
-
-        self.root_states = self.vec_root_tensor[:, 0, :]
-        self.root_positions = self.root_states[..., 0:3]
-        self.root_quats = self.root_states[..., 3:7] # x,y,z,w
-        self.root_linvels = self.root_states[..., 7:10]
-        self.root_angvels = self.root_states[..., 10:13]
-
-        self.privileged_obs_buf = None
-        if self.vec_root_tensor.shape[1] > 1:
-            self.env_asset_root_states = self.vec_root_tensor[:, 1:, :]
-            if self.get_privileged_obs:
-                self.privileged_obs_buf = self.env_asset_root_states
-                
-        self.gym.refresh_actor_root_state_tensor(self.sim)
-
-        self.initial_root_states = self.root_states.clone()
-        self.counter = 0
-
-        # controller
-        self.cmd_thrusts = torch.zeros((self.num_envs, 4))
-        # choice 1 from rate ctrl and vel ctrl
-        if(cfg.env.ctl_mode == "pos"):
-            self.action_upper_limits = torch.tensor(
-            [6, 6, 6, 6.0], device=self.device, dtype=torch.float32)
-            self.action_lower_limits = torch.tensor(
-            [-6, -6, -6, -6.0], device=self.device, dtype=torch.float32)
-            self.parallel_pos_control = ParallelPosControl(self.num_envs)
-        elif(cfg.env.ctl_mode == "vel"):
-            self.action_upper_limits = torch.tensor(
-                [6, 6, 6, 6], device=self.device, dtype=torch.float32)
-            self.action_lower_limits = torch.tensor(
-                [-6, -6, -6, -6], device=self.device, dtype=torch.float32)
-            self.parallel_vel_control = ParallelVelControl(self.num_envs)
-        elif(cfg.env.ctl_mode == "atti"):
-            self.action_upper_limits = torch.tensor(
-            [1, 1, 1, 1, 1], device=self.device, dtype=torch.float32)
-            self.action_lower_limits = torch.tensor(
-            [-1, -1, -1, -1, 0.], device=self.device, dtype=torch.float32)
-            self.parallel_atti_control = ParallelAttiControl(self.num_envs)
-        elif(cfg.env.ctl_mode == "rate"):
-            self.action_upper_limits = torch.tensor(
-                [6, 6, 6, 1], device=self.device, dtype=torch.float32)
-            self.action_lower_limits = torch.tensor(
-                [-6, -6, -6, 0], device=self.device, dtype=torch.float32)
-            self.parallel_rate_control = ParallelRateControl(self.num_envs)
-        elif(cfg.env.ctl_mode == "prop"):
-            self.action_upper_limits = torch.tensor(
-                [1, 1, 1, 1], device=self.device, dtype=torch.float32)
-            self.action_lower_limits = torch.tensor(
-                [0, 0, 0, 0], device=self.device, dtype=torch.float32)
-        else:
-            print("Mode Error!")
-
-        self.forces = torch.zeros((self.num_envs, bodies_per_env, 3),
-                                  dtype=torch.float32, device=self.device, requires_grad=False)
-        self.torques = torch.zeros((self.num_envs, bodies_per_env, 3),
-                                   dtype=torch.float32, device=self.device, requires_grad=False)
-        
-        # control parameters
-        self.thrusts = torch.zeros((self.num_envs, 4, 3), dtype=torch.float32, device=self.device)
-        self.thrust_cmds_damp = torch.zeros((self.num_envs, 4), dtype=torch.float32, device=self.device)
-        self.thrust_rot_damp = torch.zeros((self.num_envs, 4), dtype=torch.float32, device=self.device)
-
-        # set target states
-        self.target_states = torch.tensor(self.cfg.env.target_state, device=self.device).repeat(self.num_envs, 1)
-
-        # actions
-        self.actions = torch.zeros((self.num_envs, self.num_actions), device=self.device)
-        self.pre_actions = torch.zeros((self.num_envs, self.num_actions), device=self.device)
-
-        # reward integration buffers
-        self.int_pos_error = torch.zeros((self.num_envs, 10), device=self.device)
-        self.int_yaw_error = torch.zeros((self.num_envs, 10), device=self.device)
-
-        self.pre_root_positions = torch.zeros((self.num_envs, 3), device=self.device)
+        self.pre_root_positions = torch.zeros_like(self.root_positions)
+        self.pre_root_linvels = torch.zeros_like(self.root_linvels)
+        self.pre_root_angvels = torch.zeros_like(self.root_angvels)
 
         if self.viewer:
             cam_pos_x, cam_pos_y, cam_pos_z = self.cfg.viewer.pos[0], self.cfg.viewer.pos[1], self.cfg.viewer.pos[2]
@@ -162,12 +73,7 @@ class X152bTracking(X152bPx4):
             cam_ref_env = self.cfg.viewer.ref_env
             
             self.gym.viewer_camera_look_at(self.viewer, None, cam_pos, cam_target)
-        
-        if self.cfg.use_tcn:
-            self.tcn_seqs_len = self.cfg.tcn_seqs_len
-            self.obs_seqs_buf = torch.zeros(
-                (self.num_envs, self.tcn_seqs_len, self.cfg.env.num_observations), device=self.device, dtype=torch.float32)
-        
+
     def _create_envs(self):
         print("\n\n\n\n\n CREATING ENVIRONMENT \n\n\n\n\n\n")
         asset_path = self.cfg.asset_config.X152b.file.format(
@@ -177,8 +83,7 @@ class X152bTracking(X152bPx4):
 
         asset_options = asset_class_to_AssetOptions(self.cfg.asset_config.X152b)
 
-        X152b = self.gym.load_asset(
-            self.sim, asset_root, asset_file, asset_options)
+        X152b = self.gym.load_asset(self.sim, asset_root, asset_file, asset_options)
 
         self.robot_num_bodies = self.gym.get_asset_rigid_body_count(X152b)
 
@@ -187,13 +92,31 @@ class X152bTracking(X152bPx4):
         pos = torch.tensor([0, 0, 0], device=self.device)
         start_pose.p = gymapi.Vec3(*pos)
         self.env_spacing = self.cfg.env.env_spacing
-        env_lower = gymapi.Vec3(-self.env_spacing, -
-                                self.env_spacing, -self.env_spacing)
-        env_upper = gymapi.Vec3(
-            self.env_spacing, self.env_spacing, self.env_spacing)
+        env_lower = gymapi.Vec3(-self.env_spacing, - self.env_spacing, -self.env_spacing)
+        env_upper = gymapi.Vec3(self.env_spacing, self.env_spacing, self.env_spacing)
         self.actor_handles = []
         self.env_asset_handles = []
         self.envs = []
+        self.camera_handles = []
+        self.camera_tensors = []
+
+        # Set Camera Properties
+        camera_props = gymapi.CameraProperties()
+        camera_props.enable_tensors = True
+        camera_props.width = self.cam_resolution[0]
+        camera_props.height = self.cam_resolution[1]
+        camera_props.far_plane = 5.0
+        camera_props.horizontal_fov = 87.0
+        camera_props.use_collision_geometry = True
+        
+        # local camera transform
+        local_transform = gymapi.Transform()
+        # position of the camera relative to the body
+        local_transform.p = gymapi.Vec3(0.15, 0.00, 0.1)
+        # orientation of the camera relative to the body
+        # local_transform.r = gymapi.Quat(0.0, 0.269, 0.0, 0.963)
+         
+        local_transform.r = gymapi.Quat(0.0, 0.0, 0.0, 1.0)
 
         self.segmentation_counter = 0
 
@@ -205,6 +128,19 @@ class X152bTracking(X152bPx4):
             # append to lists
             self.envs.append(env_handle)
             self.actor_handles.append(actor_handle)
+
+            if self.enable_onboard_cameras:
+                cam_handle = self.gym.create_camera_sensor(env_handle, camera_props)
+                self.gym.attach_camera_to_body(cam_handle, env_handle, actor_handle, local_transform, gymapi.FOLLOW_TRANSFORM)
+                self.camera_handles.append(cam_handle)
+                camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, env_handle, cam_handle, gymapi.IMAGE_DEPTH)
+                torch_cam_tensor = gymtorch.wrap_tensor(camera_tensor) # (height, width)
+                # print("camera tensor shape: ", torch_cam_tensor.shape)
+                self.camera_tensors.append(torch_cam_tensor)
+
+                # fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                # out = cv2.VideoWriter('depth_video.mp4', fourcc, 30, (270, 480))
+                # self.outs.append(out)
 
             env_asset_list = self.env_asset_manager.prepare_assets_for_simulation(self.gym, self.sim)
             asset_counter = 0
@@ -258,36 +194,37 @@ class X152bTracking(X152bPx4):
 
                     self.gym.set_rigid_body_color(env_handle, env_asset_handle, 0, gymapi.MESH_VISUAL,
                             gymapi.Vec3(color[0]/255,color[1]/255,color[2]/255))
-        
-        self.robot_body_items = self.gym.get_actor_rigid_body_properties(self.envs[0],self.actor_handles[0])
+
+        self.robot_bodies = self.gym.get_actor_rigid_body_properties(env_handle, actor_handle)
         self.robot_mass = 0
-        for item in self.robot_body_items:
-            self.robot_mass += item.mass
+        for body in self.robot_bodies:
+            self.robot_mass += body.mass
         print("Total robot mass: ", self.robot_mass)
         
         print("\n\n\n\n\n ENVIRONMENT CREATED \n\n\n\n\n\n")
 
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
-        
-        # set asset root states
         self.env_asset_manager.calculate_randomize_pose()
         self.env_asset_manager.calculate_specify_pose()
-        # self.env_asset_root_states[env_ids, :, 0:3] = self.env_asset_manager.asset_pose_tensor[env_ids, :, 0:3]
-        # euler_angles = self.env_asset_manager.asset_pose_tensor[env_ids, :, 3:6]
-        # self.env_asset_root_states[env_ids, :, 3:7] = quat_from_euler_xyz(euler_angles[..., 0], euler_angles[..., 1], euler_angles[..., 2])
-        # self.env_asset_root_states[env_ids, :, 7:13] = 0.0
 
-        # set drone root state
-        self.root_states[env_ids] = self.initial_root_states[env_ids]
+        # randomize asset root states
+        self.env_asset_root_states[env_ids, :, 0:1] = 2. * torch_rand_float(-1.0, 1.0, (num_resets, self.num_assets, 1), self.device) + torch.tensor([4.], device=self.device)
+        self.env_asset_root_states[env_ids, :, 1:2] = 2. * torch_rand_float(-1.0, 1.0, (num_resets, self.num_assets, 1), self.device) + torch.tensor([0.], device=self.device)
+        self.env_asset_root_states[env_ids, :, 2:3] = 0
+        assets_root_angle = torch.concatenate([0 * torch_rand_float(-torch.pi, torch.pi, (num_resets, self.num_assets, 2), self.device),
+                                       torch_rand_float(-torch.pi, torch.pi, (num_resets, self.num_assets, 1), self.device)], dim=-1)
+        assets_matrix = T.euler_angles_to_matrix(assets_root_angle, 'XYZ')
+        assets_root_quats = T.matrix_to_quaternion(assets_matrix)
+        self.env_asset_root_states[env_ids, :, 3:7] = assets_root_quats[:, :, [1, 2, 3, 0]]
 
         # randomize root states
-        self.root_states[env_ids, 0:2] = .1*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device)
-        self.root_states[env_ids, 2:3] = .1*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
+        self.root_states[env_ids, 0:2] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0., 0.], device=self.device)
+        self.root_states[env_ids, 2:3] = 0.2*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
 
         # randomize root orientation
-        root_angle = torch.concatenate([0.01*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .1
-                                       0.02*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2
+        root_angle = torch.concatenate([0.01*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .01
+                                       0.05*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.05
 
         matrix = T.euler_angles_to_matrix(root_angle, 'XYZ')
         root_quats = T.matrix_to_quaternion(matrix) # w,x,y,z
@@ -301,58 +238,74 @@ class X152bTracking(X152bPx4):
         self.reset_buf[env_ids] = 1
         self.progress_buf[env_ids] = 0
 
-        self.thrust_cmds_damp[env_ids] = 0
-        self.thrust_rot_damp[env_ids] = 0
-
-        self.int_pos_error[env_ids] = 0
-        self.int_yaw_error[env_ids] = 0
-
         self.pre_actions[env_ids] = 0
         self.pre_root_positions[env_ids] = 0
+        self.pre_root_angvels[env_ids] = 0
 
-        # self.flag[env_ids] = 1
+    def step(self, actions):
+        # print("actions: ", actions)
+        # step physics and render each frame
+        for i in range(self.cfg.env.num_control_steps_per_env_step):
+            self.pre_physics_step(actions)
+            self.gym.simulate(self.sim)
+            # NOTE: as per the isaacgym docs, self.gym.fetch_results must be called after self.gym.simulate, but not having it here seems to work fine
+            # it is called in the render function.
+            self.post_physics_step()
 
-        if self.cfg.use_tcn:
-            self.obs_seqs_buf[env_ids] = 0
-    
-    def compute_traj_lemniscate(self, n_steps=10, step_size=5, scale=0.25):
-        step = self.progress_buf.unsqueeze(1).expand(-1, n_steps) + torch.arange(n_steps, device=self.device).repeat(self.num_envs, 1) * step_size
-        t = step * self.dt * scale
-        ref_x = 3 * torch.sin(t) / (1 + torch.cos(t) ** 2)
-        ref_y = 3 * torch.sin(t) * torch.cos(t) / (1 + torch.cos(t) ** 2)
-        ref_z = torch.ones_like(ref_x)
-        return torch.stack((ref_x, ref_y, ref_z), dim=-1)
-    
-    def compute_traj(self, n_steps=10, step_size=5, scale=1):
-        step = self.progress_buf.unsqueeze(1).expand(-1, n_steps) + torch.arange(n_steps, device=self.device).repeat(self.num_envs, 1) * step_size
-        t = step * self.dt * scale
-        ref_x = t
-        ref_y = 1/(1+torch.pow(.5*t-2, 2))-.25
-        ref_z = torch.ones_like(ref_x)
-        return torch.stack((ref_x, ref_y, ref_z), dim=-1)
+        self.render(sync_frame_time=False)
+        rate = self.cfg.env.cam_dt / self.cfg.sim.dt
+        # print(self.counter)
+        if self.counter % rate == 0:
+            if self.enable_onboard_cameras:
+                self.render_cameras()
+        # print(self.full_camera_array[0], self.obs_buf[0])
+
+        self.progress_buf += 1
+        self.check_collisions()
+        self.compute_observations()
+        self.compute_reward()
+
+        if self.cfg.env.reset_on_collision:
+            ones = torch.ones_like(self.reset_buf)
+            self.reset_buf = torch.where(self.collisions > 0, ones, self.reset_buf)
+
+        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+        if len(reset_env_ids) > 0:
+            self.reset_idx(reset_env_ids)
+
+        self.time_out_buf = self.progress_buf > self.max_episode_length
+        self.extras["time_outs"] = self.time_out_buf
+        self.extras["item_reward_info"] = self.item_reward_info
+
+        obs = {
+            'image': self.full_camera_array,
+            'observation': self.obs_buf,
+        }
+
+        # obs = self.obs_buf
+        return obs, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def compute_observations(self):
         self.root_matrix = T.quaternion_to_matrix(self.root_quats[:, [3, 0, 1, 2]]).reshape(self.num_envs, 9)
-        # print(self.root_matrix)guidance_reward
         self.obs_buf[..., 0:9] = self.root_matrix
         self.obs_buf[..., 9:12] = self.root_positions
         self.obs_buf[..., 12:15] = self.root_linvels
         self.obs_buf[..., 15:18] = self.root_angvels
-
-        # self.ref_positions = self.compute_traj_lemniscate()
-        self.ref_positions = self.compute_traj()
-        self.related_future_pos = (self.ref_positions - self.root_positions.clone().unsqueeze(1)).reshape(self.num_envs, -1)
-        self.obs_buf[..., 18:48] = self.related_future_pos
-
         self.add_noise()
+        self.obs_buf[..., 0:18] -= self.target_states
+        
+        self.obs_buf[..., 18:22] = self.actions
+        # self.obs_buf[..., 22:34] = torch.rand((self.num_envs, 12), device=self.device)
+
+        # self.full_camera_array = torch.rand((self.num_envs, self.cam_channel, self.cam_resolution[0], self.cam_resolution[1]), device=self.device)
         return self.obs_buf
 
     def compute_reward(self):
         self.rew_buf[:], self.reset_buf[:] ,self.item_reward_info = self.compute_quadcopter_reward()
-        
         # update prev
         self.pre_actions = self.actions.clone()
         self.pre_root_positions = self.root_positions.clone()
+        self.pre_root_angvels = self.root_angvels.clone()
 
     def compute_quadcopter_reward(self):
         # effort reward
@@ -367,34 +320,37 @@ class X152bTracking(X152bPx4):
             continous_action_reward = .1 * torch.exp(-torch.norm(action_diff[..., :-1], dim=-1)) + .5 / (1.0 + torch.square(2 * action_diff[..., -1]))
             thrust = self.actions[..., -1] # this thrust is the force on vertical axis
             thrust_reward = .1 * (1-torch.abs(0.1533 - thrust))
-            # print(thrust[0])
         
-        # dist reward
-        dist_diff = self.ref_positions[:, 0]-self.root_positions
-        dist_norm = torch.norm(dist_diff, dim=-1)
-        dist_reward = 1. / (1.0 + torch.square(1.8 * dist_norm))
+        # guidance reward
+        x_linvel = self.root_linvels[:, 0]
+        x_linvel_reward = x_linvel * torch.exp(1-x_linvel)
+        y_diff_reward = 1 / (1.0 + torch.square(2 * self.root_positions[:, 1]))
+
+        # height reward
+        height_diff = 1. - self.root_positions[:, -1]
+        height_reward = 1. / (1.0 + torch.square(1.8 * height_diff))
 
         # heading reward
-        target_matrix = self.target_states[..., 0:9].reshape(self.num_envs, 3,3)
-        target_euler = T.matrix_to_euler_angles(target_matrix, 'XYZ')
         root_matrix = T.quaternion_to_matrix(self.root_quats[:, [3, 0, 1, 2]])
         root_euler = T.matrix_to_euler_angles(root_matrix, convention='XYZ')
-        yaw_diff = compute_yaw_diff(target_euler[..., 2], root_euler[..., 2]) / torch.pi
-        yaw_reward = 1 / (1.0 + torch.square(4 * yaw_diff))
-
-        spinnage = torch.square(self.root_angvels[:, -1])
-        spin_reward = 1 / (1.0 + torch.square(2 * spinnage))
+        vel_dir = torch.arctan2(self.root_linvels[..., 1], self.root_linvels[..., 0])
+        yaw_diff = compute_yaw_diff(vel_dir, root_euler[..., 2]) / torch.pi
+        yaw_reward = 1 / (1.0 + torch.square(2 * yaw_diff))
 
         # uprightness
         ups = quat_axis(self.root_quats, 2)
         ups_reward = torch.square((ups[..., 2] + 1) / 2)
 
+        # collision
+        alive_reward = torch.where(self.collisions > 0, -500., 0.5)
+
         reward = (
             continous_action_reward
             + effort_reward
             + thrust_reward
-            + dist_reward
-            + dist_reward * (spin_reward + yaw_reward + ups_reward)
+            + height_reward
+            + continous_action_reward * (x_linvel_reward + yaw_reward + ups_reward + y_diff_reward)
+            + alive_reward
         )
 
         # resets due to misbehavior
@@ -403,20 +359,37 @@ class X152bTracking(X152bPx4):
 
         # resets due to episode length
         reset = torch.where(self.progress_buf >= self.max_episode_length - 1, ones, die)
-        reset = torch.where(dist_norm > 1.0, ones, reset)
+        # print(self.progress_buf)
+
+        # resets due to huge x vel
+        reset = torch.where(self.root_linvels[:, 0] > 1.2, ones, reset)
+
+        # resets due to negative x vel
+        reset = torch.where(self.root_linvels[:, 0] < 0, ones, reset)
+
+        # resets due to huge y diff
+        reset = torch.where(self.root_positions[:, 1] > 1, ones, reset)
+        reset = torch.where(self.root_positions[:, 1] < -1, ones, reset)
+        # print(self.root_positions[:, 1])
+
+        # resets due to z diff
+        reset = torch.where(self.root_positions[:, 2] < 0.5, ones, reset)
+        reset = torch.where(self.root_positions[:, 2] > 1.5, ones, reset)
 
         # resets due to a negative w in quaternions
         if self.ctl_mode == "atti":
             reset = torch.where(self.actions[..., 0] < 0, ones, reset)
         
         item_reward_info = {}
-        item_reward_info["dist_reward"] = dist_reward
+        item_reward_info["x_linvel_reward"] = x_linvel_reward
+        item_reward_info["y_diff_reward"] = y_diff_reward
         item_reward_info["yaw_reward"] = yaw_reward
-        item_reward_info["spin_reward"] = spin_reward
         item_reward_info["continous_action_reward"] = continous_action_reward
         item_reward_info["thrust_reward"] = thrust_reward
         item_reward_info["effort_reward"] = effort_reward
         item_reward_info["ups_reward"] = ups_reward
+        item_reward_info["height_reward"] = height_reward
+        item_reward_info["alive_reward"] = alive_reward
         item_reward_info["reward"] = reward
 
         return reward, reset, item_reward_info

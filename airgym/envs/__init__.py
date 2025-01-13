@@ -49,10 +49,19 @@ try:
 except ImportError:
     print("WARNING! X152bAvoid or X152bAvoidConfig cannot be imported. Ignore if using on real robot inference.")
     traceback.print_exc()
+
 try:
     from .task.X152b_tracking_config import X152bTrackingConfig
     from .task.X152b_tracking import X152bTracking
     task_registry.register("X152b_tracking", X152bTracking, X152bTrackingConfig())
 except ImportError:
     print("WARNING! X152bTracking or X152bTrackingConfig cannot be imported. Ignore if using on real robot inference.")
+    traceback.print_exc()
+
+try:
+    from .task.X152b_planning_config import X152bPlanningConfig
+    from .task.X152b_planning import X152bPlanning
+    task_registry.register("X152b_planning", X152bPlanning, X152bPlanningConfig())
+except ImportError:
+    print("WARNING! X152bPlanning or X152bPlanningConfig cannot be imported. Ignore if using on real robot inference.")
     traceback.print_exc()

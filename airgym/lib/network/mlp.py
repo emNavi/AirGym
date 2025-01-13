@@ -14,6 +14,8 @@ class MLP(nn.Module):
             self.activation = torch.sigmoid
         elif activation == 'elu':
             self.activation = torch.nn.functional.elu
+        elif activation == 'sin':
+            self.activation = torch.sin
         else:
             raise ValueError(f"Unsupported activation: {activation}")
 

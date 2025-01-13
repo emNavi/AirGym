@@ -129,6 +129,9 @@ env_configurations.register('X152b_avoid', {'env_creator': lambda **kwargs : tas
 env_configurations.register('X152b_tracking', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_tracking',args=Namespace(**kwargs)),
         'vecenv_type': 'AirGym-RLGPU'})
 
+env_configurations.register('X152b_planning', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_planning',args=Namespace(**kwargs)),
+        'vecenv_type': 'AirGym-RLGPU'})
+
 # register the vec environment
 register('AirGym-RLGPU',
                 lambda config_name, num_actors, **kwargs: AirGymRLGPUEnv(config_name, num_actors, **kwargs))

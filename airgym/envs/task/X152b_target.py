@@ -267,8 +267,8 @@ class X152bTarget(X152bPx4):
 
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
-        self.env_asset_manager.randomize_pose()
-        self.env_asset_manager.specify_pose()
+        self.env_asset_manager.calculate_randomize_pose()
+        self.env_asset_manager.calculate_specify_pose()
 
         # reset target red ball position
         self.target_ball_states[env_ids, 0:2] = 1.5*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0., 0.], device=self.device)

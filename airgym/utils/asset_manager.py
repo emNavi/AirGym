@@ -70,8 +70,8 @@ class AssetManager:
         self.asset_type_to_dict_map = self.asset_config.asset_type_to_dict_map
         
         self.load_asset_tensors()
-        self.randomize_pose()
-        self.specify_pose()
+        self.calculate_randomize_pose()
+        self.calculate_specify_pose()
 
 
     def _add_asset_2_tensor(self, asset_class):
@@ -250,7 +250,7 @@ class AssetManager:
         selected_files = random.choices(urdf_files, k=num_files)
         return selected_files
     
-    def randomize_pose(self, num_obstacles = None, reset_envs = None):
+    def calculate_randomize_pose(self, num_obstacles = None, reset_envs = None):
         if self.asset_random_pose_tensor is None:
             return
 
@@ -269,7 +269,7 @@ class AssetManager:
         else:
             self.asset_pose_tensor = torch.cat([self.asset_random_pose_tensor, self.asset_specified_pose_tensor], dim=1)
     
-    def specify_pose(self):
+    def calculate_specify_pose(self):
         if self.asset_specified_pose_tensor is None:
             return
         

@@ -61,6 +61,7 @@ class X152bPx4WithCam(BaseTask):
         self.gym.refresh_actor_root_state_tensor(self.sim)
         self.gym.refresh_net_contact_force_tensor(self.sim)
 
+        self.num_assets = self.env_asset_manager.get_env_actor_count()
         num_actors = self.env_asset_manager.get_env_actor_count() + 1 # Number of obstacles in the environment + one robot
         bodies_per_env = self.env_asset_manager.get_env_link_count() + self.robot_num_bodies # Number of links in the environment + robot
         
@@ -296,9 +297,6 @@ class X152bPx4WithCam(BaseTask):
                     self.gym.set_rigid_body_color(env_handle, env_asset_handle, 0, gymapi.MESH_VISUAL,
                             gymapi.Vec3(color[0]/255,color[1]/255,color[2]/255))
 
-            self.envs.append(env_handle)
-            self.actor_handles.append(actor_handle)
-
         self.robot_bodies = self.gym.get_actor_rigid_body_properties(env_handle, actor_handle)
         self.robot_mass = 0
         for body in self.robot_bodies:
@@ -439,11 +437,10 @@ class X152bPx4WithCam(BaseTask):
 
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
-        self.env_asset_manager.randomize_pose()
-        self.env_asset_manager.specify_pose()
+        self.env_asset_manager.calculate_randomize_pose()
+        self.env_asset_manager.calculate_specify_pose()
 
         self.env_asset_root_states[env_ids, :, 0:3] = self.env_asset_manager.asset_pose_tensor[env_ids, :, 0:3]
-
         euler_angles = self.env_asset_manager.asset_pose_tensor[env_ids, :, 3:6]
         self.env_asset_root_states[env_ids, :, 3:7] = quat_from_euler_xyz(euler_angles[..., 0], euler_angles[..., 1], euler_angles[..., 2])
         self.env_asset_root_states[env_ids, :, 7:13] = 0.0

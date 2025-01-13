@@ -50,13 +50,13 @@ if viewer is None:
 
 # load asset
 asset_root = "../../resources/models/environment_assets"
-asset_file = "balls/ball/model.urdf"
-# asset_file = "balls/ball.urdf"
+# asset_file = "balls/ball/model.urdf"
+asset_file = "cubes_prim/cube1x1x4.urdf"
 
 asset_options = gymapi.AssetOptions()
 
 asset_options.vhacd_enabled = True
-asset_options.disable_gravity = True
+asset_options.disable_gravity = False
 # asset_options.vhacd_params.resolution = 500000
 # asset_options.vhacd_params.max_num_vertices_per_ch = 1
 asset_options.vhacd_params.resolution = 300000
