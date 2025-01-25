@@ -1,5 +1,5 @@
-# AirGym (Still Developing)
-> This project is based on Aerial Gym Simulator licensed(https://github.com/ntnu-arl/aerial_gym_simulator) under the BSD 3-Clause License. It has been modified and greatly improved by emNavi Technology.
+# AirGym
+> This project is based on Aerial Gym Simulator licensed(https://github.com/ntnu-arl/aerial_gym_simulator) under the BSD 3-Clause License. It has been modified and greatly improved by emNavi.
 
 This project provides a realistic dynamics and RL framework for Sim2Real tasks of quadcopter. Drones can be trained in AirGym and then transferred to reality.
 
@@ -12,7 +12,7 @@ We also build a randomly generated environment for drone training. One demo is s
 1. [Conda](https://www.anaconda.com/download) or [Miniconda ](https://docs.conda.io/en/latest/miniconda.html)
 1. [NVIDIA Isaac Gym Preview 4](https://developer.nvidia.com/isaac-gym) ([Pytorch]((https://pytorch.org/)) needs to upgrade for 40 series of GPUs. Please follow the installation guidance.)
 
-> Note this repository has been tested on Ubuntu 20.04/22.04 with PyTorch 2.0.0 + CUDA11.8.
+> Note: this repository has been tested on Ubuntu 20.04/22.04 with PyTorch 2.0.0 + CUDA11.8.
 
 ## Installation
 ### 1. Install IsaacGym Preview 4 with torch2.0.0+cuda11.8
@@ -84,8 +84,8 @@ We train the model by a rl_games-liked customed PPO (rl_games was discarded afte
 
 Training:
 ```bash
-cd airgym/rl_games/
-python runner.py --ctl_mode rate --headless
+cd scripts
+python runner.py --ctl_mode rate --headless --task X152b
 ```
 Algorithm related parameters can be edited in `.yaml` files. Environment and simulator related parameters are located in ENV_config files like `X152bPx4_config.py`. The `ctl_mode` must be spicified.
 
