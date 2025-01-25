@@ -73,7 +73,7 @@ pip install -e .
 Run the example script:
 ```bash
 cd airgym/scripts
-python example.py --controller_test --task X152b --ctl_mode pos
+python example.py --task X152b --ctl_mode pos
 ```
 The default `ctl_mode` is position control.
 

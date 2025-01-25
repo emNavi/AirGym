@@ -75,10 +75,6 @@ def update_cfg_from_args(env_cfg, args):
         except AttributeError:
             print('seed is not exist')
         try:
-            env_cfg.controller_test = args.controller_test
-        except AttributeError:
-            print('controller_test is not exist')
-        try:
             env_cfg.use_tcn = args.use_tcn
         except AttributeError:
             print('use_tcn is not exist')
@@ -113,7 +109,6 @@ def get_args():
         {"name": "--horovod", "action": "store_true", "default": False, "help": "Use horovod for multi-gpu training"},
         {"name": "--rl_device", "type": str, "default": "cuda:0", "help": 'Device used by the RL algorithm, (cpu, gpu, cuda:0, cuda:1 etc..)'},
         {"name": "--ctl_mode", "required": True, "type": str, "help": 'Specify the control mode and the options are: pos, vel, atti, rate, prop'},
-        {"name": "--controller_test", "action": "store_true", "default": False, "help": "Test the controller"},
         ]
         
     # parse arguments

@@ -6,7 +6,6 @@ from airgym import AIRGYM_ROOT_DIR
 
 class X152bTrackingConfig(X152bPx4Cfg):
     seed = 1
-    controller_test = False
  
     class env:
         target_state = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]) 

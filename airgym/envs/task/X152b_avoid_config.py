@@ -6,8 +6,7 @@ from airgym import AIRGYM_ROOT_DIR
 
 class X152bAvoidConfig(BaseConfig):
     seed = 1
-    controller_test = False
-
+    
     class env:
         target_state = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0]) 
         num_envs = 4 # must be a square number

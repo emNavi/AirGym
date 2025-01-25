@@ -563,8 +563,7 @@ class X152bPx4WithCam(BaseTask):
 
         self.add_noise()
 
-        if not self.cfg.controller_test:
-            self.obs_buf -= self.target_states
+        self.obs_buf -= self.target_states
 
         return self.obs_buf
     
