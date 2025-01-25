@@ -310,24 +310,11 @@ class X152bTracking(X152bPx4):
         self.pre_actions[env_ids] = 0
         self.pre_root_positions[env_ids] = 0
 
-        # self.flag[env_ids] = 1
-
-        if self.cfg.use_tcn:
-            self.obs_seqs_buf[env_ids] = 0
-    
     def compute_traj_lemniscate(self, n_steps=10, step_size=5, scale=0.25):
         step = self.progress_buf.unsqueeze(1).expand(-1, n_steps) + torch.arange(n_steps, device=self.device).repeat(self.num_envs, 1) * step_size
         t = step * self.dt * scale
         ref_x = 3 * torch.sin(t) / (1 + torch.cos(t) ** 2)
         ref_y = 3 * torch.sin(t) * torch.cos(t) / (1 + torch.cos(t) ** 2)
-        ref_z = torch.ones_like(ref_x)
-        return torch.stack((ref_x, ref_y, ref_z), dim=-1)
-    
-    def compute_traj(self, n_steps=10, step_size=5, scale=1):
-        step = self.progress_buf.unsqueeze(1).expand(-1, n_steps) + torch.arange(n_steps, device=self.device).repeat(self.num_envs, 1) * step_size
-        t = step * self.dt * scale
-        ref_x = t
-        ref_y = 1/(1+torch.pow(.5*t-2, 2))-.25
         ref_z = torch.ones_like(ref_x)
         return torch.stack((ref_x, ref_y, ref_z), dim=-1)
 
@@ -339,8 +326,7 @@ class X152bTracking(X152bPx4):
         self.obs_buf[..., 12:15] = self.root_linvels
         self.obs_buf[..., 15:18] = self.root_angvels
 
-        # self.ref_positions = self.compute_traj_lemniscate()
-        self.ref_positions = self.compute_traj()
+        self.ref_positions = self.compute_traj_lemniscate()
         self.related_future_pos = (self.ref_positions - self.root_positions.clone().unsqueeze(1)).reshape(self.num_envs, -1)
         self.obs_buf[..., 18:48] = self.related_future_pos
 
@@ -361,13 +347,12 @@ class X152bTracking(X152bPx4):
 
         # continous actions
         action_diff = self.actions - self.pre_actions
-        if self.ctl_mode == "pos" or self.ctl_mode == 'vel':
+        if self.ctl_mode == "pos" or self.ctl_mode == 'vel' or self.ctl_mode == 'prop':
             continous_action_reward =  .2 * torch.exp(-torch.norm(action_diff[..., :], dim=-1))
         else:
             continous_action_reward = .1 * torch.exp(-torch.norm(action_diff[..., :-1], dim=-1)) + .5 / (1.0 + torch.square(2 * action_diff[..., -1]))
             thrust = self.actions[..., -1] # this thrust is the force on vertical axis
             thrust_reward = .1 * (1-torch.abs(0.1533 - thrust))
-            # print(thrust[0])
         
         # dist reward
         dist_diff = self.ref_positions[:, 0]-self.root_positions
@@ -389,13 +374,21 @@ class X152bTracking(X152bPx4):
         ups = quat_axis(self.root_quats, 2)
         ups_reward = torch.square((ups[..., 2] + 1) / 2)
 
-        reward = (
-            continous_action_reward
-            + effort_reward
-            + thrust_reward
-            + dist_reward
-            + dist_reward * (spin_reward + yaw_reward + ups_reward)
-        )
+        if self.ctl_mode == "pos" or self.ctl_mode == 'vel' or self.ctl_mode == 'prop':
+            reward = (
+                continous_action_reward
+                + effort_reward
+                + dist_reward
+                + dist_reward * (spin_reward + yaw_reward + ups_reward)
+            )
+        else:
+            reward = (
+                continous_action_reward
+                + effort_reward
+                + thrust_reward
+                + dist_reward
+                + dist_reward * (spin_reward + yaw_reward + ups_reward)
+            )
 
         # resets due to misbehavior
         ones = torch.ones_like(self.reset_buf)
@@ -410,11 +403,12 @@ class X152bTracking(X152bPx4):
             reset = torch.where(self.actions[..., 0] < 0, ones, reset)
         
         item_reward_info = {}
+        item_reward_info["dist_norm"] = dist_norm
         item_reward_info["dist_reward"] = dist_reward
         item_reward_info["yaw_reward"] = yaw_reward
         item_reward_info["spin_reward"] = spin_reward
         item_reward_info["continous_action_reward"] = continous_action_reward
-        item_reward_info["thrust_reward"] = thrust_reward
+        item_reward_info["thrust_reward"] = thrust_reward if self.ctl_mode == "atti" or self.ctl_mode == 'rate' else 0
         item_reward_info["effort_reward"] = effort_reward
         item_reward_info["ups_reward"] = ups_reward
         item_reward_info["reward"] = reward

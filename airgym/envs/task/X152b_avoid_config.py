@@ -19,7 +19,7 @@ class X152bAvoidConfig(BaseConfig):
         num_control_steps_per_env_step = 1 # number of control & physics steps between camera renders
         enable_onboard_cameras = False # enable onboard cameras
         reset_on_collision = True # reset environment when contact force on quadrotor is above a threshold
-        create_ground_plane = False # create a ground plane
+        create_ground_plane = True # create a ground plane
 
         cam_channel = 1
         cam_resolution = (212, 120) # (width, hight)
@@ -90,8 +90,8 @@ class X152bAvoidConfig(BaseConfig):
             "boundaries/right_wall": False, 
             "boundaries/bottom_wall": False, 
             "boundaries/18X18ground": False,
-            "cubes/1X1": False,
-            "balls/ball": True,
+            "cubes/1X1": True,
+            "balls/ball": False,
             "boundaries/8X18ground": False,
         }
 

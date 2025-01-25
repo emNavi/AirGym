@@ -257,8 +257,8 @@ class X152bAvoid(X152bPx4WithCam):
         
         # add position of object
         self.object_matrix = T.quaternion_to_matrix(self.object_quats[:, [3, 0, 1, 2]]).reshape(self.num_envs, 9)
-        # self.obs_buf[..., 18:27] = self.object_matrix
-        # self.obs_buf[..., 27:30] = self.object_positions
+        self.obs_buf[..., 18:27] = self.object_matrix
+        self.obs_buf[..., 27:30] = self.object_positions
 
         self.obs_buf[..., 18:22] = self.actions
         # self.obs_buf[..., 22:31] = self.object_matrix

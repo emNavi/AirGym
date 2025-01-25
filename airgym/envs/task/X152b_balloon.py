@@ -163,11 +163,7 @@ class X152bBalloon(X152bPx4WithCam):
         self.extras["time_outs"] = self.time_out_buf
         self.extras["item_reward_info"] = self.item_reward_info
 
-        obs = {
-            'image': self.full_camera_array,
-            'observation': self.obs_buf,
-        }
-        # obs = self.obs_buf
+        obs = self.obs_buf
 
         return obs, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 

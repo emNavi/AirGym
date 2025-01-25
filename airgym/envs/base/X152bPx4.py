@@ -150,11 +150,6 @@ class X152bPx4(BaseTask):
         # rospy.init_node('ctl_onboard', anonymous=True)
         # self.pub = rospy.Publisher('/action', Float64MultiArray, queue_size=10)
         # self.sub = rospy.Subscriber('/target_state', Float64MultiArray, self.callback)
-        
-        if self.cfg.use_tcn:
-            self.tcn_seqs_len = self.cfg.tcn_seqs_len
-            self.obs_seqs_buf = torch.zeros(
-                (self.num_envs, self.tcn_seqs_len, self.cfg.env.num_observations), device=self.device, dtype=torch.float32)
 
     def callback(self, data):
         self.target_state = torch.tensor(data.data, device=self.device)
@@ -327,10 +322,6 @@ class X152bPx4(BaseTask):
         self.extras["time_outs"] = self.time_out_buf
         self.extras["item_reward_info"] = self.item_reward_info
         
-        if self.cfg.use_tcn: # use TCN
-            self.obs_seqs_buf = torch.cat(
-                (self.obs_seqs_buf[:, 1:], self.obs_buf.unsqueeze(1)), dim=1)
-            return self.obs_seqs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
         return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def reset_idx(self, env_ids):
@@ -366,9 +357,6 @@ class X152bPx4(BaseTask):
         self.progress_buf[env_ids] = 0
 
         self.pre_actions[env_ids] = 0
-
-        if self.cfg.use_tcn:
-            self.obs_seqs_buf[env_ids] = 0
 
     def compute_observations(self):
         self.root_matrix = T.quaternion_to_matrix(self.root_quats[:, [3, 0, 1, 2]]).reshape(self.num_envs, 9)
@@ -474,10 +462,13 @@ class X152bPx4(BaseTask):
 
         # continous action
         action_diff = self.actions - self.pre_actions
-        continous_action_reward = .2 * torch.exp(-torch.norm(action_diff[..., :-1], dim=-1)) + .5 / (1.0 + torch.square(3 * action_diff[..., -1]))
-        thrust = self.actions[..., -1] # this thrust is the force on vertical axis
-        thrust_reward = .1 * (1-torch.abs(0.1533 - thrust))
-        # print(thrust)
+        if self.ctl_mode == "pos" or self.ctl_mode == 'vel' or self.ctl_mode == 'prop':
+            continous_action_reward =  .2 * torch.exp(-torch.norm(action_diff[..., :], dim=-1))
+        else:
+            continous_action_reward = .2 * torch.exp(-torch.norm(action_diff[..., :-1], dim=-1)) + .5 / (1.0 + torch.square(3 * action_diff[..., -1]))
+            thrust = self.actions[..., -1] # this thrust is the force on vertical axis
+            thrust_reward = .1 * (1-torch.abs(0.1533 - thrust))
+            # print(thrust)
 
         # distance
         target_positions = self.target_states[..., 9:12]
@@ -507,13 +498,21 @@ class X152bPx4(BaseTask):
         ups = quat_axis(self.root_quats, 2)
         ups_reward = torch.square((ups[..., 2] + 1) / 2)
 
-        reward = (
-            continous_action_reward
-            + effort_reward
-            + thrust_reward
-            + pos_reward
-            + pos_reward*(vel_direction_reward + ups_reward + spin_reward + yaw_reward)
-        )
+        if self.ctl_mode == "pos" or self.ctl_mode == 'vel' or self.ctl_mode == 'prop':
+            reward = (
+                continous_action_reward
+                + effort_reward
+                + pos_reward
+                + pos_reward*(vel_direction_reward + ups_reward + spin_reward + yaw_reward)
+            )
+        else:
+            reward = (
+                continous_action_reward
+                + effort_reward
+                + thrust_reward
+                + pos_reward
+                + pos_reward*(vel_direction_reward + ups_reward + spin_reward + yaw_reward)
+            )
 
         # resets due to misbehavior
         ones = torch.ones_like(self.reset_buf)
@@ -536,7 +535,7 @@ class X152bPx4(BaseTask):
         item_reward_info = {}
         item_reward_info["continous_action_reward"] = continous_action_reward
         item_reward_info["effort_reward"] = effort_reward
-        item_reward_info["thrust_reward"] = thrust_reward
+        item_reward_info["thrust_reward"] = thrust_reward if self.ctl_mode == "atti" or self.ctl_mode == 'rate' else 0
         item_reward_info["pos_reward"] = pos_reward
         item_reward_info["vel_direction_reward"] = vel_direction_reward
         item_reward_info["ups_reward"] = ups_reward

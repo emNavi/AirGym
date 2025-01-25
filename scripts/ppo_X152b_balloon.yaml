@@ -21,17 +21,12 @@ params:
       initializer:
         name: default
         scale: 2
-    # resnet:
-    #   type: resnet18
-    #   output_dim: 12
-    cnn:
-      output_dim: 12
 
   config:
     env_name: X152b_balloon
     env_config:
       num_envs: 4
-      use_image: True
+      use_image: False
     
     name: ppo_X152b_balloon
     reward_shaper:

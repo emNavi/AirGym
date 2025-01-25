@@ -17,7 +17,7 @@ class X152bBalloonConfig(BaseConfig):
         env_spacing = 10  # not used with heightfields/trimeshes
         episode_length_s = 8 # episode length in seconds
         num_control_steps_per_env_step = 1 # number of control & physics steps between camera renders
-        enable_onboard_cameras = True # enable onboard cameras
+        enable_onboard_cameras = False # enable onboard cameras
         reset_on_collision = False # reset environment when contact force on quadrotor is above a threshold
         create_ground_plane = False # create a ground plane
 
@@ -83,14 +83,14 @@ class X152bBalloonConfig(BaseConfig):
         Note: specific assets will be loaded as the sequence. Please make sure the sequence is correct.
         """
         include_specific_asset = {
-            "balls/balloon": True,
+            "balls/ball": True,
             "boundaries/front_wall": False, 
             "boundaries/left_wall": False, 
             "boundaries/top_wall": False, 
             "boundaries/back_wall": False,
             "boundaries/right_wall": False, 
             "boundaries/bottom_wall": False, 
-            "boundaries/8X18ground": True,
+            "boundaries/8X18ground": False,
             "boundaries/18X18ground": False,
             # "cubes/1X4": True,
         }
@@ -166,6 +166,6 @@ class X152bBalloonConfig(BaseConfig):
             "boundaries/top_wall": top_wall,
             "boundaries/8X18ground": ground,
             "boundaries/18X18ground": ground,
-            "balls/balloon": ball_asset_params,
+            "balls/ball": ball_asset_params,
             }
  

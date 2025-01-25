@@ -22,7 +22,7 @@ class X152bPx4WithCamCfg(BaseConfig):
         create_ground_plane = True # create a ground plane
         
         cam_channel = 1
-        cam_resolution = (128, 128) # (width, hight)
+        cam_resolution = (212, 120) # (width, hight)
         cam_dt = 0.04 # camera render time interval
 
     class viewer:
@@ -75,7 +75,7 @@ class X152bPx4WithCamCfg(BaseConfig):
             "trees": False,
             "objects": False, 
             "cubes": True,
-            "flags": False,
+            "flags": True,
         }
         
         include_specific_asset = {
@@ -102,13 +102,13 @@ class X152bPx4WithCamCfg(BaseConfig):
             num_assets = 10
 
         class tree_asset_params(asset_register.tree_asset_params):
-            num_assets = 1
+            num_assets = 5
 
         class object_asset_params(asset_register.object_asset_params):
             num_assets = 30
 
         class cube_asset_params(asset_register.cube_asset_params):
-            num_assets = 5
+            num_assets = 2
 
         class flag_asset_params(asset_register.flag_asset_params):
             num_assets = 0

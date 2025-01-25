@@ -19,27 +19,11 @@ except ImportError:
     traceback.print_exc()
 
 try:
-    from .task.X152b_target_config import X152bTargetConfig
-    from .task.X152b_target import X152bTarget
-    task_registry.register("X152b_target", X152bTarget, X152bTargetConfig())
-except ImportError:
-    print("WARNING! X152bTarget or X152bTargetConfig cannot be imported. Ignore if using on real robot inference.")
-    traceback.print_exc()
-
-try:
     from .task.X152b_balloon_config import X152bBalloonConfig
     from .task.X152b_balloon import X152bBalloon
     task_registry.register("X152b_balloon", X152bBalloon, X152bBalloonConfig())
 except ImportError:
     print("WARNING! X152bBalloon or X152bBalloonConfig cannot be imported. Ignore if using on real robot inference.")
-    traceback.print_exc()
-
-try:
-    from .task.X152b_slit_config import X152bSlitConfig
-    from .task.X152b_slit import X152bSlit
-    task_registry.register("X152b_slit", X152bSlit, X152bSlitConfig())
-except ImportError:
-    print("WARNING! X152bSlit or X152bSlitConfig cannot be imported. Ignore if using on real robot inference.")
     traceback.print_exc()
 
 try:

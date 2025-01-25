@@ -4,6 +4,7 @@ import os
 import torch
 import sys
 
+import torch.nn.functional as F
 
 from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
 
@@ -494,12 +495,57 @@ class X152bPx4WithCam(BaseTask):
         for env_id in range(self.num_envs):
             # the depth values are in -ve z axis, so we need to flip it to positive
             self.full_camera_array[env_id, :] = -self.camera_tensors[env_id].T
-            self.full_camera_array[env_id, :] = torch.clamp(self.full_camera_array[env_id, :], 0, 6) / 6.
+            self.full_camera_array[env_id, :] = torch.where(self.full_camera_array[env_id, :] > 4.5, torch.tensor(0.0), self.full_camera_array[env_id, :])
+            self.full_camera_array[env_id, :] = torch.clamp(self.full_camera_array[env_id, :], 0, 4.5) / 4.5
+
+            def add_gaussian_noise(depth_map, mean=0.0, std=.1):
+                noise = torch.normal(mean, std, size=depth_map.shape, device=depth_map.device)
+                noisy_depth_map = depth_map + noise
+                return torch.clamp(noisy_depth_map, 0.0, depth_map.max())
             
-            # depth_image = self.full_camera_array[env_id, :].T.cpu().numpy()
-            # dist = cv2.normalize(depth_image, None, 0,255, cv2.NORM_MINMAX, cv2.CV_8UC1)
-            # cv2.imshow(str(env_id), dist)
-            # cv2.waitKey(1)
+            def add_multiplicative_noise(depth_map, mean=1.0, std=0.3):
+                noise = torch.normal(mean, std, size=depth_map.shape, device=depth_map.device)
+                noisy_depth_map = depth_map * noise
+                return torch.clamp(noisy_depth_map, 0.0, depth_map.max())
+            
+            def apply_gaussian_blur(depth_map, kernel_size=5, sigma=1.0):
+                # Create a Gaussian kernel
+                kernel = torch.randint(0, 256, (kernel_size, kernel_size), dtype=torch.float32) / 256.0
+                kernel = kernel.unsqueeze(0).unsqueeze(0)  # Add batch and channel dimensions
+                kernel = kernel.to(depth_map.device)
+
+                # Apply convolution for Gaussian blur
+                return F.conv2d(depth_map.unsqueeze(0), kernel, padding=kernel_size//2).squeeze(0)
+            
+            def add_occlusion(depth_map, num_rectangles=100, max_size=3):
+                occluded_depth_map = depth_map.clone()
+                _, height, width = depth_map.shape
+                for _ in range(num_rectangles):
+                    x1 = torch.randint(0, width, (1,)).item()
+                    y1 = torch.randint(0, height, (1,)).item()
+                    x2 = min(x1 + torch.randint(1, max_size, (1,)).item(), width)
+                    y2 = min(y1 + torch.randint(1, max_size, (1,)).item(), height)
+                    occluded_depth_map[:, y1:y2, x1:x2] = 0.0  # 设置遮挡区域为0
+                return occluded_depth_map
+            
+            def random_depth_scaling(depth_map, scale_range=(0.5, 2.), offset_range=(-0.3, 0.3)):
+                scale = torch.empty(1).uniform_(*scale_range).item()
+                offset = torch.empty(1).uniform_(*offset_range).item()
+                scaled_depth_map = depth_map * scale + offset
+                return torch.clamp(scaled_depth_map, 0.0, depth_map.max())
+            
+            self.full_camera_array[env_id, :] = add_gaussian_noise(self.full_camera_array[env_id, :])
+            self.full_camera_array[env_id, :] = add_multiplicative_noise(self.full_camera_array[env_id, :])
+            self.full_camera_array[env_id, :] = apply_gaussian_blur(self.full_camera_array[env_id, :])
+            self.full_camera_array[env_id, :] = add_occlusion(self.full_camera_array[env_id, :])
+            self.full_camera_array[env_id, :] = random_depth_scaling(self.full_camera_array[env_id, :])
+
+            depth_image = self.full_camera_array[env_id, :].T.cpu().numpy()
+            dist = cv2.normalize(depth_image, None, 0,255, cv2.NORM_MINMAX, cv2.CV_8UC1)
+            depth_colored = cv2.applyColorMap(dist, cv2.COLORMAP_PLASMA)
+
+            cv2.imshow(str(env_id), depth_colored)
+            cv2.waitKey(1)
 
             # color
             # if(self.camera_tensors[env_id].shape[0] != 0):
