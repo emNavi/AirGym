@@ -65,7 +65,7 @@ We also build a randomly generated environment for drone training. One demo is s
     ```
 ### 3. Install AirGym
 ```bash
-git clone git@github.com:FP-Flight/AirGym.git
+git clone git@github.com:emNavi/AirGym.git
 cd AirGym/
 pip install -e .
 ```
@@ -96,18 +96,18 @@ python runner.py --play --num_envs 64 --ctl_mode rate --checkpoint <path-to-ckpt
 ```
 
 ## Training a Trajectory Tracking Policy
-Every task is mainly affected by two `.py` files. Use task X152b_sigmoid as an example. Env definition file is `X152b_sigmoid.py`, and the config file is `X152b_sigmoid_config.py`, which could change environmental configuration like control mode, adding assets, simulation specification. `ctl_mode` has five options: 'pos', 'vel', 'atti', 'rate', 'prop', and 'pos' is the default setting.
+Every task is mainly affected by two `.py` files. Use task X152b_sigmoid as an example. Env definition file is `X152b_tracking.py`, and the config file is `X152b_tracking_config.py`, which could change environmental configuration like control mode, adding assets, simulation specification. `ctl_mode` has five options: 'pos', 'vel', 'atti', 'rate', 'prop', and 'pos' is the default setting.
 
-Algorithm related configuration can be edited in `ppo_X152b_sigmoid.yaml`. Environment related configuration can be edited in  `.../envs/.../X152b_sigmoid_config.py`.
+Algorithm related configuration can be edited in `ppo_X152b_tracking.yaml`. Environment related configuration can be edited in  `.../envs/.../X152b_tracking_config.py`.
 
 Training:
 ```bash
 cd airgym/rl_games/
-python runner.py --task X152b_sigmoid --headless --ctl_mode rate  --file ppo_X152b_sigmoid.yaml
+python runner.py --task X152b_tracking--headless --ctl_mode rate  --file ppo_X152b_tracking.yaml
 ```
 
 Displaying:
 ```bash
 cd airgym/rl_games/
-python runner.py --play --num_envs 4 --task X152b_sigmoid --ctl_mode rate --checkpoint <path-to-model>
+python runner.py --play --num_envs 4 --task X152b_tracking --ctl_mode rate --checkpoint <path-to-model>
 ```

@@ -74,14 +74,6 @@ def update_cfg_from_args(env_cfg, args):
             env_cfg.seed = args.seed
         except AttributeError:
             print('seed is not exist')
-        try:
-            env_cfg.use_tcn = args.use_tcn
-        except AttributeError:
-            print('use_tcn is not exist')
-        try:
-            env_cfg.tcn_seqs_len = args.tcn_seqs_len
-        except AttributeError:
-            print('tcn_seqs_len is not exist')
         
         # random seed
                 

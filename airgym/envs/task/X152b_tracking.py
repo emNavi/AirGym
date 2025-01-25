@@ -163,11 +163,6 @@ class X152bTracking(X152bPx4):
             
             self.gym.viewer_camera_look_at(self.viewer, None, cam_pos, cam_target)
         
-        if self.cfg.use_tcn:
-            self.tcn_seqs_len = self.cfg.tcn_seqs_len
-            self.obs_seqs_buf = torch.zeros(
-                (self.num_envs, self.tcn_seqs_len, self.cfg.env.num_observations), device=self.device, dtype=torch.float32)
-        
     def _create_envs(self):
         print("\n\n\n\n\n CREATING ENVIRONMENT \n\n\n\n\n\n")
         asset_path = self.cfg.asset_config.X152b.file.format(
