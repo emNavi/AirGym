@@ -14,3 +14,5 @@ logs
 .catkin_tools
 *.bag
 *.bag.active
+pretraned
+trained
