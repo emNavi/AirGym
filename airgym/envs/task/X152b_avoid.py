@@ -242,7 +242,6 @@ class X152bAvoid(X152bPx4WithCam):
             'observation': self.obs_buf,
         }
 
-        obs = self.obs_buf
         return obs, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def compute_observations(self):
@@ -256,17 +255,17 @@ class X152bAvoid(X152bPx4WithCam):
         self.obs_buf[..., 0:18] -= self.target_states
         
         # add position of object
-        self.object_matrix = T.quaternion_to_matrix(self.object_quats[:, [3, 0, 1, 2]]).reshape(self.num_envs, 9)
-        self.obs_buf[..., 18:27] = self.object_matrix
-        self.obs_buf[..., 27:30] = self.object_positions
+        # self.object_matrix = T.quaternion_to_matrix(self.object_quats[:, [3, 0, 1, 2]]).reshape(self.num_envs, 9)
+        # self.obs_buf[..., 18:27] = self.object_matrix
+        # self.obs_buf[..., 27:30] = self.object_positions
 
-        self.obs_buf[..., 18:22] = self.actions
+        # self.obs_buf[..., 18:22] = self.actions
         # self.obs_buf[..., 22:31] = self.object_matrix
         # self.obs_buf[..., 31:34] = self.object_positions
-        self.obs_buf[..., 22:34] = torch.rand((self.num_envs, 12), device=self.device)
+        # self.obs_buf[..., 22:34] = torch.rand((self.num_envs, 12), device=self.device)
 
 
-        # self.full_camera_array = torch.rand((self.num_envs, self.cam_channel, self.cam_resolution[0], self.cam_resolution[1]), device=self.device)
+        self.full_camera_array = torch.rand((self.num_envs, self.cam_channel, self.cam_resolution[0], self.cam_resolution[1]), device=self.device)
         return self.obs_buf
 
     def compute_reward(self):
