@@ -16,9 +16,9 @@ class X152bBalloonConfig(BaseConfig):
         env_spacing = 10  # not used with heightfields/trimeshes
         episode_length_s = 8 # episode length in seconds
         num_control_steps_per_env_step = 1 # number of control & physics steps between camera renders
-        enable_onboard_cameras = False # enable onboard cameras
-        reset_on_collision = False # reset environment when contact force on quadrotor is above a threshold
-        create_ground_plane = False # create a ground plane
+        enable_onboard_cameras = True # enable onboard cameras
+        reset_on_collision = True # reset environment when contact force on quadrotor is above a threshold
+        create_ground_plane = True # create a ground plane
 
         cam_channel = 1
         cam_resolution = (212, 120) # (width, hight)
