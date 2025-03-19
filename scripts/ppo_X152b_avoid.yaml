@@ -21,14 +21,14 @@ params:
       initializer:
         name: default
         scale: 2
-    # cnn:
-    #   output_dim: 12
+    cnn:
+      output_dim: 12
 
   config:
     env_name: X152b_avoid
     env_config:
       num_envs: 4
-      use_image: False #True
+      use_image: True
     
     name: ppo_X152b_avoid
     reward_shaper:
