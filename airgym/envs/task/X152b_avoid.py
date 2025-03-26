@@ -242,7 +242,6 @@ class X152bAvoid(X152bPx4WithCam):
             'observation': self.obs_buf,
         }
 
-        obs = self.obs_buf
         return obs, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def compute_observations(self):

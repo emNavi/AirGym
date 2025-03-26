@@ -29,7 +29,10 @@ params:
         name: default
         scale: 2
     cnn:
-      output_dim: 12
+      output_dim: 30
+    # resnet:
+    #   type: resnet18
+    #   output_dim: 30
 
   config:
     env_name: X152b_planning

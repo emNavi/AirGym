@@ -63,6 +63,8 @@ class X152bTrackingConfig(X152bPx4Cfg):
         include_asset_type = {
             "thin": False,
             "trees": False,
+            "trees": False,
+            "vtrees": False,
             "objects": False, 
             "cubes": False,
             "flags": False,
@@ -94,6 +96,9 @@ class X152bTrackingConfig(X152bPx4Cfg):
             num_assets = 10
 
         class tree_asset_params(asset_register.tree_asset_params):
+            num_assets = 3
+        
+        class vtree_asset_params(asset_register.vtree_asset_params):
             num_assets = 3
 
         class object_asset_params(asset_register.object_asset_params):
@@ -141,6 +146,7 @@ class X152bTrackingConfig(X152bPx4Cfg):
         asset_type_to_dict_map = {
             "thin": thin_asset_params,
             "trees": tree_asset_params,
+            "vtrees": vtree_asset_params,
             "objects": object_asset_params,
             "cubes": cube_asset_params,
             "flags": flag_asset_params,

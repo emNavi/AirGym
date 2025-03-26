@@ -109,6 +109,31 @@ class tree_asset_params(asset_state_params):
     set_whole_body_semantic_mask = False
     set_semantic_mask_per_link = True
     semantic_mask_link_list = [] ## If nothing is specified, all links are labeled
+    semantic_id = FLAG_SEMANTIC_ID
+
+    # for object convex decomposition
+    vhacd_enabled = False
+
+class vtree_asset_params(asset_state_params):
+    num_assets = 1
+
+    collision_mask = 1 # objects with the same collision mask will not collide
+
+    max_position_ratio = [0.95, 0.95, 0.1]
+    min_position_ratio = [0.05, 0.05, 0.0]
+
+    specified_position = [-1000.0, -1000.0, -1000.0] # if > -900, use this value instead of randomizing   the ratios
+
+    min_euler_angles = [0, -np.pi/6.0, -np.pi] # min euler angles
+    max_euler_angles = [0, np.pi/6.0, np.pi] # max euler angles
+
+    specified_euler_angle = [-1000.0, -1000.0, -1000.0] # if > -900, use this value instead of randomizing
+
+    collapse_fixed_joints = True
+    links_per_asset = 1
+    set_whole_body_semantic_mask = False
+    set_semantic_mask_per_link = True
+    semantic_mask_link_list = [] ## If nothing is specified, all links are labeled
     semantic_id = TREE_SEMANTIC_ID
     color = [70,200,100]
 

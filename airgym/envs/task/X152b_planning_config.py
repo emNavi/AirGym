@@ -8,16 +8,16 @@ class X152bPlanningConfig(BaseConfig):
     seed = 1
 
     class env:
-        target_state = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0]) 
+        target_state = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]) 
         num_envs = 4 # must be a square number
-        num_observations = 22 #+ 12
+        num_observations = 16 #+ 12
         headless = True
         get_privileged_obs = True # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned
-        env_spacing = 10  # not used with heightfields/trimeshes
-        episode_length_s = 12 # episode length in seconds
+        env_spacing = 14  # not used with heightfields/trimeshes
+        episode_length_s = 16 # episode length in seconds
         num_control_steps_per_env_step = 1 # number of control & physics steps between camera renders
         enable_onboard_cameras = True # enable onboard cameras
-        reset_on_collision = True # reset environment when contact force on quadrotor is above a threshold
+        reset_on_collision = False # reset environment when contact force on quadrotor is above a threshold
         create_ground_plane = True # create a ground plane
 
         cam_channel = 1
@@ -70,13 +70,14 @@ class X152bPlanningConfig(BaseConfig):
         folder_path = f"{AIRGYM_ROOT_DIR}/resources/models/environment_assets"
         
         include_asset_type = {
-            "thin": False,
+            "thin": True,
             "trees": False,
+            "vtrees": False,
             "objects": False, 
             "cubes": False,
             "flags": False,
             "balls": False,
-            "cubes_prim": True,
+            "cubes_prim": False,
         }
         
         """
@@ -91,7 +92,7 @@ class X152bPlanningConfig(BaseConfig):
             "boundaries/bottom_wall": False, 
             "boundaries/18X18ground": False,
             "cubes/1X1": False,
-            "balls/ball": False,
+            "balls/ball_no_geom": True,
             "boundaries/8X18ground": False,
         }
 
@@ -107,11 +108,20 @@ class X152bPlanningConfig(BaseConfig):
 
         class ball_asset_params(asset_register.ball_asset_params):
             num_assets = 1
+            color = [255,102,102]
+            collision_mask = 1
+            specified_position = [[1, 1, 1]]
+            specified_euler_angle = [[.0, .0, .0]]
         
         class thin_asset_params(asset_register.thin_asset_params):
-            num_assets = 10
+            num_assets = 40
+            color = [139, 69, 0]
+            collision_mask = 1
 
         class tree_asset_params(asset_register.tree_asset_params):
+            num_assets = 12
+
+        class vtree_asset_params(asset_register.vtree_asset_params):
             num_assets = 3
 
         class object_asset_params(asset_register.object_asset_params):
@@ -122,7 +132,7 @@ class X152bPlanningConfig(BaseConfig):
             collision_mask = 0
 
         class flag_asset_params(asset_register.flag_asset_params):
-            num_assets = 6
+            num_assets = 10
 
         class ground(asset_register.ground):
             num_assets = 1
@@ -152,6 +162,7 @@ class X152bPlanningConfig(BaseConfig):
             "balls": ball_asset_params,
             "thin": thin_asset_params,
             "trees": tree_asset_params,
+            "vtrees": vtree_asset_params,
             "objects": object_asset_params,
             "cubes": cube_asset_params,
             "flags": flag_asset_params,
@@ -164,6 +175,6 @@ class X152bPlanningConfig(BaseConfig):
             "boundaries/top_wall": top_wall,
             "boundaries/8X18ground": ground,
             "boundaries/18X18ground": ground,
-            "balls/ball": ball_asset_params,
+            "balls/ball_no_geom": ball_asset_params,
             }
  

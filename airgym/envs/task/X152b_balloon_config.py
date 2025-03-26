@@ -72,6 +72,7 @@ class X152bBalloonConfig(BaseConfig):
         include_asset_type = {
             "thin": False,
             "trees": False,
+            "vtrees": False,
             "objects": False, 
             "cubes": False,
             "flags": False,
@@ -117,6 +118,9 @@ class X152bBalloonConfig(BaseConfig):
         class tree_asset_params(asset_register.tree_asset_params):
             num_assets = 3
 
+        class vtree_asset_params(asset_register.vtree_asset_params):
+            num_assets = 3
+
         class object_asset_params(asset_register.object_asset_params):
             num_assets = 30
 
@@ -154,6 +158,7 @@ class X152bBalloonConfig(BaseConfig):
             "balls": ball_asset_params,
             "thin": thin_asset_params,
             "trees": tree_asset_params,
+            "vtrees": vtree_asset_params,
             "objects": object_asset_params,
             "cubes": cube_asset_params,
             "flags": flag_asset_params,

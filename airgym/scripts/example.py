@@ -13,17 +13,24 @@ def sample_command(args):
     print("Number of environments", env_cfg.env.num_envs)
     command_actions = torch.zeros((env_cfg.env.num_envs, env_cfg.env.num_actions))
     
-    command_actions[:, 0] = 0
-    command_actions[:, 1] = 0
-    command_actions[:, 2] = 1
-    command_actions[:, 3] = 0
+    command_actions[:, 0] = 0.
+    command_actions[:, 1] = 0.01
+    command_actions[:, 2] = 0.
+    command_actions[:, 3] = -0.69
     
+    # sp roll +10 yaw 25
+    # 
     # w,x,y,z
-    # command_actions[:, 0] = 1
-    # command_actions[:, 1] = 0
-    # command_actions[:, 2] = 0
-    # command_actions[:, 3] = 0
-    # command_actions[:, 4] = 0.1533
+    # command_actions[:, 0] =  0.973
+    # command_actions[:, 1] =  0.085
+    # command_actions[:, 2] = -0.019
+    # command_actions[:, 3] =  0.216
+
+    # command_actions[:, 0] =  0.973 
+    # command_actions[:, 1] =  0.085
+    # command_actions[:, 2] =  0.019
+    # command_actions[:, 3] =  0.213
+    # command_actions[:, 4] = -0.69
     
     # -4 0 0.7 -1.53
 

@@ -253,6 +253,8 @@ class X152bPx4(BaseTask):
             self.cmd_thrusts = torch.tensor(self.parallel_vel_control.update(actions_cpu.astype(np.float64)))
         elif(control_mode_ == "atti"):
             root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]] # w, x, y, z
+            print(actions_cpu)
+            print(root_quats_cpu)
             self.parallel_atti_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
             self.cmd_thrusts = torch.tensor(self.parallel_atti_control.update(actions_cpu.astype(np.float64))) 
         elif(control_mode_ == "rate"):
@@ -341,7 +343,7 @@ class X152bPx4(BaseTask):
                                        0.05*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.05
         # root_angle = torch.concatenate([0.*torch.ones((num_resets, 1), device=self.device), # debug
         #                                 0.*torch.ones((num_resets, 1), device=self.device), # debug
-        #                                 0.8*torch.pi*torch.ones((num_resets, 1), device=self.device)], dim=-1) # debug
+        #                                 0.*torch.pi*torch.ones((num_resets, 1), device=self.device)], dim=-1) # debug
         matrix = T.euler_angles_to_matrix(root_angle, 'XYZ')
         root_quats = T.matrix_to_quaternion(matrix) # w,x,y,z
         self.root_states[env_ids, 3:7] = root_quats[:, [1, 2, 3, 0]] #x,y,z,w
