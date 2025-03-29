@@ -1,11 +1,25 @@
-# AirGym
-> This project is based on Aerial Gym Simulator licensed(https://github.com/ntnu-arl/aerial_gym_simulator) under the BSD 3-Clause License. It has been modified and greatly improved by emNavi.
+<div align="center">
+  <img src="doc/logo2.png" width="300" style="margin-bottom: 20px;">
+  <p style="font-size: 1.2em; margin-top: -10px;">
+    <i>A High-Performance Quadrotor Deep Reinforcement Learning Platform</i> <br>
+    <b>Built on <span style="color: #76b900;">NVIDIA IsaacGym</span></b>
+  </p>
+</div>
 
-This project provides a realistic dynamics and RL framework for Sim2Real tasks of quadcopter. Drones can be trained in AirGym and then transferred to reality.
+![GitHub License](https://img.shields.io/github/license/emnavi/airgym)
+  ![GitHub Issues](https://img.shields.io/github/issues/emnavi/airgym)
+  ![GitHub Release](https://img.shields.io/github/v/release/emnavi/airgym)
+  <img src="https://img.shields.io/badge/PyTorch-1.10%2B-EE4C2C?logo=pytorch">
 
-We also build a randomly generated environment for drone training. One demo is shown below:
+AirGym is a quadrotor simulator based on IsaacGym. It provides a high-fidelity dynamics and Deep Reinforcement Learning (DRL) framework. Furthermore, we also provide toolkits for transferring policy from AirGym simulator to the real quadrotor [emNavi-X152b](https://emnavi.tech/droneKit/#x152b%E5%B9%B3%E5%8F%B0), making Sim-to-Real possible.
+
+AirGym can generate random environment for drone training:
 ![Demo Video](doc/airgym_demo.gif)
 
+AirGym provides four basic tasks <font face='courier new'>Hovering</font>, <font face='courier new'>Balloon</font>, <font face='courier new'>Tracking</font>, <font face='courier new'>Avoid</font>, and a higher level task <font face='courier new'>Planning</font>. Here we show a demo of task <font face='courier new'>Planning</font>:
+![Demo Video](doc/planning-sim.gif)
+
+> We thanks the excellent work by Aerial Gym Simulator licensed(https://github.com/ntnu-arl/aerial_gym_simulator) under the BSD 3-Clause License. It has been modified and greatly improved by emNavi.
 
 ## Requirements
 1. Ubuntu 20.04 or 22.04
@@ -111,3 +125,15 @@ Displaying:
 cd airgym/rl_games/
 python runner.py --play --num_envs 4 --task X152b_tracking --ctl_mode rate --checkpoint <path-to-model>
 ```
+
+## Task Descriptions
+
+### Hovering
+
+### Balloon
+
+### Tracking
+
+### Avoid
+
+### Planning
