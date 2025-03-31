@@ -1,3 +1,7 @@
+![GitHub License](https://img.shields.io/github/license/emnavi/airgym)
+  ![GitHub Issues](https://img.shields.io/github/issues/emnavi/airgym)
+  ![GitHub Release](https://img.shields.io/github/v/release/emnavi/airgym)
+  <img src="https://img.shields.io/badge/PyTorch-1.10%2B-EE4C2C?logo=pytorch">
 <div align="center">
   <img src="doc/logo2.png" width="300" style="margin-bottom: 20px;">
   <p style="font-size: 1.2em; margin-top: -10px;">
@@ -6,29 +10,92 @@
   </p>
 </div>
 
-![GitHub License](https://img.shields.io/github/license/emnavi/airgym)
-  ![GitHub Issues](https://img.shields.io/github/issues/emnavi/airgym)
-  ![GitHub Release](https://img.shields.io/github/v/release/emnavi/airgym)
-  <img src="https://img.shields.io/badge/PyTorch-1.10%2B-EE4C2C?logo=pytorch">
 
-AirGym is a quadrotor simulator based on IsaacGym. It provides a high-fidelity dynamics and Deep Reinforcement Learning (DRL) framework. Furthermore, we also provide toolkits for transferring policy from AirGym simulator to the real quadrotor [emNavi-X152b](https://emnavi.tech/droneKit/#x152b%E5%B9%B3%E5%8F%B0), making Sim-to-Real possible.
+<details>
+<summary style="display: list-item; cursor: pointer; text-decoration: none">
+  <h2 style="display: inline; border-bottom: none">Table of Contents</h2>
+</summary>
 
-AirGym can generate random environment for drone training:
-![Demo Video](doc/airgym_demo.gif)
+1. [AirGym](#airgym)
+2. [Features](#features)
+3. [Environments](#environments)
+- [Hovering](#hovering)
+- [Tracking](#tracking)
+- [Balloon (Target Reaching)](#balloon)
+- [Avoid (Dynamic Obstacle)](#avoid)
+- [Planning](#planning)
+4. [Installation](#configuration)
+5. [Usage](#contributing)
+6. [TODO](#contributing)
+7. [FAQ](#contributing)
+8. [License](#license)
+9. [Acknowledgements](#contributing)
+10. [Citation](#contributing)
+</details>
 
-AirGym provides four basic tasks <font face='courier new'>Hovering</font>, <font face='courier new'>Balloon</font>, <font face='courier new'>Tracking</font>, <font face='courier new'>Avoid</font>, and a higher level task <font face='courier new'>Planning</font>. Here we show a demo of task <font face='courier new'>Planning</font>:
+## AirGym
+AirGym is an open souce Python quadrotor simulator based on IsaacGym, a part of AirGym series Sim-to-Real workding flow. It provides a high-fidelity dynamics and Deep Reinforcement Learning (DRL) framework for quadrotor robot learning research. Furthermore, we also provide toolkits for transferring policy from AirGym simulator to the real quadrotor [emNavi-X152b](https://emnavi.tech/droneKit/#x152b%E5%B9%B3%E5%8F%B0), making Sim-to-Real possible. The documentation website is at https://emnavi.tech/AirGym/.
+
+<p align="center">
+  <img src="doc/pipeline-whitebg.png" alt="AirGym Sim-to-Real Pipeline">
+</p>
+
+The Sim-to-Real working flow of AirGym series is broken down into four parts:
+- <span style="color: #76b900; ">[AirGym](https://github.com/emNavi/AirGym)</span>: the quadrotor simulation platform described in this repository, providing environments and basic training algorithm.
+- <span style="color: #76b900; ">[rlPx4Controller](https://github.com/emNavi/rlPx4Controller)</span>: a flight geometric controller that maintains strict control logic alignment with the open-source PX4, for a better Sim-to-Real.
+- <span style="color: #76b900; ">[AirGym-Real](https://github.com/emNavi/AirGym-Real)</span>: an onboard Sim-to-Real module compatible with AirGym, enabling direct loading of pretrained models, supporting onboard visual-inertial pose estimation, ROS topic publishing, and one-shot scripted deployment.
+- <span style="color: #76b900; ">[control_for_gym](https://github.com/emNavi/control_for_gym)</span>:  a middleware layer based on MAVROS for forwarding control commands at various levels to PX4 autopilot. It includes a finite state machine to facilitate switching between DRL models and traditional control algorithms.
+
+> We thanks the excellent work by Aerial Gym Simulator licensed(https://github.com/ntnu-arl/aerial_gym_simulator) under the BSD 3-Clause License. AirGym is modified and greatly improved from Aerial Gym Simulator especially for Sim-to-Real task.
+
+## Features
+<p><span style="color: #76b900; ">AirGym is more lightweight and has a clearer file structure compared to other simulators</span>, because it was designed from the beginning with the goal of achieving Sim-to-Real transfer.</p>
+
+- <span style="color: #76b900; ">Lightweight & Customizable</span>:AirGym is extremely lightweight yet highly extensible, allowing you to quickly set up your own customized training task.
+- <span style="color: #76b900; ">Strict Alignment with PX4 Logic</span>: Flight control in AirGym is supported by [rlPx4Controller](https://github.com/emNavi/rlPx4Controller). It maintains strict control logic alignment with the open-source PX4, for a better Sim-to-Real.
+- <span style="color: #76b900; ">Multiple Control Modes</span>: AirGym provides various control modes including PY (position & yaw), LV (linear velocity & yaw), CTA (collective thrust & attitude angle), CTBR (collective thrust & body rate), SRT (single-rotor thrust)
+- <span style="color: #76b900; ">Sim-to-Real Toolkits</span>: AirGym series have complete flow of robot learning Sim-to-Real and provide a potential to transfer well-trained policies to a physical device.
+
+
+## Environments
+AirGym provides four basic tasks <font face='courier new'>Hovering</font>, <font face='courier new'>Balloon</font>, <font face='courier new'>Tracking</font>, <font face='courier new'>Avoid</font>, and a higher level task <font face='courier new'>Planning</font>. All tasks are implemented on [X152b](https://emnavi.tech/droneKit/#x152b%E5%B9%B3%E5%8F%B0) quadrotor frame since this is our Sim-to-Real device.
+
+### <font face='courier new'>Hovering</font>
+Task <font face='courier new'>Hovering</font>: the quadrotor is expected to be initialized randomly inside a cube with a side length of 2 meters, then converge into the center and hover until the end of the episode. Also, this task can be used as "go to waypoint" task if specify a target waypoint.
+![Demo Video](doc/hovering1.gif)
+
+### <font face='courier new'>Balloon</font>
+Task <font face='courier new'>Balloon</font>: also called target reaching. It is essentially a variation of the
+hovering task, but with a key difference: the quadrotor moves
+at a higher speed, rapidly dashing toward the balloon (the target).
+![Demo Video](doc/balloon-hitting1.gif)
+
+### <font face='courier new'>Tracking</font>
+Task <font face='courier new'>Tracking</font>: tracking a sequance of waypoints which is played as a trajectory. The tracking speed is effected by the trajectory playing speed.
+![Demo Video](doc/tracking1.gif)
+
+### <font face='courier new'>Avoid</font>
+Task <font face='courier new'>Avoid</font>: hover and try to avoid a cube or a ball with random throwing velocity and angle. This task provides depth image as input.
+![Demo Video](doc/avoid1.gif)
+
+### <font face='courier new'>Planning</font>
+Task <font face='courier new'>Planning</font>: a drone navigates and flies through a random generated woods like area, using only depth information as input. No global information is utilized in this task which means a better adaptation in a GNSS-deny environment and without a VIO.
 ![Demo Video](doc/planning-sim.gif)
 
-> We thanks the excellent work by Aerial Gym Simulator licensed(https://github.com/ntnu-arl/aerial_gym_simulator) under the BSD 3-Clause License. It has been modified and greatly improved by emNavi.
+### Customized Environments
+Furthermore, you can build a customized environment and even task upon AirGym. Here is a simple demo of random assets generation.
+![Demo Video](doc/airgym_demo1.gif)
 
-## Requirements
+
+
+## Installation
+### Requirements
 1. Ubuntu 20.04 or 22.04
 1. [Conda](https://www.anaconda.com/download) or [Miniconda ](https://docs.conda.io/en/latest/miniconda.html)
 1. [NVIDIA Isaac Gym Preview 4](https://developer.nvidia.com/isaac-gym) ([Pytorch]((https://pytorch.org/)) needs to upgrade for 40 series of GPUs. Please follow the installation guidance.)
 
 > Note: this repository has been tested on Ubuntu 20.04/22.04 with PyTorch 2.0.0 + CUDA11.8.
 
-## Installation
 ### 1. Install IsaacGym Preview 4 with torch2.0.0+cuda11.8
 1. Download package from the [official page](https://developer.nvidia.com/isaac-gym) and unzip.
 1. Edit `install_requires` in `python/setup.py`:
