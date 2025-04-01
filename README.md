@@ -1,7 +1,7 @@
 ![GitHub License](https://img.shields.io/github/license/emnavi/airgym)
   ![GitHub Issues](https://img.shields.io/github/issues/emnavi/airgym)
   ![GitHub Release](https://img.shields.io/github/v/release/emnavi/airgym)
-  <img src="https://img.shields.io/badge/PyTorch-1.10%2B-EE4C2C?logo=pytorch">
+  <img src="https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C?logo=pytorch">
 <div align="center">
   <img src="doc/logo2.png" width="300" style="margin-bottom: 20px;">
   <p style="font-size: 1.2em; margin-top: -10px;">
