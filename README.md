@@ -212,7 +212,7 @@ env_configurations.register('X152b_planning', {'env_creator': lambda **kwargs : 
 ## TODO
 TBC
 
-## FAQ (Frequently Asked Questions)
+## FAQ
 TBC
 
 ## License
