@@ -3,7 +3,7 @@ from distutils.core import setup
 
 setup(
     name='airgym',
-    version='0.0.1beta',
+    version='0.0.2',
     author='emNavi Tech',
     license="BSD 3-Clause",
     packages=find_packages(),
