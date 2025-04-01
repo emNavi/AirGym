@@ -1,0 +1,13 @@
+name: airgym
+channels:
+  # - pytorch
+  # - conda-forge
+  # - defaults
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/pytorch/
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge/
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main/
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/free/
+dependencies:
+  - python=3.8
+  - numpy=1.20.0
+  - pillow=9.0.0

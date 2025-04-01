@@ -53,7 +53,7 @@ env_upper = gymapi.Vec3(spacing, spacing, spacing)
 envs = []
 actor_handles = []
 
-asset_root = "../../resources/models/environment_assets"
+asset_root = "../../resources/env_assets"
 asset_file = "cubes/1X1/model.urdf"
 asset_options = gymapi.AssetOptions()
 asset_options.disable_gravity = False

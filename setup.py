@@ -9,9 +9,19 @@ setup(
     packages=find_packages(),
     author_email='',
     description='IsaacGym Drone RL Project',
-    install_requires=['matplotlib',
-                      'numpy',
-                      'torch',
-                      'rospkg',
-                      'gym==0.23.1',]
+    install_requires=["numpy",
+                    "scipy",
+                    "pyyaml",
+                    "pillow",
+                    "imageio",
+                    "ninja",
+                    'matplotlib',
+                    'torch==2.0.0',
+                    'rospkg',
+                    'gym==0.23.1',
+                    'rlpx4controller',
+                    'usd-core',
+                    'pytorch3d',
+                    'tensorboardX'
+                    ]
 )

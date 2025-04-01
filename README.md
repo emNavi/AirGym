@@ -24,13 +24,21 @@
 - [Balloon (Target Reaching)](#balloon)
 - [Avoid (Dynamic Obstacle)](#avoid)
 - [Planning](#planning)
-4. [Installation](#configuration)
-5. [Usage](#contributing)
-6. [TODO](#contributing)
-7. [FAQ](#contributing)
+- [Customized Env](#customized-environments)
+4. [Installation](#installation)
+- [Requirements](#requirements)
+- [One-shot Install](#one-shot-install)
+- [Test the Installation](#test-the-installation)
+5. [Usage](#uage)
+- [Directory Structure Description](#directory-structure-parsing)
+- [Training from Scratch](#training-from-scratch)
+- [Playing and Testing](#playing-and-testing)
+- [Customize a New Task](#customize-a-new-task)
+6. [TODO](#todo)
+7. [FAQ](#faq)
 8. [License](#license)
-9. [Acknowledgements](#contributing)
-10. [Citation](#contributing)
+9. [Acknowledgements](#acknowledgement)
+10. [Citation](#citation)
 </details>
 
 ## AirGym
@@ -46,8 +54,6 @@ The Sim-to-Real working flow of AirGym series is broken down into four parts:
 - <span style="color: #76b900; ">[AirGym-Real](https://github.com/emNavi/AirGym-Real)</span>: an onboard Sim-to-Real module compatible with AirGym, enabling direct loading of pretrained models, supporting onboard visual-inertial pose estimation, ROS topic publishing, and one-shot scripted deployment.
 - <span style="color: #76b900; ">[control_for_gym](https://github.com/emNavi/control_for_gym)</span>:  a middleware layer based on MAVROS for forwarding control commands at various levels to PX4 autopilot. It includes a finite state machine to facilitate switching between DRL models and traditional control algorithms.
 
-> We thanks the excellent work by Aerial Gym Simulator licensed(https://github.com/ntnu-arl/aerial_gym_simulator) under the BSD 3-Clause License. AirGym is modified and greatly improved from Aerial Gym Simulator especially for Sim-to-Real task.
-
 ## Features
 <p><span style="color: #76b900; ">AirGym is more lightweight and has a clearer file structure compared to other simulators</span>, because it was designed from the beginning with the goal of achieving Sim-to-Real transfer.</p>
 
@@ -62,145 +68,167 @@ AirGym provides four basic tasks <font face='courier new'>Hovering</font>, <font
 
 ### <font face='courier new'>Hovering</font>
 Task <font face='courier new'>Hovering</font>: the quadrotor is expected to be initialized randomly inside a cube with a side length of 2 meters, then converge into the center and hover until the end of the episode. Also, this task can be used as "go to waypoint" task if specify a target waypoint.
-![Demo Video](doc/hovering1.gif)
+
+<center>
+  <img src="doc/hovering1.gif" alt="Demo Video" />
+</center>
 
 ### <font face='courier new'>Balloon</font>
 Task <font face='courier new'>Balloon</font>: also called target reaching. It is essentially a variation of the
 hovering task, but with a key difference: the quadrotor moves
 at a higher speed, rapidly dashing toward the balloon (the target).
-![Demo Video](doc/balloon-hitting1.gif)
+
+<center>
+  <img src="doc/balloon-hitting1.gif" alt="Demo Video" />
+</center>
 
 ### <font face='courier new'>Tracking</font>
 Task <font face='courier new'>Tracking</font>: tracking a sequance of waypoints which is played as a trajectory. The tracking speed is effected by the trajectory playing speed.
-![Demo Video](doc/tracking1.gif)
+
+<center>
+  <img src="doc/tracking1.gif" alt="Demo Video" />
+</center>
 
 ### <font face='courier new'>Avoid</font>
 Task <font face='courier new'>Avoid</font>: hover and try to avoid a cube or a ball with random throwing velocity and angle. This task provides depth image as input.
-![Demo Video](doc/avoid1.gif)
+
+<center>
+  <img src="doc/avoid1.gif" alt="Demo Video" />
+</center>
 
 ### <font face='courier new'>Planning</font>
 Task <font face='courier new'>Planning</font>: a drone navigates and flies through a random generated woods like area, using only depth information as input. No global information is utilized in this task which means a better adaptation in a GNSS-deny environment and without a VIO.
-![Demo Video](doc/planning-sim.gif)
+
+<center>
+  <img src="doc/planning-sim.gif" alt="Demo Video" />
+</center>
 
 ### Customized Environments
 Furthermore, you can build a customized environment and even task upon AirGym. Here is a simple demo of random assets generation.
-![Demo Video](doc/airgym_demo1.gif)
 
+<center>
+  <img src="doc/airgym_demo1.gif" alt="Demo Video" />
+</center>
 
 
 ## Installation
 ### Requirements
-1. Ubuntu 20.04 or 22.04
+1. Ubuntu 20.04
 1. [Conda](https://www.anaconda.com/download) or [Miniconda ](https://docs.conda.io/en/latest/miniconda.html)
-1. [NVIDIA Isaac Gym Preview 4](https://developer.nvidia.com/isaac-gym) ([Pytorch]((https://pytorch.org/)) needs to upgrade for 40 series of GPUs. Please follow the installation guidance.)
 
-> Note: this repository has been tested on Ubuntu 20.04/22.04 with PyTorch 2.0.0 + CUDA11.8.
+1. [NVIDIA Isaac Gym Preview 4](https://developer.nvidia.com/isaac-gym-preview-4) ([Pytorch]((https://pytorch.org/)) needs to upgrade for 40 series of GPUs. Please follow the installation guidance.) 
+1. Pytorch==2.0.0 CUDA==11.8 will be installed in conda environment.
+> Note: this repository has been tested on Ubuntu 20.04 PyTorch 2.0.0 + CUDA11.8 with RTX4090.
 
-### 1. Install IsaacGym Preview 4 with torch2.0.0+cuda11.8
-1. Download package from the [official page](https://developer.nvidia.com/isaac-gym) and unzip.
-1. Edit `install_requires` in `python/setup.py`:
-    ```
-    install_requires=[
-                "numpy",
-                "scipy",
-                "pyyaml",
-                "pillow",
-                "imageio",
-                "ninja",
-            ],
-    ```
-1. Edit `dependencies` in `python/rlgpu_conda_env.yml`:
-    ```python
-    dependencies:
-    - python=3.8
-    - numpy=1.20
-    - pyyaml
-    - scipy
-    - tensorboard
-    ```
-1. Create a new conda environment named `rlgpu` and install `isaacgym`:
-    ```bash
-    cd isaacgym
-    ./create_conda_env_rlgpu.sh
-    ```
-1. Install PyTorch2.0.0 and CUDA11.8:
-    ```bash
-    conda activate rlgpu
-    conda install pytorch==2.0.0 torchvision==0.15.0 torchaudio==2.0.0 pytorch-cuda=11.8 -c pytorch -c nvidia
-    ```
-
-### 2. Install [rlPx4Controller](https://github.com/FP-Flight/rlPx4Controller)
-1. Install Eigen (The recommend version is 3.3.7):
-    ```bash
-    sudo apt install libeigen3-dev
-    ```
-1. Install pybind11:
-    ```bash
-    pip install pybind11
-    ```
-1. Install rlPx4Controller
-    ```bash
-    git clone git@github.com:emNavi/rlPx4Controller.git
-    cd rlPx4Controller
-    pip install -e .
-    ```
-### 3. Install AirGym
+### One-shot Install
+Run `configuration.sh` to download and install [NVIDIA Isaac Gym Preview 4](https://developer.nvidia.com/isaac-gym-preview-4) and [rlPx4Controller](https://github.com/emNavi/rlPx4Controller) at `~`, and create a new conda environment named `airgym`. Note that `sudo` is required to install `apt` package:
 ```bash
-git clone git@github.com:emNavi/AirGym.git
-cd AirGym/
-pip install -e .
+chomd +x configuration.sh
+./configuration.sh
 ```
-### 4. Test the installation
-Run the example script:
+
+### Test the Installation
+You can run the example script which is a quadrotor position control illustration of 4096 parallel environments:
 ```bash
+conda activate airgym
 cd airgym/scripts
 python example.py --task X152b --ctl_mode pos
 ```
 The default `ctl_mode` is position control.
 
-## Training and Displaying
-We train the model by a rl_games-liked customed PPO (rl_games was discarded after the version 0.0.1beta because of its complexity for use). Of course you can use any other RL libs for training. 
+## Usage
+### Directory Structure Parsing
+```bash
+AirGym/
+│
+├── airgym/                                      # source code
+│   ├── envs/                                    # envs definition
+│   │    ├── base/                               # base envs
+│   │    └── task/                               # tasks
+│   │          ├── X152b_planning.py             # task env file
+│   │          ├── X152b_planning_config.py      # task env config file
+│   │          ├── ...
+│   │           ...
+│   │
+│   ├── lib/                                     # RL algorithm
+│   ├── scripts/                                 # debug scripts
+│   └── utils/                                   # others
+│
+├── doc/                                         # doc assets
+│
+├── resources/                                   # assets
+│   ├── env_assets/                              # env assets
+│   └── robots/                                  # robot assets
+│
+├── scripts/                                     # program scipts
+│   ├── runner.py                                # program entry
+│   ├── ppo_X152b_avoid.yaml                     # config file for training
+│   └── ...                                      
+│
+└── README.md                                    # introduction
+```
 
-> Important: ***emNavi*** provide a general quadrotor sim2real approach, please refer to **AirGym-Real** @https://github.com/emNavi/AirGym-Real.
+### Training from Scratch
+We train the model by a `rl_games` liked customed PPO (`rl_games` was discarded after the version 0.0.1beta because of its complexity for use). The training algorithm is at `airgym/lib` modified from `rl_games-1.6.1`. Of course you can use any other RL libs for training.
 
-Training:
+Training from scratch can be down within minites. Using <font face='courier new'>Hovering</font> as an example:
 ```bash
 cd scripts
 python runner.py --ctl_mode rate --headless --task X152b
 ```
 Algorithm related parameters can be edited in `.yaml` files. Environment and simulator related parameters are located in ENV_config files like `X152bPx4_config.py`. The `ctl_mode` must be spicified.
 
-Displaying:
+The input arguments can be overrided:
+| args | explanation |
+|----------|----------|
+| --play | Play(test) a trained network. |
+| --task | Spicify a task.  'X152b', 'X152b_avoid', 'X152b_balloon', 'X152b_planning', 'X152b_tracking'|
+| --num_envs | Spicify the number of parallel running environments.|
+| --headless | Run in headless mode or not. |
+| --ctl_mode | Spicify a control level mode from 'pos', 'vel', 'atti', 'rate', 'prop'. |
+| --checkpoint | Load a trained checkpoint model from path. |
+| --file | Spicify an algorithm config file for training. |
+
+### Playing and Testing
+Load a trained checkpoint is quite easy:
 ```bash
-cd airgym/rl_games/
+cd script
 python runner.py --play --num_envs 64 --ctl_mode rate --checkpoint <path-to-ckpt>
 ```
 
-## Training a Trajectory Tracking Policy
-Every task is mainly affected by two `.py` files. Use task X152b_sigmoid as an example. Env definition file is `X152b_tracking.py`, and the config file is `X152b_tracking_config.py`, which could change environmental configuration like control mode, adding assets, simulation specification. `ctl_mode` has five options: 'pos', 'vel', 'atti', 'rate', 'prop', and 'pos' is the default setting.
+> Important: ***emNavi*** provide a general quadrotor sim2real approach, please refer to **AirGym-Real** @https://github.com/emNavi/AirGym-Real.
 
-Algorithm related configuration can be edited in `ppo_X152b_tracking.yaml`. Environment related configuration can be edited in  `.../envs/.../X152b_tracking_config.py`.
-
-Training:
-```bash
-cd airgym/rl_games/
-python runner.py --task X152b_tracking--headless --ctl_mode rate  --file ppo_X152b_tracking.yaml
+### Customize a New Task
+1. Create a new `.py` file in directory `airgym/envs/task`. Usually, we use `<task_name>.py` to describe an environment and a `<task_name>_config.py` to describe basic environment settings. You can follow this rule.
+1. Register new task in `airgym/envs/task/__init__.py` and `airgym/lib/utils/vecenv.py`. The former is registration for AirGym environment, and the latter is registration for vectorized parallel environments required by algorithm. Using task <font face='courier new'>Planning</font> as an example:
+```python
+try:
+    from .task.X152b_planning_config import X152bPlanningConfig
+    from .task.X152b_planning import X152bPlanning
+    task_registry.register("X152b_planning", X152bPlanning, X152bPlanningConfig())
+except ImportError:
+    print("WARNING! X152bPlanning or X152bPlanningConfig cannot be imported. Ignore if using on real robot inference.")
+    traceback.print_exc()
+```
+```python
+env_configurations.register('X152b_planning', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_planning',args=Namespace(**kwargs)),
+        'vecenv_type': 'AirGym-RLGPU'})
 ```
 
-Displaying:
-```bash
-cd airgym/rl_games/
-python runner.py --play --num_envs 4 --task X152b_tracking --ctl_mode rate --checkpoint <path-to-model>
-```
+## TODO
+TBC
 
-## Task Descriptions
+## FAQ (Frequently Asked Questions)
+TBC
 
-### Hovering
+## License
+[LICENSE FILE](/LICENSE) 
+This project is inspired and greatly improved from project aerial_gym_simulator that adheres to the BSD 3-Clause License. In consequence, this work will continuously develope under BSD 3-Clause License. Currently, we still use assets management part from aerial_gym_simulator although we have made a great changes, but we are rewriting and optimizing this part. In the future, we will continue to build upon BSD 3-Clause and claim the contributions of those who came before us.
 
-### Balloon
+## Acknowledgement
+We thanks colleagues @emNavi Tech (https://emnavi.tech/) who develope and maintain the outstanding hardware device [emNavi-X152b](https://emnavi.tech/droneKit/#x152b%E5%B9%B3%E5%8F%B0) for Sim-to-Real task.
 
-### Tracking
+Also, we thanks the excellent work by Aerial Gym Simulator licensed(https://github.com/ntnu-arl/aerial_gym_simulator) under the BSD 3-Clause License. AirGym is modified and greatly improved upon Aerial Gym Simulator especially for Sim-to-Real task.
 
-### Avoid
-
-### Planning
+## Citation
+TBC

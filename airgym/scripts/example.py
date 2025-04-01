@@ -14,7 +14,7 @@ def sample_command(args):
     command_actions = torch.zeros((env_cfg.env.num_envs, env_cfg.env.num_actions))
     
     command_actions[:, 0] = 0.
-    command_actions[:, 1] = 0.01
+    command_actions[:, 1] = 0.
     command_actions[:, 2] = 0.
     command_actions[:, 3] = -0.69
     

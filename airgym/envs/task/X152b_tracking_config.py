@@ -58,7 +58,7 @@ class X152bTrackingConfig(X152bPx4Cfg):
         of this type must be defined in this class. We have registered some common types of assets in the asset_register.py and
         you can simply inherit from them. If you want to add a new type of asset, you can define a new class in the asset_register.py.
         """
-        folder_path = f"{AIRGYM_ROOT_DIR}/resources/models/environment_assets"
+        folder_path = f"{AIRGYM_ROOT_DIR}/resources/env_assets"
         
         include_asset_type = {
             "thin": False,
