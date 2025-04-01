@@ -55,12 +55,12 @@ The Sim-to-Real working flow of AirGym series is broken down into four parts:
 - <span style="color: #76b900; ">[control_for_gym](https://github.com/emNavi/control_for_gym)</span>:  a middleware layer based on MAVROS for forwarding control commands at various levels to PX4 autopilot. It includes a finite state machine to facilitate switching between DRL models and traditional control algorithms.
 
 ## Features
-<p><span style="color: #76b900; ">AirGym is more lightweight and has a clearer file structure compared to other simulators</span>, because it was designed from the beginning with the goal of achieving Sim-to-Real transfer.</p>
+**AirGym is more lightweight and has a clearer file structure compared to other simulators**, because it was designed from the beginning with the goal of achieving Sim-to-Real transfer.</p>
 
-- <span style="color: #76b900; ">Lightweight & Customizable</span>:AirGym is extremely lightweight yet highly extensible, allowing you to quickly set up your own customized training task.
-- <span style="color: #76b900; ">Strict Alignment with PX4 Logic</span>: Flight control in AirGym is supported by [rlPx4Controller](https://github.com/emNavi/rlPx4Controller). It maintains strict control logic alignment with the open-source PX4, for a better Sim-to-Real.
-- <span style="color: #76b900; ">Multiple Control Modes</span>: AirGym provides various control modes including PY (position & yaw), LV (linear velocity & yaw), CTA (collective thrust & attitude angle), CTBR (collective thrust & body rate), SRT (single-rotor thrust)
-- <span style="color: #76b900; ">Sim-to-Real Toolkits</span>: AirGym series have complete flow of robot learning Sim-to-Real and provide a potential to transfer well-trained policies to a physical device.
+- **Lightweight & Customizable**: AirGym is extremely lightweight yet highly extensible, allowing you to quickly set up your own customized training task.
+- **Strict Alignment with PX4 Logic**: Flight control in AirGym is supported by [rlPx4Controller](https://github.com/emNavi/rlPx4Controller). It maintains strict control logic alignment with the open-source PX4, for a better Sim-to-Real.
+- **Multiple Control Modes**: AirGym provides various control modes including PY (position & yaw), LV (linear velocity & yaw), CTA (collective thrust & attitude angle), CTBR (collective thrust & body rate), SRT (single-rotor thrust).
+- **Sim-to-Real Toolkits**: AirGym series have complete flow of robot learning Sim-to-Real and provide a potential to transfer well-trained policies to a physical device.
 
 
 ## Environments
@@ -115,9 +115,6 @@ Furthermore, you can build a customized environment and even task upon AirGym. H
 ### Requirements
 1. Ubuntu 20.04
 1. [Conda](https://www.anaconda.com/download) or [Miniconda ](https://docs.conda.io/en/latest/miniconda.html)
-
-1. [NVIDIA Isaac Gym Preview 4](https://developer.nvidia.com/isaac-gym-preview-4) ([Pytorch]((https://pytorch.org/)) needs to upgrade for 40 series of GPUs. Please follow the installation guidance.) 
-1. Pytorch==2.0.0 CUDA==11.8 will be installed in conda environment.
 > Note: this repository has been tested on Ubuntu 20.04 PyTorch 2.0.0 + CUDA11.8 with RTX4090.
 
 ### One-shot Install
