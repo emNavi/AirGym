@@ -69,46 +69,46 @@ AirGym provides four basic tasks <font face='courier new'>Hovering</font>, <font
 ### <font face='courier new'>Hovering</font>
 Task <font face='courier new'>Hovering</font>: the quadrotor is expected to be initialized randomly inside a cube with a side length of 2 meters, then converge into the center and hover until the end of the episode. Also, this task can be used as "go to waypoint" task if specify a target waypoint.
 
-<center>
+<p align="center">
   <img src="doc/hovering1.gif" alt="Demo Video" />
-</center>
+</p>
 
 ### <font face='courier new'>Balloon</font>
 Task <font face='courier new'>Balloon</font>: also called target reaching. It is essentially a variation of the
 hovering task, but with a key difference: the quadrotor moves
 at a higher speed, rapidly dashing toward the balloon (the target).
 
-<center>
+<p align="center">
   <img src="doc/balloon-hitting1.gif" alt="Demo Video" />
-</center>
+</p>
 
 ### <font face='courier new'>Tracking</font>
 Task <font face='courier new'>Tracking</font>: tracking a sequance of waypoints which is played as a trajectory. The tracking speed is effected by the trajectory playing speed.
 
-<center>
+<p align="center">
   <img src="doc/tracking1.gif" alt="Demo Video" />
-</center>
+</p>
 
 ### <font face='courier new'>Avoid</font>
 Task <font face='courier new'>Avoid</font>: hover and try to avoid a cube or a ball with random throwing velocity and angle. This task provides depth image as input.
 
-<center>
+<p align="center">
   <img src="doc/avoid1.gif" alt="Demo Video" />
-</center>
+</p>
 
 ### <font face='courier new'>Planning</font>
 Task <font face='courier new'>Planning</font>: a drone navigates and flies through a random generated woods like area, using only depth information as input. No global information is utilized in this task which means a better adaptation in a GNSS-deny environment and without a VIO.
 
-<center>
+<p align="center">
   <img src="doc/planning-sim.gif" alt="Demo Video" />
-</center>
+</p>
 
 ### Customized Environments
 Furthermore, you can build a customized environment and even task upon AirGym. Here is a simple demo of random assets generation.
 
-<center>
+<p align="center">
   <img src="doc/airgym_demo1.gif" alt="Demo Video" />
-</center>
+</p>
 
 
 ## Installation
