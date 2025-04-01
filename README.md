@@ -123,7 +123,7 @@ Furthermore, you can build a customized environment and even task upon AirGym. H
 ### One-shot Install
 Run `configuration.sh` to download and install [NVIDIA Isaac Gym Preview 4](https://developer.nvidia.com/isaac-gym-preview-4) and [rlPx4Controller](https://github.com/emNavi/rlPx4Controller) at `~`, and create a new conda environment named `airgym`. Note that `sudo` is required to install `apt` package:
 ```bash
-chomd +x configuration.sh
+chmod +x configuration.sh
 ./configuration.sh
 ```
 
@@ -131,8 +131,7 @@ chomd +x configuration.sh
 You can run the example script which is a quadrotor position control illustration of 4096 parallel environments:
 ```bash
 conda activate airgym
-cd airgym/scripts
-python example.py --task X152b --ctl_mode pos
+python airgym/scripts/example.py --task X152b --ctl_mode pos --num_envs 4
 ```
 The default `ctl_mode` is position control.
 
@@ -161,8 +160,8 @@ AirGym/
 │   └── robots/                                  # robot assets
 │
 ├── scripts/                                     # program scipts
+│   ├── config/                                  # config file for training
 │   ├── runner.py                                # program entry
-│   ├── ppo_X152b_avoid.yaml                     # config file for training
 │   └── ...                                      
 │
 └── README.md                                    # introduction
@@ -173,8 +172,7 @@ We train the model by a `rl_games` liked customed PPO (`rl_games` was discarded 
 
 Training from scratch can be down within minites. Using <font face='courier new'>Hovering</font> as an example:
 ```bash
-cd scripts
-python runner.py --ctl_mode rate --headless --task X152b
+python scripts/runner.py --ctl_mode rate --headless --task X152b
 ```
 Algorithm related parameters can be edited in `.yaml` files. Environment and simulator related parameters are located in ENV_config files like `X152bPx4_config.py`. The `ctl_mode` must be spicified.
 
@@ -192,8 +190,7 @@ The input arguments can be overrided:
 ### Playing and Testing
 Load a trained checkpoint is quite easy:
 ```bash
-cd script
-python runner.py --play --num_envs 64 --ctl_mode rate --checkpoint <path-to-ckpt>
+python scripts/runner.py --play --num_envs 64 --ctl_mode rate --checkpoint <path-to-ckpt>
 ```
 
 > Important: ***emNavi*** provide a general quadrotor sim2real approach, please refer to **AirGym-Real** @https://github.com/emNavi/AirGym-Real.

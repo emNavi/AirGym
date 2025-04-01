@@ -47,7 +47,11 @@ def update_config(config, args):
 if __name__ == '__main__':
     args = vars(get_args())
 
-    config_name = 'ppo_' + args['task']+'.yaml'
+    import os
+
+    script_path = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(script_path, 'config')
+    config_name = os.path.join(config_path, 'ppo_' + args['task']+'.yaml')
 
     print('Loading config: ', config_name)
     with open(config_name, 'r') as stream:
