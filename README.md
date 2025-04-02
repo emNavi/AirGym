@@ -57,10 +57,10 @@ The Sim-to-Real working flow of AirGym series is broken down into four parts:
 ## Features
 **AirGym is more lightweight and has a clearer file structure compared to other simulators**, because it was designed from the beginning with the goal of achieving Sim-to-Real transfer.</p>
 
-- **Lightweight & Customizable**: AirGym is extremely lightweight yet highly extensible, allowing you to quickly set up your own customized training task.
-- **Strict Alignment with PX4 Logic**: Flight control in AirGym is supported by [rlPx4Controller](https://github.com/emNavi/rlPx4Controller). It maintains strict control logic alignment with the open-source PX4, for a better Sim-to-Real.
-- **Multiple Control Modes**: AirGym provides various control modes including PY (position & yaw), LV (linear velocity & yaw), CTA (collective thrust & attitude angle), CTBR (collective thrust & body rate), SRT (single-rotor thrust).
-- **Sim-to-Real Toolkits**: AirGym series have complete flow of robot learning Sim-to-Real and provide a potential to transfer well-trained policies to a physical device.
+- **[Lightweight & Customizable]()**: AirGym is extremely lightweight yet highly extensible, allowing you to quickly set up your own customized training task.
+- **[Strict Alignment with PX4 Logic]()**: Flight control in AirGym is supported by [rlPx4Controller](https://github.com/emNavi/rlPx4Controller). It maintains strict control logic alignment with the open-source PX4, for a better Sim-to-Real.
+- **[Multiple Control Modes]()**: AirGym provides various control modes including PY (position & yaw), LV (linear velocity & yaw), CTA (collective thrust & attitude angle), CTBR (collective thrust & body rate), SRT (single-rotor thrust).
+- **[Sim-to-Real Toolkits]()**: AirGym series have complete flow of robot learning Sim-to-Real and provide a potential to transfer well-trained policies to a physical device.
 
 
 ## Environments
