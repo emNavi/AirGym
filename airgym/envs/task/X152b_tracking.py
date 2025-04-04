@@ -11,7 +11,7 @@ from airgym.utils.torch_utils import *
 from airgym.envs.base.X152bPx4 import X152bPx4
 import airgym.utils.rotations as rot_utils
 from airgym.envs.task.X152b_tracking_config import X152bTrackingConfig
-from airgym.utils.asset_manager import AssetManager
+from airgym.assets.asset_manager import AssetManager
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
 
@@ -63,7 +63,7 @@ class X152bTracking(X152bPx4):
         self.sim_device_id = sim_device
         self.headless = headless
 
-        self.env_asset_manager = AssetManager(self.cfg, sim_device)
+        self.asset_manager = AssetManager(self.cfg, sim_device)
 
         super(X152bPx4, self).__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
         self.root_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
@@ -73,8 +73,13 @@ class X152bTracking(X152bPx4):
         self.gym.refresh_actor_root_state_tensor(self.sim)
         self.gym.refresh_net_contact_force_tensor(self.sim)
 
-        num_actors = self.env_asset_manager.get_env_actor_count() + 1 # Number of obstacles in the environment + one robot
-        bodies_per_env = self.env_asset_manager.get_env_link_count() + self.robot_num_bodies # Number of links in the environment + robot
+        num_actors = self.asset_manager.get_env_actor_count() # Number of actors including robots and env assets in the environment
+        num_env_assets = self.asset_manager.get_env_asset_count() # Number of env assets
+        robot_num_bodies = self.asset_manager.get_robot_num_bodies() # Number of robots bodies in environment
+        env_asset_link_count = self.asset_manager.get_env_asset_link_count() # Number of env assets links in the environment
+        env_boundary_count = self.asset_manager.get_env_boundary_count() # Number of env boundaries in the environment
+        self.num_assets = num_env_assets - env_boundary_count # # Number of env assets that can be randomly placed
+        bodies_per_env = env_asset_link_count + robot_num_bodies
 
         self.vec_root_tensor = gymtorch.wrap_tensor(
             self.root_tensor).view(self.num_envs, num_actors, 13)
@@ -162,116 +167,9 @@ class X152bTracking(X152bPx4):
             cam_ref_env = self.cfg.viewer.ref_env
             
             self.gym.viewer_camera_look_at(self.viewer, None, cam_pos, cam_target)
-        
-    def _create_envs(self):
-        print("\n\n\n\n\n CREATING ENVIRONMENT \n\n\n\n\n\n")
-        asset_path = self.cfg.asset_config.X152b.file.format(
-            AIRGYM_ROOT_DIR=AIRGYM_ROOT_DIR)
-        asset_root = os.path.dirname(asset_path)
-        asset_file = os.path.basename(asset_path)
-
-        asset_options = asset_class_to_AssetOptions(self.cfg.asset_config.X152b)
-
-        X152b = self.gym.load_asset(
-            self.sim, asset_root, asset_file, asset_options)
-
-        self.robot_num_bodies = self.gym.get_asset_rigid_body_count(X152b)
-
-        start_pose = gymapi.Transform()
-        # create env instance
-        pos = torch.tensor([0, 0, 0], device=self.device)
-        start_pose.p = gymapi.Vec3(*pos)
-        self.env_spacing = self.cfg.env.env_spacing
-        env_lower = gymapi.Vec3(-self.env_spacing, -
-                                self.env_spacing, -self.env_spacing)
-        env_upper = gymapi.Vec3(
-            self.env_spacing, self.env_spacing, self.env_spacing)
-        self.actor_handles = []
-        self.env_asset_handles = []
-        self.envs = []
-
-        self.segmentation_counter = 0
-
-        for i in range(self.num_envs):
-            # create environment
-            env_handle = self.gym.create_env(self.sim, env_lower, env_upper, int(np.sqrt(self.num_envs)))
-            # insert robot asset
-            actor_handle = self.gym.create_actor(env_handle, X152b, start_pose, "robot", i, self.cfg.asset_config.X152b.collision_mask, 0)
-            # append to lists
-            self.envs.append(env_handle)
-            self.actor_handles.append(actor_handle)
-
-            env_asset_list = self.env_asset_manager.prepare_assets_for_simulation(self.gym, self.sim)
-            asset_counter = 0
-
-            # have the segmentation counter be the max defined semantic id + 1. Use this to set the semantic mask of objects that are
-            # do not have a defined semantic id in the config file, but still requre one. Increment for every instance in the next snippet
-            for dict_item in env_asset_list:
-                self.segmentation_counter = max(self.segmentation_counter, int(dict_item["semantic_id"])+1)
-
-            for dict_item in env_asset_list:
-                folder_path = dict_item["asset_folder_path"]
-                filename = dict_item["asset_file_name"]
-                asset_options = dict_item["asset_options"]
-                whole_body_semantic = dict_item["body_semantic_label"]
-                per_link_semantic = dict_item["link_semantic_label"]
-                semantic_masked_links = dict_item["semantic_masked_links"]
-                semantic_id = dict_item["semantic_id"]
-                color = dict_item["color"]
-                collision_mask = dict_item["collision_mask"]
-
-                loaded_asset = self.gym.load_asset(self.sim, folder_path, filename, asset_options)
-
-                assert not (whole_body_semantic and per_link_semantic)
-                if semantic_id < 0:
-                    object_segmentation_id = self.segmentation_counter
-                    self.segmentation_counter += 1
-                else:
-                    object_segmentation_id = semantic_id
-
-                asset_counter += 1
-
-                env_asset_handle = self.gym.create_actor(env_handle, loaded_asset, start_pose, "env_asset_"+str(asset_counter), i, collision_mask, object_segmentation_id)
-                self.env_asset_handles.append(env_asset_handle)
-                if len(self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)) > 1:
-                    print("Env asset has rigid body with more than 1 link: ", len(self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)))
-                    sys.exit(0)
-
-                if per_link_semantic:
-                    rigid_body_names = None
-                    if len(semantic_masked_links) == 0:
-                        rigid_body_names = self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)
-                    else:
-                        rigid_body_names = semantic_masked_links
-                    for rb_index in range(len(rigid_body_names)):
-                        self.segmentation_counter += 1
-                        self.gym.set_rigid_body_segmentation_id(env_handle, env_asset_handle, rb_index, self.segmentation_counter)
-            
-                if semantic_id != 4 and semantic_id != 5 and semantic_id != 8:
-                    if color is None:
-                        color = np.random.randint(low=50,high=200,size=3)
-
-                    self.gym.set_rigid_body_color(env_handle, env_asset_handle, 0, gymapi.MESH_VISUAL,
-                            gymapi.Vec3(color[0]/255,color[1]/255,color[2]/255))
-        
-        self.robot_body_items = self.gym.get_actor_rigid_body_properties(self.envs[0],self.actor_handles[0])
-        self.robot_mass = 0
-        for item in self.robot_body_items:
-            self.robot_mass += item.mass
-        print("Total robot mass: ", self.robot_mass)
-        
-        print("\n\n\n\n\n ENVIRONMENT CREATED \n\n\n\n\n\n")
 
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
-        
-        # set asset root states
-        self.env_asset_manager.calculate_randomize_pose()
-        self.env_asset_manager.calculate_specify_pose()
-        # self.env_asset_root_states[env_ids, :, 0:3] = self.env_asset_manager.asset_pose_tensor[env_ids, :, 0:3]
-        # euler_angles = self.env_asset_manager.asset_pose_tensor[env_ids, :, 3:6]
-        # self.env_asset_root_states[env_ids, :, 3:7] = quat_from_euler_xyz(euler_angles[..., 0], euler_angles[..., 1], euler_angles[..., 2])
-        # self.env_asset_root_states[env_ids, :, 7:13] = 0.0
 
         # set drone root state
         self.root_states[env_ids] = self.initial_root_states[env_ids]

@@ -11,7 +11,7 @@ from isaacgym.torch_utils import *
 from airgym.envs.base.X152bPx4_with_cam import X152bPx4WithCam
 import airgym.utils.rotations as rot_utils
 from airgym.envs.task.X152b_balloon_config import X152bBalloonConfig
-from airgym.utils.asset_manager import AssetManager
+from airgym.assets.asset_manager import AssetManager
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
 
@@ -46,11 +46,7 @@ def quaternion_norm(q):
 class X152bBalloon(X152bPx4WithCam):
 
     def __init__(self, cfg: X152bBalloonConfig, sim_params, physics_engine, sim_device, headless):
-        self.cam_resolution = cfg.env.cam_resolution # set camera resolution
-        self.cam_channel = cfg.env.cam_channel # set camera channel
         super().__init__(cfg, sim_params, physics_engine, sim_device, headless)
-        self.cam_resolution = cfg.env.cam_resolution # recover camera resolution
-        self.cam_channel = cfg.env.cam_channel # recover camera channel
 
         # get states of red balloon
         self.balloon_states = self.env_asset_root_states[:, 0, :]
@@ -58,12 +54,6 @@ class X152bBalloon(X152bPx4WithCam):
         self.balloon_quats = self.balloon_states[..., 3:7] # x,y,z,w
         self.balloon_linvels = self.balloon_states[..., 7:10]
         self.balloon_angvels = self.balloon_states[..., 10:13]
-
-        if self.cfg.env.enable_onboard_cameras:
-            print("Onboard cameras enabled...")
-            print("Checking camera resolution =========== ", self.cam_resolution)
-            self.full_camera_array = torch.zeros((self.num_envs, self.cam_channel, self.cam_resolution[0], self.cam_resolution[1]), device=self.device) # 1 for depth
-        self.full_camera_array = torch.zeros((self.num_envs, self.cam_channel, self.cam_resolution[0], self.cam_resolution[1]), device=self.device) # 1 for depth
 
         self.pre_root_positions = torch.zeros_like(self.root_positions)
         self.pre_root_linvels = torch.zeros_like(self.root_linvels)
@@ -81,8 +71,6 @@ class X152bBalloon(X152bPx4WithCam):
         
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
-        self.env_asset_manager.calculate_randomize_pose()
-        self.env_asset_manager.calculate_specify_pose()
 
         # reset target red ball position
         self.balloon_states[env_ids, 0:1] = .5*torch_rand_float(-1.0, 1.0, (num_resets, 1), self.device) + torch.tensor([2.5], device=self.device)

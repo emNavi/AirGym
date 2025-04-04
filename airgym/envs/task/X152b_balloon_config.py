@@ -1,5 +1,5 @@
 from airgym.envs.base.base_config import BaseConfig
-from airgym.utils import asset_register
+from airgym.assets import *
 
 import numpy as np
 from airgym import AIRGYM_ROOT_DIR
@@ -16,12 +16,9 @@ class X152bBalloonConfig(BaseConfig):
         env_spacing = 10  # not used with heightfields/trimeshes
         episode_length_s = 8 # episode length in seconds
         num_control_steps_per_env_step = 1 # number of control & physics steps between camera renders
-        enable_onboard_cameras = True # enable onboard cameras
         reset_on_collision = True # reset environment when contact force on quadrotor is above a threshold
         create_ground_plane = True # create a ground plane
 
-        cam_channel = 1
-        cam_resolution = (212, 120) # (width, hight)
         cam_dt = 0.04 # camera render time interval
 
     class viewer:
@@ -49,127 +46,30 @@ class X152bBalloonConfig(BaseConfig):
             contact_collection = 1 # 0: never, 1: last sub-step, 2: all sub-steps (default=2)
 
     class asset_config:
-        """
-        Assets CFG.
-        This class defines the assets that will be used in the environment.
-        Two types of assets can be defined and managed: a type of assets and the specific asset.
-        A Type of Assets: 
-            You can choose to include or exclude a type of asset in the environment. All kinds of assets that belong 
-            to this type can be randomly selected and and placed in the environment. The number of assets (1~n) to be placed
-            can be edit in the asset_params class.
-
-        The Specific Asset:
-            You can choose to include or exclude a specific asset in the environment. Only the specified asset will be 
-            placed in the environment. Note that the specific asset will not override the type of asset if both are included.
-            You must denote the specific position and euler angle of the specific asset!
-
-        If you selet assets, the type of this asset must be included in the asset_type_to_dict_map dictionary, and the class
-        of this type must be defined in this class. We have registered some common types of assets in the asset_register.py and
-        you can simply inherit from them. If you want to add a new type of asset, you can define a new class in the asset_register.py.
-        """
-        folder_path = f"{AIRGYM_ROOT_DIR}/resources/env_assets"
-        
-        include_asset_type = {
-            "thin": False,
-            "trees": False,
-            "vtrees": False,
-            "objects": False, 
-            "cubes": False,
-            "flags": False,
-            "balls": False,
-        }
-        
-        """
-        Note: specific assets will be loaded as the sequence. Please make sure the sequence is correct.
-        """
-        include_specific_asset = {
-            "balls/ball": True,
-            "boundaries/front_wall": False, 
-            "boundaries/left_wall": False, 
-            "boundaries/top_wall": False, 
-            "boundaries/back_wall": False,
-            "boundaries/right_wall": False, 
-            "boundaries/bottom_wall": False, 
-            "boundaries/8X18ground": False,
-            "boundaries/18X18ground": False,
-            # "cubes/1X4": True,
-        }
-
-        env_lower_bound_min = [-4.0, -8.0, 0.0] # lower bound for the environment space
-        env_lower_bound_max = [-4.0, -8.0, 0.0] # lower bound for the environment space
-        env_upper_bound_min = [4.0, 8.0, 1.0] # upper bound for the environment space
-        env_upper_bound_max = [4.0, 8.0, 1.0] # upper bound for the environment space
-
-        # assets definitions
-        class X152b(asset_register.X152b):
-            num_assets = 1
-            collision_mask = 1
-
-        class ball_asset_params(asset_register.ball_asset_params):
-            num_assets = 1
-            color = [255,102,102]
-            collision_mask = 1
-            specified_position = [[1, 1, 1]]
-            specified_euler_angle = [[.0, .0, .0]]
-        
-        class thin_asset_params(asset_register.thin_asset_params):
-            num_assets = 10
-
-        class tree_asset_params(asset_register.tree_asset_params):
-            num_assets = 3
-
-        class vtree_asset_params(asset_register.vtree_asset_params):
-            num_assets = 3
-
-        class object_asset_params(asset_register.object_asset_params):
-            num_assets = 30
-
-        class cube_asset_params(asset_register.cube_asset_params):
-            num_assets = 1
-
-        class flag_asset_params(asset_register.flag_asset_params):
-            num_assets = 6
-
-        class ground(asset_register.ground):
-            num_assets = 1
-            collision_mask = 1
-            specified_position = [[0, 0, .05]]
-            specified_euler_angle = [[.0, .0, .0]]
-
-        class left_wall(asset_register.left_wall):
-            num_assets = 1
-
-        class right_wall(asset_register.right_wall):
-            num_assets = 1
-
-        class top_wall(asset_register.top_wall):
-            num_assets = 1
-
-        class bottom_wall(asset_register.bottom_wall):
-            num_assets = 1
-
-        class front_wall(asset_register.front_wall):
-            num_assets = 1
-
-        class back_wall(asset_register.back_wall):
-            num_assets = 1
-
-        asset_type_to_dict_map = {
-            "balls": ball_asset_params,
-            "thin": thin_asset_params,
-            "trees": tree_asset_params,
-            "vtrees": vtree_asset_params,
-            "objects": object_asset_params,
-            "cubes": cube_asset_params,
-            "flags": flag_asset_params,
-            "boundaries/left_wall": left_wall,
-            "boundaries/right_wall": right_wall,
-            "boundaries/back_wall": back_wall,
-            "boundaries/front_wall": front_wall,
-            "boundaries/bottom_wall": bottom_wall,
-            "boundaries/top_wall": top_wall,
-            "boundaries/8X18ground": ground,
-            "boundaries/18X18ground": ground,
-            "balls/ball": ball_asset_params,
+        include_robot = {
+            "X152b": {
+                "num_assets": 1,
+                "enable_onboard_cameras": False,
+                'cam_channel': 1,
+                "enable_tensors": True,
+                "width": 212,
+                "height": 120,
+                "far_plane": 5.0,
+                "horizontal_fov": 87.0,
+                "use_collision_geometry": True,
+                "local_transform.p": (0.15, 0.00, 0.1),
+                "local_transform.r": (0.0, 0.0, 0.0, 1.0),
+                "collision_mask": 1,
             }
- 
+        }
+
+        include_single_asset = {
+            "balls/ball": {
+                "color": [255,102,102],
+                "num_assets": 1,
+            },
+        }
+            
+        include_group_asset = {}
+
+        include_boundary = {}

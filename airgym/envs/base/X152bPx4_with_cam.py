@@ -9,12 +9,12 @@ import torch.nn.functional as F
 from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
 
 from isaacgym import gymutil, gymtorch, gymapi
-from isaacgym.torch_utils import *
+from airgym.utils.torch_utils import *
 
 from airgym.envs.base.base_task import BaseTask
 from airgym.envs.base.X152bPx4_with_cam_config import X152bPx4WithCamCfg
 
-from airgym.utils.asset_manager import AssetManager
+from airgym.assets.asset_manager import AssetManager
 
 from airgym.utils.helpers import asset_class_to_AssetOptions
 import pytorch3d.transforms as T
@@ -24,6 +24,10 @@ from PIL import Image
 import cv2
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
+
+LENGTH = 8.0
+WIDTH = 8.0
+FLY_HEIGHT = 1.0
 
 def compute_yaw_diff(a: torch.Tensor, b: torch.Tensor):
     """Compute the difference between two sets of Euler angles. a & b in [-pi, pi]"""
@@ -49,12 +53,8 @@ class X152bPx4WithCam(BaseTask):
         self.sim_device_id = sim_device
         self.headless = headless
 
-        self.enable_onboard_cameras = self.cfg.env.enable_onboard_cameras
-
-        self.env_asset_manager = AssetManager(self.cfg, sim_device)
-        self.cam_resolution = cfg.env.cam_resolution if not hasattr(self, 'cam_resolution') else self.cam_resolution
-        self.cam_channel = cfg.env.cam_channel if not hasattr(self, 'cam_channel') else self.cam_channel
-
+        self.asset_manager = AssetManager(self.cfg, sim_device)
+        
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
         self.root_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
         self.contact_force_tensor = self.gym.acquire_net_contact_force_tensor(self.sim)
@@ -62,9 +62,13 @@ class X152bPx4WithCam(BaseTask):
         self.gym.refresh_actor_root_state_tensor(self.sim)
         self.gym.refresh_net_contact_force_tensor(self.sim)
 
-        self.num_assets = self.env_asset_manager.get_env_actor_count()
-        num_actors = self.env_asset_manager.get_env_actor_count() + 1 # Number of obstacles in the environment + one robot
-        bodies_per_env = self.env_asset_manager.get_env_link_count() + self.robot_num_bodies # Number of links in the environment + robot
+        num_actors = self.asset_manager.get_env_actor_count() # Number of actors including robots and env assets in the environment
+        num_env_assets = self.asset_manager.get_env_asset_count() # Number of env assets
+        robot_num_bodies = self.asset_manager.get_robot_num_bodies() # Number of robots bodies in environment
+        env_asset_link_count = self.asset_manager.get_env_asset_link_count() # Number of env assets links in the environment
+        env_boundary_count = self.asset_manager.get_env_boundary_count() # Number of env boundaries in the environment
+        self.num_assets = num_env_assets - env_boundary_count # # Number of env assets that can be randomly placed
+        bodies_per_env = env_asset_link_count + robot_num_bodies
         
         self.vec_root_tensor = gymtorch.wrap_tensor(
             self.root_tensor).view(self.num_envs, num_actors, 13)
@@ -77,12 +81,12 @@ class X152bPx4WithCam(BaseTask):
 
         self.privileged_obs_buf = None
         if self.vec_root_tensor.shape[1] > 1:
-            """
-            Note: Make sure that the assets tensor sequence is the same as the sequence in the 'include_specific_asset' in the config file.
-            """
-            self.env_asset_root_states = self.vec_root_tensor[:, 1:, :]
+            # env assets states
+            self.env_asset_root_states = self.vec_root_tensor[:, 1:1+self.num_assets, :]
             if self.get_privileged_obs:
                 self.privileged_obs_buf = self.env_asset_root_states
+            # env boundaries states
+            self.env_boundary_root_states = self.vec_root_tensor[:, -env_boundary_count:, :]
 
         self.gym.refresh_actor_root_state_tensor(self.sim)
 
@@ -129,12 +133,6 @@ class X152bPx4WithCam(BaseTask):
         self.torques = torch.zeros((self.num_envs, bodies_per_env, 3),
                                    dtype=torch.float32, device=self.device, requires_grad=False)
         
-        # Getting environment bounds
-        self.env_lower_bound = torch.zeros(
-            (self.num_envs, 3), dtype=torch.float32, device=self.device)
-        self.env_upper_bound = torch.zeros(
-            (self.num_envs, 3), dtype=torch.float32, device=self.device)
-        
         # control parameters
         self.thrusts = torch.zeros((self.num_envs, 4, 3), dtype=torch.float32, device=self.device)
 
@@ -148,7 +146,7 @@ class X152bPx4WithCam(BaseTask):
         self.contact_forces = gymtorch.wrap_tensor(self.contact_force_tensor).view(self.num_envs, bodies_per_env, 3)[:, 0]
         self.collisions = torch.zeros(self.num_envs, device=self.device)
 
-        if self.cfg.env.enable_onboard_cameras:
+        if self.enable_onboard_cameras:
             print("Onboard cameras enabled...")
             print("camera resolution =========== ", self.cam_resolution)
             self.full_camera_array = torch.zeros((self.num_envs, self.cam_channel, self.cam_resolution[0], self.cam_resolution[1]), device=self.device) # 1 for depth
@@ -179,131 +177,44 @@ class X152bPx4WithCam(BaseTask):
 
     def _create_envs(self):
         print("\n\n\n\n\n CREATING ENVIRONMENT \n\n\n\n\n\n")
-        asset_path = self.cfg.asset_config.X152b.file.format(
-            AIRGYM_ROOT_DIR=AIRGYM_ROOT_DIR)
-        asset_root = os.path.dirname(asset_path)
-        asset_file = os.path.basename(asset_path)
-
-        asset_options = asset_class_to_AssetOptions(self.cfg.asset_config.X152b)
-
-        X152b = self.gym.load_asset(self.sim, asset_root, asset_file, asset_options)
-
-        self.robot_num_bodies = self.gym.get_asset_rigid_body_count(X152b)
-
         start_pose = gymapi.Transform()
-        # create env instance
         pos = torch.tensor([0, 0, 0], device=self.device)
         start_pose.p = gymapi.Vec3(*pos)
         self.env_spacing = self.cfg.env.env_spacing
         env_lower = gymapi.Vec3(-self.env_spacing, - self.env_spacing, -self.env_spacing)
         env_upper = gymapi.Vec3(self.env_spacing, self.env_spacing, self.env_spacing)
+        
         self.actor_handles = []
         self.env_asset_handles = []
         self.envs = []
         self.camera_handles = []
         self.camera_tensors = []
 
-        # Set Camera Properties
-        camera_props = gymapi.CameraProperties()
-        camera_props.enable_tensors = True
-        camera_props.width = self.cam_resolution[0]
-        camera_props.height = self.cam_resolution[1]
-        camera_props.far_plane = 5.0
-        camera_props.horizontal_fov = 87.0
-        camera_props.use_collision_geometry = True
-        
-        # local camera transform
-        local_transform = gymapi.Transform()
-        # position of the camera relative to the body
-        local_transform.p = gymapi.Vec3(0.15, 0.00, 0.1)
-        # orientation of the camera relative to the body
-        # local_transform.r = gymapi.Quat(0.0, 0.269, 0.0, 0.963)
-         
-        local_transform.r = gymapi.Quat(0.0, 0.0, 0.0, 1.0)
-
-        self.segmentation_counter = 0
-
         for i in range(self.num_envs):
             # create environment
             env_handle = self.gym.create_env(self.sim, env_lower, env_upper, int(np.sqrt(self.num_envs)))
-            # insert robot asset
-            actor_handle = self.gym.create_actor(env_handle, X152b, start_pose, "robot", i, self.cfg.asset_config.X152b.collision_mask, 0)
-            # append to lists
             self.envs.append(env_handle)
-            self.actor_handles.append(actor_handle)
+            # load robots and assets
+            actor_handles, camera_handles, camera_tensors, env_asset_handles = \
+                self.asset_manager.load_asset(self.gym, self.sim, env_handle, start_pose, i)
+            # add all envs handles together
+            self.actor_handles += actor_handles
+            self.camera_handles += camera_handles
+            self.camera_tensors += camera_tensors
+            self.env_asset_handles += env_asset_handles
 
-            if self.enable_onboard_cameras:
-                cam_handle = self.gym.create_camera_sensor(env_handle, camera_props)
-                self.gym.attach_camera_to_body(cam_handle, env_handle, actor_handle, local_transform, gymapi.FOLLOW_TRANSFORM)
-                self.camera_handles.append(cam_handle)
-                camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, env_handle, cam_handle, gymapi.IMAGE_DEPTH)
-                torch_cam_tensor = gymtorch.wrap_tensor(camera_tensor) # (height, width)
-                # print("camera tensor shape: ", torch_cam_tensor.shape)
-                self.camera_tensors.append(torch_cam_tensor)
+        self.enable_onboard_cameras = False if not camera_handles else True
+        if self.enable_onboard_cameras:
+            assert len(camera_tensors) != 0
+            if camera_tensors[0].dim() == 2:
+                h, w = camera_tensors[0].size()
+                self.cam_resolution = (w, h)
+                self.cam_channel = 1
+            else:
+                c, h, w = camera_tensors[0].size()
+                self.cam_resolution = (w, h)
+                self.cam_channel = c
 
-                # fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                # out = cv2.VideoWriter('depth_video.mp4', fourcc, 30, (270, 480))
-                # self.outs.append(out)
-
-            env_asset_list = self.env_asset_manager.prepare_assets_for_simulation(self.gym, self.sim)
-            asset_counter = 0
-
-            # have the segmentation counter be the max defined semantic id + 1. Use this to set the semantic mask of objects that are
-            # do not have a defined semantic id in the config file, but still requre one. Increment for every instance in the next snippet
-            for dict_item in env_asset_list:
-                self.segmentation_counter = max(self.segmentation_counter, int(dict_item["semantic_id"])+1)
-
-            for dict_item in env_asset_list:
-                folder_path = dict_item["asset_folder_path"]
-                filename = dict_item["asset_file_name"]
-                asset_options = dict_item["asset_options"]
-                whole_body_semantic = dict_item["body_semantic_label"]
-                per_link_semantic = dict_item["link_semantic_label"]
-                semantic_masked_links = dict_item["semantic_masked_links"]
-                semantic_id = dict_item["semantic_id"]
-                color = dict_item["color"]
-                collision_mask = dict_item["collision_mask"]
-
-                loaded_asset = self.gym.load_asset(self.sim, folder_path, filename, asset_options)
-
-                assert not (whole_body_semantic and per_link_semantic)
-                if semantic_id < 0:
-                    object_segmentation_id = self.segmentation_counter
-                    self.segmentation_counter += 1
-                else:
-                    object_segmentation_id = semantic_id
-
-                asset_counter += 1
-
-                env_asset_handle = self.gym.create_actor(env_handle, loaded_asset, start_pose, "env_asset_"+str(asset_counter), i, collision_mask, object_segmentation_id)
-                self.env_asset_handles.append(env_asset_handle)
-                if len(self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)) > 1:
-                    print("Env asset has rigid body with more than 1 link: ", len(self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)))
-                    sys.exit(0)
-
-                if per_link_semantic:
-                    rigid_body_names = None
-                    if len(semantic_masked_links) == 0:
-                        rigid_body_names = self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)
-                    else:
-                        rigid_body_names = semantic_masked_links
-                    for rb_index in range(len(rigid_body_names)):
-                        self.segmentation_counter += 1
-                        self.gym.set_rigid_body_segmentation_id(env_handle, env_asset_handle, rb_index, self.segmentation_counter)
-            
-                if semantic_id != 4 and semantic_id != 5 and semantic_id != 8:
-                    if color is None:
-                        color = np.random.randint(low=50,high=200,size=3)
-
-                    self.gym.set_rigid_body_color(env_handle, env_asset_handle, 0, gymapi.MESH_VISUAL,
-                            gymapi.Vec3(color[0]/255,color[1]/255,color[2]/255))
-
-        self.robot_bodies = self.gym.get_actor_rigid_body_properties(env_handle, actor_handle)
-        self.robot_mass = 0
-        for body in self.robot_bodies:
-            self.robot_mass += body.mass
-        print("Total robot mass: ", self.robot_mass)
-        
         print("\n\n\n\n\n ENVIRONMENT CREATED \n\n\n\n\n\n")
 
     def pre_physics_step(self, _actions):
@@ -438,27 +349,25 @@ class X152bPx4WithCam(BaseTask):
 
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
-        self.env_asset_manager.calculate_randomize_pose()
-        self.env_asset_manager.calculate_specify_pose()
 
-        self.env_asset_root_states[env_ids, :, 0:3] = self.env_asset_manager.asset_pose_tensor[env_ids, :, 0:3]
-        euler_angles = self.env_asset_manager.asset_pose_tensor[env_ids, :, 3:6]
-        self.env_asset_root_states[env_ids, :, 3:7] = quat_from_euler_xyz(euler_angles[..., 0], euler_angles[..., 1], euler_angles[..., 2])
-        self.env_asset_root_states[env_ids, :, 7:13] = 0.0
+        # set env boundaries
+        self.env_boundary_root_states[env_ids, 0, :] = 0
+        self.env_boundary_root_states[env_ids, 0, 2:3] = 0.02
+        self.env_boundary_root_states[env_ids, 0, 6:7] = 1
 
-        # get environment lower and upper bounds
-        if self.env_asset_manager.num_envs > 1:
-            self.env_lower_bound[env_ids] = self.env_asset_manager.env_lower_bound.diagonal(dim1=-2, dim2=-1)
-            self.env_upper_bound[env_ids] = self.env_asset_manager.env_upper_bound.diagonal(dim1=-2, dim2=-1)
-        else:
-            self.env_lower_bound[env_ids] = self.env_asset_manager.env_lower_bound
-            self.env_upper_bound[env_ids] = self.env_asset_manager.env_upper_bound
-        
-        drone_pos_rand_sample = torch.rand((num_resets, 3), device=self.device)
-        drone_positions = (self.env_upper_bound[env_ids] - self.env_lower_bound[env_ids] - 0.50)*drone_pos_rand_sample + (self.env_lower_bound[env_ids]+ 0.25)
+        # randomize env asset root states
+        self.env_asset_root_states[env_ids, :, 0:1] = LENGTH * torch_rand_float(-1.0, 1.0, (num_resets, self.num_assets, 1), self.device) + torch.tensor([0.], device=self.device)
+        self.env_asset_root_states[env_ids, :, 1:2] = WIDTH * torch_rand_float(-1.0, 1.0, (num_resets, self.num_assets, 1), self.device) + torch.tensor([0.], device=self.device)
+        self.env_asset_root_states[env_ids, :, 2:3] = 0
+        assets_root_angle = torch.concatenate([0 * torch_rand_float(-torch.pi, torch.pi, (num_resets, self.num_assets, 2), self.device),
+                                       torch_rand_float(-torch.pi, torch.pi, (num_resets, self.num_assets, 1), self.device)], dim=-1)
+        assets_matrix = T.euler_angles_to_matrix(assets_root_angle, 'XYZ')
+        assets_root_quats = T.matrix_to_quaternion(assets_matrix)
+        self.env_asset_root_states[env_ids, :, 3:7] = assets_root_quats[:, :, [1, 2, 3, 0]]
 
         # randomize root states
-        self.root_states[env_ids, 0:3] = drone_positions
+        self.root_states[env_ids, 0:2] = torch.tensor([-LENGTH-0.5, 0.], device=self.device)
+        self.root_states[env_ids, 2:3] = .0 *torch_rand_float(-1., 1., (num_resets, 1), self.device) + FLY_HEIGHT
 
         # randomize root orientation
         root_angle = torch.concatenate([0.01*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), 
@@ -566,65 +475,14 @@ class X152bPx4WithCam(BaseTask):
         self.pre_actions = self.actions.clone()
 
     def compute_quadcopter_reward(self):
-        target_positions = self.target_states[..., 9:12]
-        relative_positions = target_positions - self.root_positions
-
-        target_matrix = self.target_states[..., 0:9].reshape(self.num_envs, 3,3)
-        target_euler = T.matrix_to_euler_angles(target_matrix, 'XYZ')
-        root_matrix = T.quaternion_to_matrix(self.root_quats[:, [3, 0, 1, 2]])
-        root_euler = T.matrix_to_euler_angles(root_matrix, convention='XYZ')
-        relative_heading = compute_yaw_diff(target_euler[..., 2], root_euler[..., 2])
-
-        distance = torch.norm(torch.cat((relative_positions, relative_heading.unsqueeze(-1)), dim=-1), dim=1)
-
-        reward_pose = 1.0 / (1.0 + torch.square(1.6 * distance))
-        ups = quat_axis(self.root_quats, axis=2)
-        reward_up = torch.square((ups[..., 2] + 1) / 2)
-
-        spinnage = torch.square(self.root_angvels[:, -1])
-        reward_spin = 1.0 / (1.0 + torch.square(spinnage))
-
-        reward_effort = .1 * torch.exp(-self.actions.pow(2).sum(-1))
-        # throttle_difference = torch.norm(self.actions[..., :-1] - self.pre_actions[..., :-1], dim=-1)
-        throttle_difference = torch.norm(self.actions[..., :-1] - self.pre_actions[..., :-1], dim=-1)
-        thrust_reward = .05 * (1-torch.abs(0.1533 - self.actions[..., -1]))
-        reward_action_smoothness = .1 * torch.exp(-throttle_difference)
-
-        assert reward_pose.shape == reward_up.shape == reward_spin.shape
-        reward = (
-            reward_pose
-            + reward_pose * (reward_up + reward_spin)
-            + reward_effort
-            + reward_action_smoothness
-            + thrust_reward
-        )
-
-        # resets due to misbehavior
+        # reward
+        reward = 0
+        # resets
         ones = torch.ones_like(self.reset_buf)
         die = torch.zeros_like(self.reset_buf)
-
-        # resets due to episode length
         reset = torch.where(self.progress_buf >= self.max_episode_length - 1, ones, die)
-
-        reset = torch.where(torch.norm(relative_positions, dim=1) > 4, ones, reset)
-        
-        # reset = torch.where(torch.norm(relative_linvels, dim=1) > 6.0, ones, reset)
-        
-        # reset = torch.where(relative_angvels[..., 2] > 17.5, ones, reset)
-        # reset = torch.where(relative_angvels[..., 2] < -17.5, ones, reset)
-        
-        reset = torch.where(relative_positions[..., 2] < -2, ones, reset)
-        reset = torch.where(relative_positions[..., 2] > 2, ones, reset)
-
-        reset = torch.where(ups[..., 2] < 0.0, ones, reset) # orient_z 小于0 = 飞行器朝下了
-
+        # record
         item_reward_info = {}
-        item_reward_info["reward_pose"] = reward_pose
-        item_reward_info["reward_up"] = reward_up
-        item_reward_info["reward_spin"] = reward_spin
-        item_reward_info["reward_effort"] = reward_effort
-        item_reward_info["reward_action_smoothness"] = reward_action_smoothness
-        item_reward_info["thrust_reward"] = thrust_reward
 
         return reward, reset, item_reward_info
     

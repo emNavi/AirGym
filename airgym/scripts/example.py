@@ -15,7 +15,7 @@ def sample_command(args):
     
     command_actions[:, 0] = 0.
     command_actions[:, 1] = 0.
-    command_actions[:, 2] = 0.
+    command_actions[:, 2] = 1.
     command_actions[:, 3] = -0.69
     
     # sp roll +10 yaw 25

@@ -4,14 +4,13 @@ import os
 import torch
 import xml.etree.ElementTree as ET
 
-from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
-
 from isaacgym import gymutil, gymtorch, gymapi
+from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
 from airgym.utils.torch_utils import *
 from airgym.envs.base.X152bPx4_with_cam import X152bPx4WithCam
 import airgym.utils.rotations as rot_utils
 from airgym.envs.task.X152b_planning_config import X152bPlanningConfig
-from airgym.utils.asset_manager import AssetManager
+from airgym.assets.asset_manager import AssetManager
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
 
@@ -53,25 +52,14 @@ def compute_yaw_diff(a: torch.Tensor, b: torch.Tensor):
 class X152bPlanning(X152bPx4WithCam):
 
     def __init__(self, cfg: X152bPlanningConfig, sim_params, physics_engine, sim_device, headless):
-        self.cam_resolution = cfg.env.cam_resolution # set camera resolution
-        self.cam_channel = cfg.env.cam_channel # set camera channel
         super().__init__(cfg, sim_params, physics_engine, sim_device, headless)
-        self.cam_resolution = cfg.env.cam_resolution # recover camera resolution
-        self.cam_channel = cfg.env.cam_channel # recover camera channel
 
         # get states of goal
-        self.goal_states = self.env_asset_root_states[:, -1, :]
+        self.goal_states = self.env_asset_root_states[:, 0, :]
         self.goal_positions = self.goal_states[..., 0:3]
         self.goal_quats = self.goal_states[..., 3:7] # x,y,z,w
         self.goal_linvels = self.goal_states[..., 7:10]
         self.goal_angvels = self.goal_states[..., 10:13]
-
-        if self.cfg.env.enable_onboard_cameras:
-            print("Onboard cameras enabled...")
-            print("Checking camera resolution =========== ", self.cam_resolution)
-            self.full_camera_array = torch.zeros((self.num_envs, self.cam_channel, self.cam_resolution[0], self.cam_resolution[1]), device=self.device) # 1 for depth
-
-        self.full_camera_array = torch.zeros((self.num_envs, self.cam_channel, self.cam_resolution[0], self.cam_resolution[1]), device=self.device) # 1 for depth
 
         self.pre_root_positions = torch.zeros_like(self.root_positions)
         self.pre_root_linvels = torch.zeros_like(self.root_linvels)
@@ -87,139 +75,8 @@ class X152bPlanning(X152bPx4WithCam):
             
             self.gym.viewer_camera_look_at(self.viewer, None, cam_pos, cam_target)
 
-    def _create_envs(self):
-        print("\n\n\n\n\n CREATING ENVIRONMENT \n\n\n\n\n\n")
-        asset_path = self.cfg.asset_config.X152b.file.format(
-            AIRGYM_ROOT_DIR=AIRGYM_ROOT_DIR)
-        asset_root = os.path.dirname(asset_path)
-        asset_file = os.path.basename(asset_path)
-
-        asset_options = asset_class_to_AssetOptions(self.cfg.asset_config.X152b)
-
-        X152b = self.gym.load_asset(self.sim, asset_root, asset_file, asset_options)
-
-        self.robot_num_bodies = self.gym.get_asset_rigid_body_count(X152b)
-
-        start_pose = gymapi.Transform()
-        # create env instance
-        pos = torch.tensor([0, 0, 0], device=self.device)
-        start_pose.p = gymapi.Vec3(*pos)
-        self.env_spacing = self.cfg.env.env_spacing
-        env_lower = gymapi.Vec3(-self.env_spacing, - self.env_spacing, -self.env_spacing)
-        env_upper = gymapi.Vec3(self.env_spacing, self.env_spacing, self.env_spacing)
-        self.actor_handles = []
-        self.env_asset_handles = []
-        self.envs = []
-        self.camera_handles = []
-        self.camera_tensors = []
-
-        # Set Camera Properties
-        camera_props = gymapi.CameraProperties()
-        camera_props.enable_tensors = True
-        camera_props.width = self.cam_resolution[0]
-        camera_props.height = self.cam_resolution[1]
-        camera_props.far_plane = 5.0
-        camera_props.horizontal_fov = 87.0
-        camera_props.use_collision_geometry = True
-        
-        # local camera transform
-        local_transform = gymapi.Transform()
-        # position of the camera relative to the body
-        local_transform.p = gymapi.Vec3(0.15, 0.00, 0.1)
-        # orientation of the camera relative to the body
-        # local_transform.r = gymapi.Quat(0.0, 0.269, 0.0, 0.963)
-         
-        local_transform.r = gymapi.Quat(0.0, 0.0, 0.0, 1.0)
-
-        self.segmentation_counter = 0
-
-        for i in range(self.num_envs):
-            # create environment
-            env_handle = self.gym.create_env(self.sim, env_lower, env_upper, int(np.sqrt(self.num_envs)))
-            # insert robot asset
-            actor_handle = self.gym.create_actor(env_handle, X152b, start_pose, "robot", i, self.cfg.asset_config.X152b.collision_mask, 0)
-            # append to lists
-            self.envs.append(env_handle)
-            self.actor_handles.append(actor_handle)
-
-            if self.enable_onboard_cameras:
-                cam_handle = self.gym.create_camera_sensor(env_handle, camera_props)
-                self.gym.attach_camera_to_body(cam_handle, env_handle, actor_handle, local_transform, gymapi.FOLLOW_TRANSFORM)
-                self.camera_handles.append(cam_handle)
-                camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, env_handle, cam_handle, gymapi.IMAGE_DEPTH)
-                torch_cam_tensor = gymtorch.wrap_tensor(camera_tensor) # (height, width)
-                # print("camera tensor shape: ", torch_cam_tensor.shape)
-                self.camera_tensors.append(torch_cam_tensor)
-
-                # fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                # out = cv2.VideoWriter('depth_video.mp4', fourcc, 30, (270, 480))
-                # self.outs.append(out)
-
-            env_asset_list = self.env_asset_manager.prepare_assets_for_simulation(self.gym, self.sim)
-            asset_counter = 0
-
-            # have the segmentation counter be the max defined semantic id + 1. Use this to set the semantic mask of objects that are
-            # do not have a defined semantic id in the config file, but still requre one. Increment for every instance in the next snippet
-            for dict_item in env_asset_list:
-                self.segmentation_counter = max(self.segmentation_counter, int(dict_item["semantic_id"])+1)
-
-            for dict_item in env_asset_list:
-                folder_path = dict_item["asset_folder_path"]
-                filename = dict_item["asset_file_name"]
-                asset_options = dict_item["asset_options"]
-                whole_body_semantic = dict_item["body_semantic_label"]
-                per_link_semantic = dict_item["link_semantic_label"]
-                semantic_masked_links = dict_item["semantic_masked_links"]
-                semantic_id = dict_item["semantic_id"]
-                color = dict_item["color"]
-                collision_mask = dict_item["collision_mask"]
-
-                loaded_asset = self.gym.load_asset(self.sim, folder_path, filename, asset_options)
-
-                assert not (whole_body_semantic and per_link_semantic)
-                if semantic_id < 0:
-                    object_segmentation_id = self.segmentation_counter
-                    self.segmentation_counter += 1
-                else:
-                    object_segmentation_id = semantic_id
-
-                asset_counter += 1
-
-                env_asset_handle = self.gym.create_actor(env_handle, loaded_asset, start_pose, "env_asset_"+str(asset_counter), i, collision_mask, object_segmentation_id)
-                self.env_asset_handles.append(env_asset_handle)
-                if len(self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)) > 1:
-                    print("Env asset has rigid body with more than 1 link: ", len(self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)))
-                    sys.exit(0)
-
-                if per_link_semantic:
-                    rigid_body_names = None
-                    if len(semantic_masked_links) == 0:
-                        rigid_body_names = self.gym.get_actor_rigid_body_names(env_handle, env_asset_handle)
-                    else:
-                        rigid_body_names = semantic_masked_links
-                    for rb_index in range(len(rigid_body_names)):
-                        self.segmentation_counter += 1
-                        self.gym.set_rigid_body_segmentation_id(env_handle, env_asset_handle, rb_index, self.segmentation_counter)
-            
-                if semantic_id != 4 and semantic_id != 5 and semantic_id != 8:
-                    if color is None:
-                        color = np.random.randint(low=50,high=200,size=3)
-
-                    self.gym.set_rigid_body_color(env_handle, env_asset_handle, 0, gymapi.MESH_VISUAL,
-                            gymapi.Vec3(color[0]/255,color[1]/255,color[2]/255))
-
-        self.robot_bodies = self.gym.get_actor_rigid_body_properties(env_handle, actor_handle)
-        self.robot_mass = 0
-        for body in self.robot_bodies:
-            self.robot_mass += body.mass
-        print("Total robot mass: ", self.robot_mass)
-        
-        print("\n\n\n\n\n ENVIRONMENT CREATED \n\n\n\n\n\n")
-
     def reset_idx(self, env_ids):
         num_resets = len(env_ids)
-        self.env_asset_manager.calculate_randomize_pose()
-        self.env_asset_manager.calculate_specify_pose()
 
         # randomize asset root states
         self.env_asset_root_states[env_ids, :, 0:1] = LENGTH * torch_rand_float(-1.0, 1.0, (num_resets, self.num_assets, 1), self.device) + torch.tensor([0.], device=self.device)

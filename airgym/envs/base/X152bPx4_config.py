@@ -1,5 +1,5 @@
 from .base_config import BaseConfig
-from airgym.utils import asset_register
+from airgym.assets import *
 
 import numpy as np
 import torch
@@ -18,7 +18,6 @@ class X152bPx4Cfg(BaseConfig):
         num_control_steps_per_env_step = 1 # number of physics steps per env step
         reset_on_collision = False # reset environment when contact force on quadrotor is above a threshold
         create_ground_plane = False # create a ground plane
-
 
     # viewer camera:
     class viewer:
@@ -47,24 +46,25 @@ class X152bPx4Cfg(BaseConfig):
 
 
     class asset_config:
-        """
-        Assets CFG.
-        This class defines the assets that will be used in the environment.
-        Two types of assets can be defined and managed: a type of assets and the specific asset.
-        A Type of Assets: 
-            You can choose to include or exclude a type of asset in the environment. All kinds of assets that belong 
-            to this type can be randomly selected and and placed in the environment. The number of assets (1~n) to be placed
-            can be edit in the asset_params class.
+        include_robot = {
+            "X152b": {
+                "num_assets": 1,
+                "enable_onboard_cameras": False,
+                'cam_channel': 1,
+                "enable_tensors": True,
+                "width": 212,
+                "height": 120,
+                "far_plane": 5.0,
+                "horizontal_fov": 87.0,
+                "use_collision_geometry": True,
+                "local_transform.p": (0.15, 0.00, 0.1),
+                "local_transform.r": (0.0, 0.0, 0.0, 1.0),
+                "collision_mask": 1,
+            }
+        }
 
-        The Specific Asset:
-            You can choose to include or exclude a specific asset in the environment. Only the specified asset will be 
-            placed in the environment. Note that the specific asset will not override the type of asset if both are included.
-            You must denote the specific position and euler angle of the specific asset!
+        include_single_asset = {}
+            
+        include_group_asset = {}
 
-        If you selet assets, the type of this asset must be included in the asset_type_to_dict_map dictionary, and the class
-        of this type must be defined in this class. We have registered some common types of assets in the asset_register.py and
-        you can simply inherit from them. If you want to add a new type of asset, you can define a new class in the asset_register.py.
-        """
-        # assets definitions
-        class X152b(asset_register.X152b):
-            num_assets = 1
+        include_boundary = {}

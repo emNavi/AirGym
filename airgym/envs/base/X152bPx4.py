@@ -10,6 +10,7 @@ from isaacgym.torch_utils import *
 from airgym.envs.base.base_task import BaseTask
 import airgym.utils.rotations as rot_utils
 from airgym.envs.base.X152bPx4_config import X152bPx4Cfg
+from airgym.assets.asset_manager import AssetManager
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
 
@@ -62,10 +63,18 @@ class X152bPx4(BaseTask):
         self.sim_device_id = sim_device
         self.headless = headless
 
+        self.asset_manager = AssetManager(self.cfg, sim_device)
+
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
         self.root_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
 
-        bodies_per_env = self.robot_num_bodies
+        num_actors = self.asset_manager.get_env_actor_count() # Number of actors including robots and env assets in the environment
+        num_env_assets = self.asset_manager.get_env_asset_count() # Number of env assets
+        robot_num_bodies = self.asset_manager.get_robot_num_bodies() # Number of robots bodies in environment
+        env_asset_link_count = self.asset_manager.get_env_asset_link_count() # Number of env assets links in the environment
+        env_boundary_count = self.asset_manager.get_env_boundary_count() # Number of env boundaries in the environment
+        self.num_assets = num_env_assets - env_boundary_count # # Number of env assets that can be randomly placed
+        bodies_per_env = env_asset_link_count + robot_num_bodies
 
         self.vec_root_tensor = gymtorch.wrap_tensor(
             self.root_tensor).view(self.num_envs, num_actors, 13)
@@ -172,41 +181,43 @@ class X152bPx4(BaseTask):
 
     def _create_envs(self):
         print("\n\n\n\n\n CREATING ENVIRONMENT \n\n\n\n\n\n")
-        asset_path = self.cfg.asset_config.X152b.file.format(
-            AIRGYM_ROOT_DIR=AIRGYM_ROOT_DIR)
-        asset_root = os.path.dirname(asset_path)
-        asset_file = os.path.basename(asset_path)
-
-        asset_options = asset_class_to_AssetOptions(self.cfg.asset_config.X152b)
-
-        X152b = self.gym.load_asset(self.sim, asset_root, asset_file, asset_options)
-
-        self.robot_num_bodies = self.gym.get_asset_rigid_body_count(X152b)
-
         start_pose = gymapi.Transform()
         self.env_spacing = self.cfg.env.env_spacing
         env_lower = gymapi.Vec3(-self.env_spacing, -
                                 self.env_spacing, -self.env_spacing)
         env_upper = gymapi.Vec3(
             self.env_spacing, self.env_spacing, self.env_spacing)
-        self.actor_handles = []
-        self.envs = []
-        for i in range(self.num_envs):
-            # create env instance
-            env_handle = self.gym.create_env(self.sim, env_lower, env_upper, int(np.sqrt(self.num_envs)))
-            pos = torch.tensor([0, 0, 0], device=self.device)
-            start_pose.p = gymapi.Vec3(*pos)
-
-            actor_handle = self.gym.create_actor(env_handle, X152b, start_pose, self.cfg.asset_config.X152b.name, i, self.cfg.asset_config.X152b.collision_mask, 0)
-            
-            self.envs.append(env_handle)
-            self.actor_handles.append(actor_handle)
         
-        self.robot_bodies = self.gym.get_actor_rigid_body_properties(env_handle, actor_handle)
-        self.robot_mass = 0
-        for body in self.robot_bodies:
-            self.robot_mass += body.mass
-        print("Total robot mass: ", self.robot_mass)
+        self.actor_handles = []
+        self.env_asset_handles = []
+        self.envs = []
+        self.camera_handles = []
+        self.camera_tensors = []
+
+        for i in range(self.num_envs):
+            # create environment
+            env_handle = self.gym.create_env(self.sim, env_lower, env_upper, int(np.sqrt(self.num_envs)))
+            self.envs.append(env_handle)
+            # load robots and assets
+            actor_handles, camera_handles, camera_tensors, env_asset_handles = \
+                self.asset_manager.load_asset(self.gym, self.sim, env_handle, start_pose, i)
+            # add all envs handles together
+            self.actor_handles += actor_handles
+            self.camera_handles += camera_handles
+            self.camera_tensors += camera_tensors
+            self.env_asset_handles += env_asset_handles
+
+        self.enable_onboard_cameras = False if not camera_handles else True
+        if self.enable_onboard_cameras:
+            assert len(camera_tensors) != 0
+            if camera_tensors[0].dim() == 2:
+                h, w = camera_tensors[0].size()
+                self.cam_resolution = (w, h)
+                self.cam_channel = 1
+            else:
+                c, h, w = camera_tensors[0].size()
+                self.cam_resolution = (w, h)
+                self.cam_channel = c
         
         print("\n\n\n\n\n ENVIRONMENT CREATED \n\n\n\n\n\n")
 
@@ -395,66 +406,6 @@ class X152bPx4(BaseTask):
         
         # update prev 
         self.pre_actions = self.actions.clone()
-
-    # def compute_quadcopter_reward(self):
-    #     target_positions = self.target_states[..., 9:12]
-    #     relative_positions = target_positions - self.root_positions
-
-    #     target_matrix = self.target_states[..., 0:9].reshape(self.num_envs, 3,3)
-    #     target_euler = T.matrix_to_euler_angles(target_matrix, 'XYZ')
-    #     root_matrix = T.quaternion_to_matrix(self.root_quats[:, [3, 0, 1, 2]])
-    #     root_euler = T.matrix_to_euler_angles(root_matrix, convention='XYZ')
-    #     relative_heading = compute_yaw_diff(target_euler[..., 2], root_euler[..., 2])
-
-    #     distance = torch.norm(torch.cat((relative_positions, relative_heading.unsqueeze(-1)), dim=-1), dim=1)
-    #     pose_reward = 1.0 / (1.0 + torch.square(1.6 * distance))
-
-    #     ups = quat_axis(self.root_quats, axis=2)
-    #     ups_reward = torch.square((ups[..., 2] + 1) / 2)
-
-    #     spinnage = torch.square(self.root_angvels[:, -1])
-    #     spin_reward = 1.0 / (1.0 + torch.square(spinnage))
-
-    #     thrust_cmds = torch.clamp(self.cmd_thrusts, min=0.0, max=1.0).to(self.device)
-    #     effort_reward = .1 * (1 - thrust_cmds).sum(-1)/4
-    #     # effort_reward = .1 * torch.exp(-self.actions.pow(2).sum(-1))
-    #     action_diff = torch.norm(self.actions[..., :] - self.pre_actions[..., :], dim=-1)
-    #     thrust = self.actions[..., -1]*0.5 + 0.5 # this thrust is the force on vertical axis
-    #     thrust_reward = .05 * (1-torch.abs(0.1533 - thrust))
-    #     action_smoothness_reward = .1 * torch.exp(-action_diff)
-
-    #     assert pose_reward.shape == ups_reward.shape == spin_reward.shape
-    #     reward = (
-    #         pose_reward
-    #         + pose_reward * (ups_reward + spin_reward)
-    #         + effort_reward
-    #         + action_smoothness_reward
-    #         + thrust_reward
-    #     )
-
-    #     # resets due to misbehavior
-    #     ones = torch.ones_like(self.reset_buf)
-    #     die = torch.zeros_like(self.reset_buf)
-
-    #     # resets due to episode length
-    #     reset = torch.where(self.progress_buf >= self.max_episode_length - 1, ones, die)
-    #     reset = torch.where(torch.norm(relative_positions, dim=1) > 4, ones, reset)
-        
-    #     reset = torch.where(relative_positions[..., 2] < -2, ones, reset)
-    #     reset = torch.where(relative_positions[..., 2] > 2, ones, reset)
-
-    #     reset = torch.where(ups[..., 2] < 0.0, ones, reset) # orient_z 小于0 = 飞行器朝下了
-
-    #     item_reward_info = {}
-    #     item_reward_info["pose_reward"] = pose_reward
-    #     item_reward_info["ups_reward"] = ups_reward
-    #     item_reward_info["spin_reward"] = spin_reward
-    #     item_reward_info["effort_reward"] = effort_reward
-    #     item_reward_info["action_smoothness_reward"] = action_smoothness_reward
-    #     item_reward_info["thrust_reward"] = thrust_reward
-
-    #     return reward, reset, item_reward_info
-    
 
     def compute_quadcopter_reward(self):
         # effort reward
