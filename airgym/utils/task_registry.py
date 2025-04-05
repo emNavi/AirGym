@@ -50,6 +50,10 @@ class TaskRegistry():
         env_cfg = self.env_cfgs[name]
         return env_cfg
     
+    def get_registered_tasks(self):
+        """Returns a list of names of all registered tasks"""
+        return list(self.task_classes.keys())
+    
     def make_env(self, name, args=None, env_cfg=None):
         """ Creates an environment either from a registered namme or from the provided config file.
 

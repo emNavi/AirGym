@@ -141,20 +141,20 @@ AirGym/
 │   ├── envs/                                    # envs definition
 │   │    ├── base/                               # base envs
 │   │    └── task/                               # tasks
-│   │          ├── X152b_planning.py             # task env file
-│   │          ├── X152b_planning_config.py      # task env config file
+│   │          ├── planning.py                   # task env file
+│   │          ├── planning_config.py            # task env config file
 │   │          ├── ...
 │   │           ...
 │   │
-│   ├── lib/                                     # RL algorithm
+│   ├── assets/                                  # assets
+│   │     ├── env_assets/                        # env assets
+│   │     └── robots/                            # robot assets
 │   ├── scripts/                                 # debug scripts
 │   └── utils/                                   # others
 │
 ├── doc/                                         # doc assets
 │
-├── resources/                                   # assets
-│   ├── env_assets/                              # env assets
-│   └── robots/                                  # robot assets
+├── lib/                                         # RL algorithm
 │
 ├── scripts/                                     # program scipts
 │   ├── config/                                  # config file for training
@@ -171,13 +171,13 @@ Training from scratch can be down within minites. Using <font face='courier new'
 ```bash
 python scripts/runner.py --ctl_mode rate --headless --task X152b
 ```
-Algorithm related parameters can be edited in `.yaml` files. Environment and simulator related parameters are located in ENV_config files like `X152bPx4_config.py`. The `ctl_mode` must be spicified.
+Algorithm related parameters can be edited in `.yaml` files. Environment and simulator related parameters are located in ENV_config files like `hovering_config.py`. The `ctl_mode` must be spicified.
 
 The input arguments can be overrided:
 | args | explanation |
 |----------|----------|
 | --play | Play(test) a trained network. |
-| --task | Spicify a task.  'X152b', 'X152b_avoid', 'X152b_balloon', 'X152b_planning', 'X152b_tracking'|
+| --task | Spicify a task.  'hovering', 'avoid', 'balloon', 'planning', 'tracking'|
 | --num_envs | Spicify the number of parallel running environments.|
 | --headless | Run in headless mode or not. |
 | --ctl_mode | Spicify a control level mode from 'pos', 'vel', 'atti', 'rate', 'prop'. |
@@ -194,20 +194,19 @@ python scripts/runner.py --play --num_envs 64 --ctl_mode rate --checkpoint <path
 
 ### Customize a New Task
 1. Create a new `.py` file in directory `airgym/envs/task`. Usually, we use `<task_name>.py` to describe an environment and a `<task_name>_config.py` to describe basic environment settings. You can follow this rule.
-1. Register new task in `airgym/envs/task/__init__.py` and `airgym/lib/utils/vecenv.py`. The former is registration for AirGym environment, and the latter is registration for vectorized parallel environments required by algorithm. Using task <font face='courier new'>Planning</font> as an example:
+1. Register new task in `airgym/envs/task/__init__.py`. This is registration for AirGym environment. Note that the registration for vectorized parallel environments and training agent have been implemented automatically. Using task <font face='courier new'>Planning</font> as an example:
 ```python
-try:
-    from .task.X152b_planning_config import X152bPlanningConfig
-    from .task.X152b_planning import X152bPlanning
-    task_registry.register("X152b_planning", X152bPlanning, X152bPlanningConfig())
-except ImportError:
-    print("WARNING! X152bPlanning or X152bPlanningConfig cannot be imported. Ignore if using on real robot inference.")
-    traceback.print_exc()
+TASK_CONFIGS = [
+    {
+        'name': 'planning',
+        'config_module': 'task.planning_config',
+        'config_class': 'PlanningConfig',
+        'task_module': 'task.planning',
+        'task_class': 'Planning'
+    }
+]
 ```
-```python
-env_configurations.register('X152b_planning', {'env_creator': lambda **kwargs : task_registry.make_env('X152b_planning',args=Namespace(**kwargs)),
-        'vecenv_type': 'AirGym-RLGPU'})
-```
+We recommend users inherit from task `hovering`(no camera) and `customized`(depth).
 
 ## TODO
 TBC

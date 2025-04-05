@@ -1,51 +1,75 @@
 import os
-from airgym.utils.task_registry import task_registry
 import traceback
+from airgym.utils.task_registry import task_registry
 
-try:
-    from .base.X152bPx4_config import X152bPx4Cfg
-    from .base.X152bPx4 import X152bPx4
-    task_registry.register("X152b", X152bPx4, X152bPx4Cfg())
-except ImportError:
-    print("WARNING! X152bPx4_config or X152bPx4 cannot be imported. Ignore if using on real robot inference.")
-    traceback.print_exc()
+TASK_CONFIGS = [
+    {
+        'name': 'hovering',
+        'config_module': 'base.hovering_config',
+        'config_class': 'HoveringCfg',
+        'task_module': 'base.hovering',
+        'task_class': 'Hovering'
+    },
+    {
+        'name': 'customized',
+        'config_module': 'base.customized_config',
+        'config_class': 'CustomizedCfg',
+        'task_module': 'base.customized',
+        'task_class': 'Customized'
+    },
+    {
+        'name': 'balloon',
+        'config_module': 'task.balloon_config',
+        'config_class': 'BalloonConfig',
+        'task_module': 'task.balloon',
+        'task_class': 'Balloon'
+    },
+    {
+        'name': 'avoid',
+        'config_module': 'task.avoid_config',
+        'config_class': 'AvoidConfig',
+        'task_module': 'task.avoid',
+        'task_class': 'Avoid'
+    },
+    {
+        'name': 'tracking',
+        'config_module': 'task.tracking_config',
+        'config_class': 'TrackingConfig',
+        'task_module': 'task.tracking',
+        'task_class': 'Tracking'
+    },
+    {
+        'name': 'planning',
+        'config_module': 'task.planning_config',
+        'config_class': 'PlanningConfig',
+        'task_module': 'task.planning',
+        'task_class': 'Planning'
+    }
+]
 
-try:
-    from .base.X152bPx4_with_cam_config import X152bPx4WithCamCfg
-    from .base.X152bPx4_with_cam import X152bPx4WithCam
-    task_registry.register("X152b_with_cam", X152bPx4WithCam, X152bPx4WithCamCfg())
-except ImportError:
-    print("WARNING! X152bPx4WithCamCfg or X152bPx4WithCam cannot be imported. Ignore if using on real robot inference.")
-    traceback.print_exc()
+def register_tasks():
+    for config in TASK_CONFIGS:
+        try:
+            config_module = __import__(
+                f"airgym.envs.{config['config_module']}", 
+                fromlist=[config['config_class']]
+            )
+            config_class = getattr(config_module, config['config_class'])
+            
+            task_module = __import__(
+                f"airgym.envs.{config['task_module']}", 
+                fromlist=[config['task_class']]
+            )
+            task_class = getattr(task_module, config['task_class'])
+            
+            task_registry.register(
+                config['name'], 
+                task_class, 
+                config_class()
+            )
+        except ImportError as e:
+            print(f"WARNING! Failed to import {config['name']}: {str(e)}")
+            print("Ignore if using on real robot inference.")
+            traceback.print_exc()
 
-try:
-    from .task.X152b_balloon_config import X152bBalloonConfig
-    from .task.X152b_balloon import X152bBalloon
-    task_registry.register("X152b_balloon", X152bBalloon, X152bBalloonConfig())
-except ImportError:
-    print("WARNING! X152bBalloon or X152bBalloonConfig cannot be imported. Ignore if using on real robot inference.")
-    traceback.print_exc()
-
-try:
-    from .task.X152b_avoid_config import X152bAvoidConfig
-    from .task.X152b_avoid import X152bAvoid
-    task_registry.register("X152b_avoid", X152bAvoid, X152bAvoidConfig())
-except ImportError:
-    print("WARNING! X152bAvoid or X152bAvoidConfig cannot be imported. Ignore if using on real robot inference.")
-    traceback.print_exc()
-
-try:
-    from .task.X152b_tracking_config import X152bTrackingConfig
-    from .task.X152b_tracking import X152bTracking
-    task_registry.register("X152b_tracking", X152bTracking, X152bTrackingConfig())
-except ImportError:
-    print("WARNING! X152bTracking or X152bTrackingConfig cannot be imported. Ignore if using on real robot inference.")
-    traceback.print_exc()
-
-try:
-    from .task.X152b_planning_config import X152bPlanningConfig
-    from .task.X152b_planning import X152bPlanning
-    task_registry.register("X152b_planning", X152bPlanning, X152bPlanningConfig())
-except ImportError:
-    print("WARNING! X152bPlanning or X152bPlanningConfig cannot be imported. Ignore if using on real robot inference.")
-    traceback.print_exc()
+register_tasks()

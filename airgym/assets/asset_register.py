@@ -30,6 +30,7 @@ DEFAULT_PARAMS = {
     'vhacd_enabled': False,
     'color': None,
     'num_assets': 1,
+    'semantic_id': 0,
 }
 
 class AssetRegistry:
@@ -54,32 +55,12 @@ class AssetRegistry:
             "params": params,
             "type": asset_type
         }
-    
-    def get_asset_info(self,
-                 asset_name: str,
-                 variant: Optional[str] = None,
-                 override_params: Optional[Dict[str, Any]] = None) -> Any:
 
+    def get_asset_info(self, asset_name):
         if asset_name not in self._assets:
             raise KeyError(f"Asset {asset_name} not registered")
-        
         asset_info = self._assets[asset_name]
-        asset_type = asset_info["type"]
-        params = asset_info["params"].copy()
-        
-        if variant is not None and asset_type == 'group':
-            asset_path = os.path.join(params["path"], f"{variant}.urdf")
-            asset_path = asset_path if os.path.exists(asset_path) else os.path.join(params['path'], variant, 'model.urdf')
-            assert os.path.exists(asset_path), f"Variant named {asset_name}/{variant} does not exist."
-        elif variant is not None and asset_type == 'single':
-            raise ValueError(f"Single asset {asset_name} has no variant.")
-        elif not variant:
-            asset_path = params["path"]
-        
-        if override_params:
-            params.update(override_params)
-
-        return asset_path, params
+        return asset_info["params"], asset_info["type"]
     
     def get_variants(self, asset_name: str) -> List[str]:
         if asset_name not in self._assets:
