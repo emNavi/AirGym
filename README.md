@@ -128,7 +128,7 @@ chmod +x configuration.sh
 You can run the example script which is a quadrotor position control illustration of 4096 parallel environments:
 ```bash
 conda activate airgym
-python airgym/scripts/example.py --task X152b --ctl_mode pos --num_envs 4
+python airgym/scripts/example.py --task hovering --ctl_mode pos --num_envs 4
 ```
 The default `ctl_mode` is position control.
 
@@ -169,7 +169,7 @@ We train the model by a `rl_games` liked customed PPO (`rl_games` was discarded 
 
 Training from scratch can be down within minites. Using <font face='courier new'>Hovering</font> as an example:
 ```bash
-python scripts/runner.py --ctl_mode rate --headless --task X152b
+python scripts/runner.py --ctl_mode rate --headless --task hovering
 ```
 Algorithm related parameters can be edited in `.yaml` files. Environment and simulator related parameters are located in ENV_config files like `hovering_config.py`. The `ctl_mode` must be spicified.
 
@@ -183,11 +183,12 @@ The input arguments can be overrided:
 | --ctl_mode | Spicify a control level mode from 'pos', 'vel', 'atti', 'rate', 'prop'. |
 | --checkpoint | Load a trained checkpoint model from path. |
 | --file | Spicify an algorithm config file for training. |
+|
 
 ### Playing and Testing
 Load a trained checkpoint is quite easy:
 ```bash
-python scripts/runner.py --play --num_envs 64 --ctl_mode rate --checkpoint <path-to-ckpt>
+python scripts/runner.py --play --task hovering --num_envs 64 --ctl_mode rate --checkpoint <path-to-ckpt>
 ```
 
 > Important: ***emNavi*** provide a general quadrotor sim2real approach, please refer to **AirGym-Real** @https://github.com/emNavi/AirGym-Real.
@@ -209,9 +210,9 @@ TASK_CONFIGS = [
 We recommend users inherit from task `hovering`(no camera) and `customized`(depth).
 
 ### Add New Assets
-We use an asset register to manage assets. 
+We use an asset register to manage assets, and an asset manager to realize quickly assets loading and environment creating.
 
-#### Assets Register
+#### Assets Registion
 Before adding assets into the environment, users should register their own assets at `airgym/assets/__init__.py` by using function `registry.register_asset(asset_name, override_params, asset_type)`.
 
 | params | explanation |
@@ -219,6 +220,7 @@ Before adding assets into the environment, users should register their own asset
 | asset_name | The identified name of asset in airgym. |
 | override_params | Customized assets parameters that can override the default settings in `airgym/assets/asset_register.py`. |
 | asset_type | Asset type: "single" or "group". `single`: One asset defined in a `.urdf` file. `group`: A kind of assets that have similar features, like `cubes` with multiple shapes of `cube1x1`, `cube1x4`, _et al._ If asset type is "group", the key "path" in the `override_params` should be a folder. |
+|
 
 Here we use robot `X152b` as an example:
 ```python
@@ -248,7 +250,7 @@ registry.register_asset(
 )
 ```
 #### Include Assets in the Task
-Considering frequently changes of assets settings, we use a simple but very clear method to include your customed assets in the task, defining it in `ENV_config.py` file. Here is an example:
+Considering frequently changes of assets settings, we use a simple but very clear method to include your customed assets in the task, defining it in `<task_name>_config.py` file. Here is an example:
 ```python
 class asset_config:
         include_robot = {
@@ -286,11 +288,11 @@ To define four dictionary, you can add pre-registered assets into task. `include
 #### Asset Manager Explanation
 Python file `asset_manager.py` provide clear but powerful functions to load assets, create assets, and achieving quick params overriding. Here are key functions in class `AssetManager`:
 
-> load_asset(self: AssetManager, gym: gymapi.acquire_gym(), sim: gym.create_sim())
+> ***func*** load_asset(self: AssetManager, gym: gymapi.acquire_gym(), sim: gym.create_sim()):
 
 Load and prepare assets from `ENV_config.py`. Overriding and saving parameters into lists, to avoid repetitive loading of assets.
 
-> create_asset(self: AssetManager, env_handle: gym.create_env(), start_pose: gymapi.Transform(), env_id: int)
+> ***func*** create_asset(self: AssetManager, env_handle: gym.create_env(), start_pose: gymapi.Transform(), env_id: int):
 
 Create isaacgym actors according to prepared lists, to add assets into task.
 
