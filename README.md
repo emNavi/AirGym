@@ -208,8 +208,95 @@ TASK_CONFIGS = [
 ```
 We recommend users inherit from task `hovering`(no camera) and `customized`(depth).
 
+### Add New Assets
+We use an asset register to manage assets. 
+
+#### Assets Register
+Before adding assets into the environment, users should register their own assets at `airgym/assets/__init__.py` by using function `registry.register_asset(asset_name, override_params, asset_type)`.
+
+| params | explanation |
+|----------|----------|
+| asset_name | The identified name of asset in airgym. |
+| override_params | Customized assets parameters that can override the default settings in `airgym/assets/asset_register.py`. |
+| asset_type | Asset type: "single" or "group". `single`: One asset defined in a `.urdf` file. `group`: A kind of assets that have similar features, like `cubes` with multiple shapes of `cube1x1`, `cube1x4`, _et al._ If asset type is "group", the key "path" in the `override_params` should be a folder. |
+
+Here we use robot `X152b` as an example:
+```python
+registry.register_asset(
+    "X152b",
+    override_params={
+        "path": f"{AIRGYM_ROOT_DIR}/airgym/assets/robots/X152b/model.urdf",
+        "name": "X152b",
+        "base_link_name": "base_link",
+        "foot_name": None,
+        "penalize_contacts_on": [],
+        "terminate_after_contacts_on": [],
+        "disable_gravity": False,
+        "collapse_fixed_joints": True,
+        "fix_base_link": False,
+        "collision_mask": 1,
+        "density": -1,
+        "angular_damping": 0.0,
+        "linear_damping": 0.0,
+        "replace_cylinder_with_capsule": False,
+        "flip_visual_attachments": False,
+        "max_angular_velocity": 100.,
+        "max_linear_velocity": 100.,
+        "armature": 0.001,
+    },
+    asset_type="single"
+)
+```
+#### Include Assets in the Task
+Considering frequently changes of assets settings, we use a simple but very clear method to include your customed assets in the task, defining it in `ENV_config.py` file. Here is an example:
+```python
+class asset_config:
+        include_robot = {
+            "X152b": {
+                "num_assets": 1,
+                "enable_onboard_cameras": True,
+                "collision_mask": 1,
+            }
+        }
+
+        include_single_asset = {
+            "cubes/1x1": {
+                "collision_mask": 0,
+                "num_assets": 1,
+            },
+        }
+            
+        include_group_asset = {
+            "cubes": {
+                  "num_assets": 10,
+                  "collision_mask": 0,
+              },
+        }
+
+        include_boundary = {
+            "18x18ground": {
+                  "num_assets": 1,
+              },
+        }
+```
+To define four dictionary, you can add pre-registered assets into task. `include_single_asset` indicates to include a specified type of asset. `include_group_asset` indicatde to randomly include a group of a type of assets. `include_boundary` means to include a ground, or any boundaries like a wall, _et al._ Robots are also included by `include_robot`.
+
+> IMPORTANT: considering a fast debug of assets features, you can add and edit params of asset in the dictionaries, to override the original settings, which is extremly efficient during development.
+
+#### Asset Manager Explanation
+Python file `asset_manager.py` provide clear but powerful functions to load assets, create assets, and achieving quick params overriding. Here are key functions in class `AssetManager`:
+
+> load_asset(self: AssetManager, gym: gymapi.acquire_gym(), sim: gym.create_sim())
+
+Load and prepare assets from `ENV_config.py`. Overriding and saving parameters into lists, to avoid repetitive loading of assets.
+
+> create_asset(self: AssetManager, env_handle: gym.create_env(), start_pose: gymapi.Transform(), env_id: int)
+
+Create isaacgym actors according to prepared lists, to add assets into task.
+
+
 ## TODO
-TBC
+Add multiple drone training tasks.
 
 ## FAQ
 TBC
