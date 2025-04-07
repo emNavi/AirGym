@@ -183,7 +183,7 @@ The input arguments can be overrided:
 | --ctl_mode | Spicify a control level mode from 'pos', 'vel', 'atti', 'rate', 'prop'. |
 | --checkpoint | Load a trained checkpoint model from path. |
 | --file | Spicify an algorithm config file for training. |
-|
+
 
 ### Playing and Testing
 Load a trained checkpoint is quite easy:
@@ -220,7 +220,7 @@ Before adding assets into the environment, users should register their own asset
 | asset_name | The identified name of asset in airgym. |
 | override_params | Customized assets parameters that can override the default settings in `airgym/assets/asset_register.py`. |
 | asset_type | Asset type: "single" or "group". `single`: One asset defined in a `.urdf` file. `group`: A kind of assets that have similar features, like `cubes` with multiple shapes of `cube1x1`, `cube1x4`, _et al._ If asset type is "group", the key "path" in the `override_params` should be a folder. |
-|
+
 
 Here we use robot `X152b` as an example:
 ```python
