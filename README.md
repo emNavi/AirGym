@@ -167,11 +167,11 @@ AirGym/
 ### Training from Scratch
 We train the model by a `rl_games` liked customed PPO (`rl_games` was discarded after the version 0.0.1beta because of its complexity for use). The training algorithm is at `airgym/lib` modified from `rl_games-1.6.1`. Of course you can use any other RL libs for training.
 
-Training from scratch can be down within minites. Using <font face='courier new'>Hovering</font> as an example:
+Training from scratch can be down within minites. The running log files and checkpoint is saved under `runs`. Using <font face='courier new'>Hovering</font> as an example:
 ```bash
 python scripts/runner.py --ctl_mode rate --headless --task hovering
 ```
-Algorithm related parameters can be edited in `.yaml` files. Environment and simulator related parameters are located in ENV_config files like `hovering_config.py`. The `ctl_mode` must be spicified.
+Algorithm related parameters can be edited in `.yaml` files. Environment and simulator related parameters are located in ENV_config files like `hovering_config.py`. The `ctl_mode` must be spicified. `tensorboard` can be used for debugging.
 
 The input arguments can be overrided:
 | args | explanation |
@@ -300,12 +300,14 @@ Create isaacgym actors according to prepared lists, to add assets into task.
 ## TODO
 Add multiple drone training tasks.
 
+The hardware of emNavi-X152b is going to open-sourced soon.
+
 ## FAQ
 TBC
 
 ## License
 [LICENSE FILE](/LICENSE) 
-This project is inspired and greatly improved from project aerial_gym_simulator that adheres to the BSD 3-Clause License. In consequence, this work will continuously develope under BSD 3-Clause License. Currently, we still use assets management part from aerial_gym_simulator although we have made a great changes, but we are rewriting and optimizing this part. In the future, we will continue to build upon BSD 3-Clause and claim the contributions of those who came before us.
+We build the project upon BSD 3-Clause and claim the contributions of those who came before us.
 
 ## Acknowledgement
 We thanks colleagues @emNavi Tech (https://emnavi.tech/) who develope and maintain the outstanding hardware device [emNavi-X152b](https://emnavi.tech/droneKit/#x152b%E5%B9%B3%E5%8F%B0) for Sim-to-Real task.
