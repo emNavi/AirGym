@@ -1,24 +1,9 @@
-import math
-import numpy as np
-import os
 import torch
-import xml.etree.ElementTree as ET
 
-from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
-
-from isaacgym import gymutil, gymtorch, gymapi
+from isaacgym import gymapi
 from isaacgym.torch_utils import *
 from airgym.envs.base.customized import Customized
-import airgym.utils.rotations as rot_utils
-from airgym.envs.task.avoid_config import AvoidConfig
-from airgym.assets.asset_manager import AssetManager
-
-from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
-
-import matplotlib.pyplot as plt
-from airgym.utils.helpers import asset_class_to_AssetOptions
-from airgym.utils.rotations import quats_to_euler_angles
-import time
+from airgym.envs.task.avoid_config import AvoidCfg
 
 import pytorch3d.transforms as T
 
@@ -47,7 +32,7 @@ def compute_yaw_diff(a: torch.Tensor, b: torch.Tensor):
 
 class Avoid(Customized):
 
-    def __init__(self, cfg: AvoidConfig, sim_params, physics_engine, sim_device, headless):
+    def __init__(self, cfg: AvoidCfg, sim_params, physics_engine, sim_device, headless):
         super().__init__(cfg, sim_params, physics_engine, sim_device, headless)
 
         # get states of object
@@ -71,50 +56,33 @@ class Avoid(Customized):
             self.gym.viewer_camera_look_at(self.viewer, None, cam_pos, cam_target)
 
     def calculate_object_velocity(self, object_position, v_e, g=9.81):
-        """
-        计算 object 的初速度 (vx, vy, vz) 以使其以水平速度为基础，砸向无人机。
-        
-        参数：
-        - object_position (tensor): 初始位置 [num_envs, 3]
-        - v_e (float): 期望水平速度（标量）
-        - g (float): 重力加速度，默认 9.81
-        """
-        # 确保输入维度正确
         if len(object_position.shape) == 3:
             object_position = object_position.squeeze(1)  # 如果是 [num_envs, 1, 3] 转换为 [num_envs, 3]
         
-        # 过滤掉固定位置的cases
         valid_positions = (object_position[:, 0] != -999)
         if not torch.any(valid_positions):
             return torch.zeros_like(object_position)
             
-        # 只处理有效的位置
         positions = object_position[valid_positions]
         num_valid = positions.shape[0]
         
-        # 生成随机目标点
         drone_position = 0.3 * torch_rand_float(-1.0, 1.0, (num_valid, 3), self.device) + \
                         torch.tensor([0.0, 0.0, 1.0], device=self.device)
 
-        # 计算方向向量
         direction = drone_position - positions
         distance_xy = torch.norm(direction[:, :2], dim=1, keepdim=True)
         unit_direction_xy = direction[:, :2] / distance_xy
 
-        # 计算水平飞行时间
         v_e = torch.tensor(v_e, device=self.device).expand_as(distance_xy)
         t = distance_xy / v_e
 
-        # 计算垂直方向初速度
         z_c = positions[:, 2].unsqueeze(1)
         z_u = drone_position[:, 2].unsqueeze(1)
         v_z = (z_u - z_c + 0.5 * g * t**2) / t
 
-        # 水平方向初速度分量
         v_x = unit_direction_xy[:, 0].unsqueeze(1) * v_e
         v_y = unit_direction_xy[:, 1].unsqueeze(1) * v_e
 
-        # 合并速度分量
         velocity = torch.zeros_like(object_position)
         velocity[valid_positions] = torch.cat([v_x, v_y, v_z], dim=1)
 
@@ -143,7 +111,7 @@ class Avoid(Customized):
             self.object_states[random_env_ids, 1:2] = R * torch.sin(theta)
             self.object_states[random_env_ids, 2:3] = 0.0 * torch_rand_float(-1., 1., (random_num_resets, 1), self.device) + 1.4
             
-            positions = self.object_states[random_env_ids, 0:3].squeeze(1)  # 确保维度正确
+            positions = self.object_states[random_env_ids, 0:3].squeeze(1)
             velocities = self.calculate_object_velocity(positions, 4.5)
             self.object_states[random_env_ids, 7:10] = velocities
         
@@ -191,6 +159,7 @@ class Avoid(Customized):
 
     def step(self, actions):
         # print("actions: ", actions)
+        self.actions_local = actions.to(self.device)
         # step physics and render each frame
         for i in range(self.cfg.env.num_control_steps_per_env_step):
             self.pre_physics_step(actions)
@@ -232,15 +201,29 @@ class Avoid(Customized):
         return obs, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def compute_observations(self):
-        self.root_matrix = T.quaternion_to_matrix(self.root_quats[:, [3, 0, 1, 2]]).reshape(self.num_envs, 9)
-        self.obs_buf[..., 0:9] = self.root_matrix
-        self.obs_buf[..., 9:12] = self.root_positions
-        self.obs_buf[..., 12:15] = self.root_linvels
-        self.obs_buf[..., 15:18] = self.root_angvels
-        self.add_noise()
+        q_global = self.root_quats[:, [3, 0, 1, 2]]
+        rot_matrix_global = T.quaternion_to_matrix(q_global)  # (num_envs, 3, 3)
 
-        self.obs_buf[..., 0:18] -= self.target_states
-        return self.obs_buf
+        yaw = torch.atan2(rot_matrix_global[:, 1, 0], rot_matrix_global[:, 0, 0])
+        cos_yaw = torch.cos(yaw)
+        sin_yaw = torch.sin(yaw)
+        self.world_to_local = torch.stack([
+            torch.stack([cos_yaw, -sin_yaw, torch.zeros_like(yaw)], dim=1),
+            torch.stack([sin_yaw,  cos_yaw, torch.zeros_like(yaw)], dim=1),
+            torch.stack([torch.zeros_like(yaw), torch.zeros_like(yaw), torch.ones_like(yaw)], dim=1)
+        ], dim=2)
+
+        rot_matrix_local = torch.bmm(self.world_to_local, rot_matrix_global)
+        self.euler_angles_local = T.matrix_to_euler_angles(rot_matrix_local, "XYZ")
+
+        self.vel_local = torch.einsum("bij,bj->bi", self.world_to_local, self.root_linvels)
+        self.ang_vel_local = torch.einsum("bij,bj->bi", self.world_to_local, self.root_angvels)
+
+        self.obs_buf[..., 0:3] = self.root_positions - self.target_states[..., 9:12]
+        self.obs_buf[..., 3:6] = self.euler_angles_local
+        self.obs_buf[..., 6:9] = self.vel_local
+        self.obs_buf[..., 9:12] = self.ang_vel_local
+        self.obs_buf[..., 12:16] = self.actions_local
 
     def compute_reward(self):
         self.rew_buf[:], self.reset_buf[:] ,self.item_reward_info = self.compute_quadcopter_reward()
@@ -270,7 +253,6 @@ class Avoid(Customized):
 
         effort_reward = .1 * torch.exp(-self.actions.pow(2).sum(-1))
         action_diff = torch.norm(self.actions[..., :-1] - self.pre_actions[..., :-1], dim=-1)
-        # action_diff = torch.norm(self.actions - self.pre_actions, dim=-1)
         thrust_reward = .05 * (1-torch.abs(0.1533 - self.actions[..., -1]))
         action_smoothness_reward = .1 * torch.exp(-action_diff)
 
@@ -298,7 +280,7 @@ class Avoid(Customized):
 
         reset = torch.where(relative_positions.norm(dim=-1) > 2.0, ones, reset)
 
-        reset = torch.where(ups[..., 2] < 0.0, ones, reset) # orient_z 小于0 = 飞行器朝下了
+        reset = torch.where(ups[..., 2] < 0.0, ones, reset)
 
         item_reward_info = {}
         item_reward_info["pose_reward"] = pose_reward

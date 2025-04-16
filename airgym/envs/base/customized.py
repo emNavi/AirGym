@@ -1,14 +1,9 @@
-import math
 import numpy as np
-import os
 import torch
-import sys
 
 import torch.nn.functional as F
 
-from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
-
-from isaacgym import gymutil, gymtorch, gymapi
+from isaacgym import gymtorch, gymapi
 from airgym.utils.torch_utils import *
 
 from airgym.envs.base.base_task import BaseTask
@@ -16,11 +11,7 @@ from airgym.envs.base.customized_config import CustomizedCfg
 
 from airgym.assets.asset_manager import AssetManager
 
-from airgym.utils.helpers import asset_class_to_AssetOptions
 import pytorch3d.transforms as T
-
-import matplotlib.pyplot as plt
-from PIL import Image
 import cv2
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl

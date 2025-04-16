@@ -20,28 +20,28 @@ TASK_CONFIGS = [
     {
         'name': 'balloon',
         'config_module': 'task.balloon_config',
-        'config_class': 'BalloonConfig',
+        'config_class': 'BalloonCfg',
         'task_module': 'task.balloon',
         'task_class': 'Balloon'
     },
     {
         'name': 'avoid',
         'config_module': 'task.avoid_config',
-        'config_class': 'AvoidConfig',
+        'config_class': 'AvoidCfg',
         'task_module': 'task.avoid',
         'task_class': 'Avoid'
     },
     {
         'name': 'tracking',
         'config_module': 'task.tracking_config',
-        'config_class': 'TrackingConfig',
+        'config_class': 'TrackingCfg',
         'task_module': 'task.tracking',
         'task_class': 'Tracking'
     },
     {
         'name': 'planning',
         'config_module': 'task.planning_config',
-        'config_class': 'PlanningConfig',
+        'config_class': 'PlanningCfg',
         'task_module': 'task.planning',
         'task_class': 'Planning'
     }

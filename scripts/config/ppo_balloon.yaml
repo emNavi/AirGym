@@ -25,7 +25,6 @@ params:
   config:
     env_name: balloon
     env_config:
-      num_envs: 4
       use_image: False
     
     name: ppo_balloon

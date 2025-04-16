@@ -1,26 +1,11 @@
-import math
-import numpy as np
-import os
 import torch
-import xml.etree.ElementTree as ET
 
-from isaacgym import gymutil, gymtorch, gymapi
-from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
+from isaacgym import gymapi
 from airgym.utils.torch_utils import *
 from airgym.envs.base.customized import Customized
-import airgym.utils.rotations as rot_utils
-from airgym.envs.task.planning_config import PlanningConfig
-from airgym.assets.asset_manager import AssetManager
-
-from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
-
-import matplotlib.pyplot as plt
-from airgym.utils.helpers import asset_class_to_AssetOptions
-from airgym.utils.rotations import quats_to_euler_angles
-import time
+from airgym.envs.task.planning_config import PlanningCfg
 
 import pytorch3d.transforms as T
-import torch.nn.functional as F
 
 LENGTH = 8.0
 WIDTH = 4.0
@@ -51,7 +36,7 @@ def compute_yaw_diff(a: torch.Tensor, b: torch.Tensor):
 
 class Planning(Customized):
 
-    def __init__(self, cfg: PlanningConfig, sim_params, physics_engine, sim_device, headless):
+    def __init__(self, cfg: PlanningCfg, sim_params, physics_engine, sim_device, headless):
         super().__init__(cfg, sim_params, physics_engine, sim_device, headless)
 
         # get states of goal
@@ -92,14 +77,10 @@ class Planning(Customized):
         self.goal_states[env_ids, 0:1] = torch.tensor([LENGTH+0.5], device=self.device)
         self.goal_states[env_ids, 1:2] = 1.5 * torch_rand_float(-1.0, 1.0, (num_resets, 1), self.device) + torch.tensor([0.], device=self.device)
         self.goal_states[env_ids, 2:3] = .0 * torch_rand_float(-1., 1., (num_resets, 1), self.device) + FLY_HEIGHT
-        # self.goal_states[env_ids, 0:2] = 0 * torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0., -5.], device=self.device) # debug
-        # self.goal_states[env_ids, 2:3] = 0 * torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1. # debug
 
         # randomize root states
         self.root_states[env_ids, 0:2] = torch.tensor([-LENGTH-0.5, 0.], device=self.device)
         self.root_states[env_ids, 2:3] = .0 *torch_rand_float(-1., 1., (num_resets, 1), self.device) + FLY_HEIGHT
-        # self.root_states[env_ids, 0:2] = 0 *torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([-5., 0.], device=self.device) # debug
-        # self.root_states[env_ids, 2:3] = 0 *torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1. # debug
 
         def compute_direction_angle(a, b, degrees=True):
             vector = b - a
@@ -143,7 +124,7 @@ class Planning(Customized):
         q_global = self.root_quats[:, [3, 0, 1, 2]]
         rot_matrix_global = T.quaternion_to_matrix(q_global)  # (num_envs, 3, 3)
 
-        yaw = torch.atan2(rot_matrix_global[:, 1, 0], rot_matrix_global[:, 0, 0])  # 计算 yaw (num_envs,)
+        yaw = torch.atan2(rot_matrix_global[:, 1, 0], rot_matrix_global[:, 0, 0])
         cos_yaw = torch.cos(yaw)
         sin_yaw = torch.sin(yaw)
         self.world_to_local = torch.stack([
@@ -195,11 +176,9 @@ class Planning(Customized):
             'image': self.full_camera_array,
             'observation': self.obs_buf,
         }
-        # 对每一张深度图计算最小深度值
+
         flattened_array = self.full_camera_array.clone().view(self.full_camera_array.size(0), -1)
         self.esdf_dist = torch.min(flattened_array, dim=1, keepdim=False).values
-
-        # obs = self.obs_buf
 
         self.prev_related_dist = self.related_dist
         return obs, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
@@ -210,7 +189,7 @@ class Planning(Customized):
         q_global = self.root_quats[:, [3, 0, 1, 2]]
         rot_matrix_global = T.quaternion_to_matrix(q_global)  # (num_envs, 3, 3)
 
-        yaw = torch.atan2(rot_matrix_global[:, 1, 0], rot_matrix_global[:, 0, 0])  # 计算 yaw (num_envs,)
+        yaw = torch.atan2(rot_matrix_global[:, 1, 0], rot_matrix_global[:, 0, 0])
         cos_yaw = torch.cos(yaw)
         sin_yaw = torch.sin(yaw)
         self.world_to_local = torch.stack([
@@ -225,13 +204,6 @@ class Planning(Customized):
         self.pos_diff_local = torch.einsum("bij,bj->bi", self.world_to_local, forward_global)
         self.vel_local = torch.einsum("bij,bj->bi", self.world_to_local, self.root_linvels)
         self.ang_vel_local = torch.einsum("bij,bj->bi", self.world_to_local, self.root_angvels)
-        
-        # self.obs_buf[..., 0:3] = self.pos_diff_local
-        # self.obs_buf[..., 3] = self.related_dist = torch.norm(forward_global, dim=-1)
-        # self.obs_buf[..., 4:7] = self.euler_angles_local
-        # self.obs_buf[..., 7:10] = self.vel_local
-        # self.obs_buf[..., 10:13] = self.ang_vel_local
-        # self.obs_buf[..., 13:17] = self.actions_local
 
         self.goal_dir = self.pos_diff_local / torch.norm(self.pos_diff_local, dim=-1, keepdim=True)
         self.related_dist = torch.norm(forward_global, dim=-1)
@@ -240,8 +212,6 @@ class Planning(Customized):
         self.obs_buf[..., 6:9] = self.vel_local
         self.obs_buf[..., 9:12] = self.ang_vel_local
         self.obs_buf[..., 12:16] = self.actions_local
-
-        # self.add_noise()
         
     def compute_reward(self):
         self.rew_buf[:], self.reset_buf[:] ,self.item_reward_info = self.compute_quadcopter_reward()
@@ -278,7 +248,6 @@ class Planning(Customized):
         esdf_reward = 0.5 * (1-torch.exp(- 0.5 * torch.square(self.esdf_dist))).squeeze(-1)
 
         # collision
-        # alive_reward = torch.where(self.collisions > 0, -10., 0)
         alive_reward = torch.where(self.esdf_dist > 0.3, torch.tensor(0.0), torch.tensor(-10.0)).squeeze(-1)
 
         # reach goal
@@ -297,16 +266,6 @@ class Planning(Customized):
             + thrust_reward
             + reach_goal_reward
         )
-
-        # print(continous_action_reward.shape)
-        # print(forward_reward.shape)
-        # print(alive_reward.shape)
-        # print(z_reward.shape)
-        # print(esdf_reward.shape)
-        # print(speed_reward.shape)
-        # print(heading_reward.shape)
-        # print(thrust_reward.shape)
-        # print(reach_goal_reward.shape)
 
         # resets due to misbehavior
         ones = torch.ones_like(self.reset_buf)

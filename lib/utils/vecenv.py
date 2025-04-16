@@ -70,7 +70,6 @@ class AirGymRLGPUEnv(IVecEnv):
     def __init__(self, config_name, num_actors, **kwargs):
         print("AirGymRLGPUEnv:", config_name, num_actors, kwargs)
         self.use_image = kwargs.get('use_image', False)
-        # print(env_configurations.configurations)
         self.env, self.env_info = env_configurations.configurations[config_name]['env_creator'](**kwargs)
 
         self.env = ExtractObsWrapper(self.env)
@@ -111,7 +110,7 @@ for task_name in task_registry.get_registered_tasks():
     env_configurations.register(
         task_name,
         {
-            'env_creator': lambda **kwargs: task_registry.make_env(task_name, args=Namespace(**kwargs)),
+            'env_creator': lambda task_name=task_name, **kwargs: task_registry.make_env(task_name, args=Namespace(**kwargs)),
             'vecenv_type': 'AirGym-RLGPU'
         }
     )

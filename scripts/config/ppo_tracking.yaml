@@ -32,8 +32,8 @@ params:
   config:
     env_name: tracking
     env_config:
-      num_envs: 4096
-    
+      use_image: False
+      
     name: ppo_tracking
     reward_shaper:
       # min_val: -1

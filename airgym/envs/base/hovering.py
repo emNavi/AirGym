@@ -1,22 +1,13 @@
-import math
 import numpy as np
-import os
 import torch
 
-from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
-
-from isaacgym import gymutil, gymtorch, gymapi
+from isaacgym import gymtorch, gymapi
 from isaacgym.torch_utils import *
 from airgym.envs.base.base_task import BaseTask
-import airgym.utils.rotations as rot_utils
 from airgym.envs.base.hovering_config import HoveringCfg
 from airgym.assets.asset_manager import AssetManager
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
-
-from airgym.utils.helpers import asset_class_to_AssetOptions
-from airgym.utils.rotations import quats_to_euler_angles
-import time
 
 import pytorch3d.transforms as T
 
@@ -191,40 +182,25 @@ class Hovering(BaseTask):
         self.actor_handles = []
         self.env_asset_handles = []
         self.envs = []
-        self.camera_handles = []
-        self.camera_tensors = []
+
+        # load robots and assets
+        self.asset_manager.load_asset(self.gym, self.sim)
 
         for i in range(self.num_envs):
             # create environment
             env_handle = self.gym.create_env(self.sim, env_lower, env_upper, int(np.sqrt(self.num_envs)))
             self.envs.append(env_handle)
-            # load robots and assets
-            self.asset_manager.load_asset(self.gym, self.sim)
-            actor_handles, camera_handles, camera_tensors, env_asset_handles = \
+            
+            actor_handles, _, _, env_asset_handles = \
                 self.asset_manager.create_asset(env_handle, start_pose, i)
             
             # add all envs handles together
             self.actor_handles += actor_handles
-            self.camera_handles += camera_handles
-            self.camera_tensors += camera_tensors
             self.env_asset_handles += env_asset_handles
 
-        self.enable_onboard_cameras = False if not camera_handles else True
-        if self.enable_onboard_cameras:
-            assert len(camera_tensors) != 0
-            if camera_tensors[0].dim() == 2:
-                h, w = camera_tensors[0].size()
-                self.cam_resolution = (w, h)
-                self.cam_channel = 1
-            else:
-                c, h, w = camera_tensors[0].size()
-                self.cam_resolution = (w, h)
-                self.cam_channel = c
-        
         print("\n\n\n\n\n ENVIRONMENT CREATED \n\n\n\n\n\n")
 
     def pre_physics_step(self, _actions):
-        # print(_actions[0])
         # resets
         if self.counter % 250 == 0:
             print("self.counter:", self.counter)
@@ -266,16 +242,12 @@ class Hovering(BaseTask):
             self.cmd_thrusts = torch.tensor(self.parallel_vel_control.update(actions_cpu.astype(np.float64)))
         elif(control_mode_ == "atti"):
             root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]] # w, x, y, z
-            print(actions_cpu)
-            print(root_quats_cpu)
             self.parallel_atti_control.set_status(root_pos_cpu,root_quats_cpu,lin_vel_cpu,ang_vel_cpu,0.01)
             self.cmd_thrusts = torch.tensor(self.parallel_atti_control.update(actions_cpu.astype(np.float64))) 
         elif(control_mode_ == "rate"):
             root_quats_cpu = root_quats_cpu[:, [3, 0, 1, 2]]
             self.parallel_rate_control.set_q_world(root_quats_cpu.astype(np.float64))
-            # print("thrust", actions_cpu[0][-1])
             self.cmd_thrusts = torch.tensor(self.parallel_rate_control.update(actions_cpu.astype(np.float64),ang_vel_cpu.astype(np.float64),0.01)) 
-            # print("thrust on prop", self.cmd_thrusts[0])
         elif(control_mode_ == "prop"):
             self.cmd_thrusts =  self.actions
         else:
@@ -307,10 +279,6 @@ class Hovering(BaseTask):
         # apply actions
         self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
             self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.LOCAL_SPACE)
-        # self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(
-        #     self.forces), gymtorch.unwrap_tensor(self.torques), gymapi.GLOBAL_SPACE)
-        # apply propeller rotation
-        # self.gym.set_joint_target_velocity(self.sim, )
 
     def post_physics_step(self):
         self.gym.refresh_actor_root_state_tensor(self.sim)
@@ -347,25 +315,18 @@ class Hovering(BaseTask):
         # randomize root states
         self.root_states[env_ids, 0:2] = torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) # .2
         self.root_states[env_ids, 2:3] = torch_rand_float(-1., 1., (num_resets, 1), self.device) # .2
-        # self.root_states[env_ids, 0] = 0 # debug
-        # self.root_states[env_ids, 1] = 0 # debug
-        # self.root_states[env_ids, 2] = 0 # debug
 
         # randomize root orientation
         root_angle = torch.concatenate([0.01*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .01
                                        0.05*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.05
-        # root_angle = torch.concatenate([0.*torch.ones((num_resets, 1), device=self.device), # debug
-        #                                 0.*torch.ones((num_resets, 1), device=self.device), # debug
-        #                                 0.*torch.pi*torch.ones((num_resets, 1), device=self.device)], dim=-1) # debug
+
         matrix = T.euler_angles_to_matrix(root_angle, 'XYZ')
         root_quats = T.matrix_to_quaternion(matrix) # w,x,y,z
         self.root_states[env_ids, 3:7] = root_quats[:, [1, 2, 3, 0]] #x,y,z,w
 
         # randomize root linear and angular velocities
-        self.root_states[env_ids, 7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.5
-        self.root_states[env_ids, 10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.2
-        # self.root_states[env_ids, 7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # debug
-        # self.root_states[env_ids, 10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # debug
+        self.root_states[env_ids, 7:10] = 0.5*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.5
+        self.root_states[env_ids, 10:13] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.2
 
         self.gym.set_actor_root_state_tensor(self.sim, self.root_tensor)
         self.reset_buf[env_ids] = 1
@@ -375,7 +336,6 @@ class Hovering(BaseTask):
 
     def compute_observations(self):
         self.root_matrix = T.quaternion_to_matrix(self.root_quats[:, [3, 0, 1, 2]]).reshape(self.num_envs, 9)
-        # print(self.root_matrix)
         self.obs_buf[..., 0:9] = self.root_matrix
         self.obs_buf[..., 9:12] = self.root_positions
         self.obs_buf[..., 12:15] = self.root_linvels

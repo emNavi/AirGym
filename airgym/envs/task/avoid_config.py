@@ -4,13 +4,13 @@ from airgym.assets import *
 import numpy as np
 from airgym import AIRGYM_ROOT_DIR
 
-class AvoidConfig(BaseConfig):
+class AvoidCfg(BaseConfig):
     seed = 1
     
     class env:
         target_state = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0]) 
         num_envs = 4 # must be a square number
-        num_observations = 34 #18 + 12
+        num_observations = 16
         headless = True
         get_privileged_obs = True # if True the states of all entitites in the environment will be returned as privileged observations, otherwise None will be returned
         env_spacing = 4  # not used with heightfields/trimeshes

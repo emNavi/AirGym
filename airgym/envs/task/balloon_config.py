@@ -4,7 +4,7 @@ from airgym.assets import *
 import numpy as np
 from airgym import AIRGYM_ROOT_DIR
 
-class BalloonConfig(BaseConfig):
+class BalloonCfg(BaseConfig):
     seed = 1
 
     class env:

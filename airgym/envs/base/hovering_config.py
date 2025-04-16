@@ -51,7 +51,7 @@ class HoveringCfg(BaseConfig):
                 "num_assets": 1,
                 "enable_onboard_cameras": False,
                 'cam_channel': 1,
-                "enable_tensors": True,
+                "enable_tensors": False,
                 "width": 212,
                 "height": 120,
                 "far_plane": 5.0,

@@ -114,17 +114,3 @@ def get_args():
     if args.sim_device=='cuda':
         args.sim_device += f":{args.sim_device_id}"
     return args
-
-def asset_class_to_AssetOptions(asset_class):
-    asset_options = gymapi.AssetOptions()
-    asset_options.collapse_fixed_joints = asset_class.collapse_fixed_joints
-    asset_options.replace_cylinder_with_capsule = asset_class.replace_cylinder_with_capsule
-    asset_options.flip_visual_attachments = asset_class.flip_visual_attachments
-    asset_options.fix_base_link = asset_class.fix_base_link
-    asset_options.density = asset_class.density
-    asset_options.angular_damping = asset_class.angular_damping
-    asset_options.linear_damping = asset_class.linear_damping
-    asset_options.max_angular_velocity = asset_class.max_angular_velocity
-    asset_options.max_linear_velocity = asset_class.max_linear_velocity
-    asset_options.disable_gravity = asset_class.disable_gravity
-    return asset_options

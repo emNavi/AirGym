@@ -1,24 +1,9 @@
-import math
-import numpy as np
-import os
 import torch
-import xml.etree.ElementTree as ET
 
-from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
-
-from isaacgym import gymutil, gymtorch, gymapi
+from isaacgym import gymapi
 from isaacgym.torch_utils import *
 from airgym.envs.base.customized import Customized
-import airgym.utils.rotations as rot_utils
-from airgym.envs.task.balloon_config import BalloonConfig
-from airgym.assets.asset_manager import AssetManager
-
-from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
-
-import matplotlib.pyplot as plt
-from airgym.utils.helpers import asset_class_to_AssetOptions
-from airgym.utils.rotations import quats_to_euler_angles
-import time
+from airgym.envs.task.balloon_config import BalloonCfg
 
 import pytorch3d.transforms as T
 import torch.nn.functional as F
@@ -45,7 +30,7 @@ def quaternion_norm(q):
 
 class Balloon(Customized):
 
-    def __init__(self, cfg: BalloonConfig, sim_params, physics_engine, sim_device, headless):
+    def __init__(self, cfg: BalloonCfg, sim_params, physics_engine, sim_device, headless):
         super().__init__(cfg, sim_params, physics_engine, sim_device, headless)
 
         # get states of red balloon
@@ -76,15 +61,10 @@ class Balloon(Customized):
         self.balloon_states[env_ids, 0:1] = .5*torch_rand_float(-1.0, 1.0, (num_resets, 1), self.device) + torch.tensor([2.5], device=self.device)
         self.balloon_states[env_ids, 1:2] = 2.*torch_rand_float(-1.0, 1.0, (num_resets, 1), self.device) + torch.tensor([0.], device=self.device)
         self.balloon_states[env_ids, 2:3] = .3*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
-        # self.balloon_states[env_ids, 0:2] = 1.5*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0, 0.], device=self.device)
-        # self.balloon_states[env_ids, 2:3] = .5*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
 
         # randomize root states
         self.root_states[env_ids, 0:2] = 0.1*torch_rand_float(-1.0, 1.0, (num_resets, 2), self.device) + torch.tensor([0., 0.], device=self.device) # 0.1
         self.root_states[env_ids, 2:3] = 0.2*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1. # 0.2
-        # self.root_states[env_ids, 0] = 0 # debug
-        # self.root_states[env_ids, 1] = 0 # debug
-        # self.root_states[env_ids, 2:3] = 1 # debug
 
         # randomize root orientation
         """
@@ -93,18 +73,14 @@ class Balloon(Customized):
         root_angle = torch.concatenate([0.1*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device), # .1
                                         0.1*torch_rand_float(0., torch.pi, (num_resets, 1), self.device), # .1
                                        0.2*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2
-        # root_angle = torch.concatenate([0.*torch.ones((num_resets, 1), device=self.device), # debug
-        #                                 0.*torch.ones((num_resets, 1), device=self.device), # debug
-        #                                 0.8*torch.pi*torch.ones((num_resets, 1), device=self.device)], dim=-1) # debug
+
         matrix = T.euler_angles_to_matrix(root_angle, 'XYZ')
         root_quats = T.matrix_to_quaternion(matrix) # w,x,y,z
         self.root_states[env_ids, 3:7] = root_quats[:, [1, 2, 3, 0]] #x,y,z,w
 
         # randomize root linear and angular velocities
-        self.root_states[env_ids, 7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.5
-        self.root_states[env_ids, 10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.2
-        # self.root_states[env_ids, 7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # debug
-        # self.root_states[env_ids, 10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # debug
+        self.root_states[env_ids, 7:10] = 0.5*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.5
+        self.root_states[env_ids, 10:13] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.2
 
         self.gym.set_actor_root_state_tensor(self.sim, self.root_tensor)
         self.reset_buf[env_ids] = 1
@@ -127,12 +103,10 @@ class Balloon(Customized):
             self.post_physics_step()
 
         self.render(sync_frame_time=False)
-        rate = 1 #self.cfg.env.cam_dt / self.cfg.sim.dt
-        # print(self.counter)
+        rate = self.cfg.env.cam_dt / self.cfg.sim.dt
         if self.counter % rate == 0:
             if self.enable_onboard_cameras:
                 self.render_cameras()
-        # print(self.full_camera_array[0], self.obs_buf[0])
 
         self.progress_buf += 1
         self.check_collisions()
@@ -194,11 +168,9 @@ class Balloon(Customized):
         yaw_distance = torch.norm(relative_heading.unsqueeze(-1), dim=1)
         yaw_reward = 1.0 / (1.0 + torch.square(1.6 * yaw_distance)) 
 
-        # # this rewarding causes high speed and high acceleration. If use this guidance reward
-        # guidance_reward = 30 * (torch.norm(self.balloon_positions-self.pre_root_positions, dim=-1) - 
-        #                                 torch.norm(self.balloon_positions-self.root_positions, dim=-1)) 
-        initial_relative_positions = self.balloon_positions - self.initial_root_pos
-        guidance_reward = 1 * torch.exp(-torch.norm(self.balloon_positions-self.root_positions, dim=-1) / torch.norm(initial_relative_positions, dim=-1))
+        # this rewarding causes high speed and high acceleration. If use this guidance reward
+        guidance_reward = 30 * (torch.norm(self.balloon_positions-self.pre_root_positions, dim=-1) - 
+                                        torch.norm(self.balloon_positions-self.root_positions, dim=-1)) 
 
         ups = quat_axis(self.root_quats, axis=2)
         ups_reward = 0.5 * torch.pow((ups[..., 2] + 1) / 2, 2)

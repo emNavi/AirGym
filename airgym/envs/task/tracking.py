@@ -1,24 +1,12 @@
-import math
-import numpy as np
-import os
 import torch
-import xml.etree.ElementTree as ET
 
-from airgym import AIRGYM_ROOT_DIR, AIRGYM_ROOT_DIR
-
-from isaacgym import gymutil, gymtorch, gymapi
+from isaacgym import gymtorch, gymapi
 from airgym.utils.torch_utils import *
-from airgym.envs.base.hovering import Hover
-import airgym.utils.rotations as rot_utils
-from airgym.envs.task.tracking_config import TrackingConfig
+from airgym.envs.task.tracking_config import TrackingCfg
+from airgym.envs.base.hovering import Hovering
 from airgym.assets.asset_manager import AssetManager
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
-
-import matplotlib.pyplot as plt
-from airgym.utils.helpers import asset_class_to_AssetOptions
-from airgym.utils.rotations import quats_to_euler_angles
-import time
 
 import pytorch3d.transforms as T
 
@@ -45,9 +33,9 @@ def compute_yaw_diff(a: torch.Tensor, b: torch.Tensor):
     diff = torch.where(diff > torch.pi, diff - 2*torch.pi, diff)
     return diff
 
-class Tracking(Hover):
+class Tracking(Hovering):
 
-    def __init__(self, cfg: TrackingConfig, sim_params, physics_engine, sim_device, headless):
+    def __init__(self, cfg: TrackingCfg, sim_params, physics_engine, sim_device, headless):
         self.cfg = cfg
         assert cfg.env.ctl_mode is not None, "Please specify one control mode!"
         print("ctl mode =========== ", cfg.env.ctl_mode)
@@ -65,7 +53,7 @@ class Tracking(Hover):
 
         self.asset_manager = AssetManager(self.cfg, sim_device)
 
-        super(Hover, self).__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
+        super(Hovering, self).__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
         self.root_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
 
         self.contact_force_tensor = self.gym.acquire_net_contact_force_tensor(self.sim)
@@ -179,16 +167,16 @@ class Tracking(Hover):
         self.root_states[env_ids, 2:3] = .1*torch_rand_float(-1., 1., (num_resets, 1), self.device) + 1.
 
         # randomize root orientation
-        root_angle = torch.concatenate([0.01*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .1
-                                       0.02*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2
+        root_angle = torch.concatenate([0.1*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), # .1
+                                       0.2*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1) # 0.2
 
         matrix = T.euler_angles_to_matrix(root_angle, 'XYZ')
         root_quats = T.matrix_to_quaternion(matrix) # w,x,y,z
         self.root_states[env_ids, 3:7] = root_quats[:, [1, 2, 3, 0]] #x,y,z,w
 
         # randomize root linear and angular velocities
-        self.root_states[env_ids, 7:10] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.5
-        self.root_states[env_ids, 10:13] = 0.*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.2
+        self.root_states[env_ids, 7:10] = 0.5*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.5
+        self.root_states[env_ids, 10:13] = 0.2*torch_rand_float(-1.0, 1.0, (num_resets, 3), self.device) # 0.2
 
         self.gym.set_actor_root_state_tensor(self.sim, self.root_tensor)
         self.reset_buf[env_ids] = 1
@@ -213,7 +201,6 @@ class Tracking(Hover):
 
     def compute_observations(self):
         self.root_matrix = T.quaternion_to_matrix(self.root_quats[:, [3, 0, 1, 2]]).reshape(self.num_envs, 9)
-        # print(self.root_matrix)guidance_reward
         self.obs_buf[..., 0:9] = self.root_matrix
         self.obs_buf[..., 9:12] = self.root_positions
         self.obs_buf[..., 12:15] = self.root_linvels

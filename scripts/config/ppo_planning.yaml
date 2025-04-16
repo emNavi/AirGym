@@ -34,7 +34,6 @@ params:
   config:
     env_name: planning
     env_config:
-      num_envs: 4096
       use_image: True
     
     name: ppo_planning

@@ -1,10 +1,10 @@
-from airgym.envs.base.hovering_config import HoverCfg
+from airgym.envs.base.base_config import BaseConfig
 from airgym.assets import *
 
 import numpy as np
 from airgym import AIRGYM_ROOT_DIR
 
-class TrackingConfig(HoverCfg):
+class TrackingCfg(BaseConfig):
     seed = 1
  
     class env:
@@ -19,6 +19,14 @@ class TrackingConfig(HoverCfg):
         reset_on_collision = False # reset environment when contact force on quadrotor is above a threshold
         create_ground_plane = True # create a ground plane
 
+        cam_dt = 0.04 # camera render time interval
+
+    # viewer camera:
+    class viewer:
+        ref_env = 0
+        pos = [-5, -5, 4]  # [m]
+        lookat = [0, 0, 0]  # [m]
+        
     class sim:
         dt =  0.01 #0.01
         substeps = 1
