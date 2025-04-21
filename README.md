@@ -10,7 +10,14 @@
   </p>
 </div>
 
+### Changes Reminder
+> ___v0.4.0 released___ on 2025.04.21: Update reward functions for `planning`. Upload pretrained model for task `planning`.
 
+> ___v0.3.0 released___ on 2025.04.16: Bugs fixed on environments registry, and tests had done on every tasks.
+
+> ~~___v0.2.0 released___ on 2025.04.05~~: This version has bugs! Re-inplement the asset manager part to make it clear and efficient. Split the algorithm outside the /airgym.
+
+> ___v0.1.0dev released___: first release.
 <details>
 <summary style="display: list-item; cursor: pointer; text-decoration: none">
   <h2 style="display: inline; border-bottom: none">Table of Contents</h2>
