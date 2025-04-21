@@ -190,6 +190,10 @@ Load a trained checkpoint is quite easy:
 ```bash
 python scripts/runner.py --play --task hovering --num_envs 64 --ctl_mode rate --checkpoint <path-to-ckpt>
 ```
+Use `planning` task as an example, load and play the pretrained model from dir `\pretrained`:
+```bash
+python scripts/runner.py --play --ctl_mode rate --num_envs 4 --task planning --checkpoint pretrained/planning_cnn_rate.pth
+```
 
 > Important: ***emNavi*** provide a general quadrotor sim2real approach, please refer to **AirGym-Real** @https://github.com/emNavi/AirGym-Real.
 
