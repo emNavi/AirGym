@@ -5,7 +5,7 @@ import numpy as np
 from airgym import AIRGYM_ROOT_DIR
 
 class AvoidCfg(BaseConfig):
-    seed = 1
+    seed = -1
     
     class env:
         target_state = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0]) 
@@ -68,6 +68,14 @@ class AvoidCfg(BaseConfig):
                 "collision_mask": 0,
                 "num_assets": 1,
                 "density": 0.5,
+                "fix_base_link": False, # this value determines whether the base link of the asset is fixed or not
+            },
+            "balls/ball": {
+                "disable_gravity": False,
+                "color": [255,102,102],
+                "collision_mask": 0,
+                "num_assets": 0,
+                "density": 1,
                 "fix_base_link": False, # this value determines whether the base link of the asset is fixed or not
             },
         }

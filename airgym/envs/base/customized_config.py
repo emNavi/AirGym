@@ -5,8 +5,8 @@ import numpy as np
 from airgym import AIRGYM_ROOT_DIR
 
 class CustomizedCfg(BaseConfig):
-    seed = 8
-        
+    seed = -1
+    
     class env:
         target_state = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]) 
         num_envs = 4 # must be a square number
@@ -56,7 +56,7 @@ class CustomizedCfg(BaseConfig):
                 "height": 120,
                 "far_plane": 5.0,
                 "horizontal_fov": 87.0,
-                "use_collision_geometry": True,
+                "use_collision_geometry": False,
                 "local_transform.p": (0.15, 0.00, 0.1),
                 "local_transform.r": (0.0, 0.0, 0.0, 1.0),
                 "collision_mask": 1,
@@ -80,7 +80,7 @@ class CustomizedCfg(BaseConfig):
                 "collision_mask": 0,
             },
             "trees": {
-                "num_assets": 5,
+                "num_assets": 0,
                 "collision_mask": 0,
             },
             "vtrees": {
@@ -88,12 +88,12 @@ class CustomizedCfg(BaseConfig):
                 "collision_mask": 0,
             },
             "cubes": {
-                "num_assets": 10,
-                "collision_mask": 0,
+                "num_assets": 25,
+                "collision_mask": 1,
             },
             "flags": {
                 "num_assets": 5,
-                "collision_mask": 0,
+                "collision_mask": 1,
             },
         }
 

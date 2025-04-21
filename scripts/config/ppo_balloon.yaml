@@ -1,5 +1,4 @@
 params:  
-  seed: 8
   algo:
     name: a2c_continuous 
 
@@ -53,7 +52,7 @@ params:
     critic_coef: 2
     normalize_input: True
     bounds_loss_coef: 0.0001
-    max_epochs: 2000 #2000 #10000
+    max_epochs: 200 #2000 #10000
     normalize_value: True
     use_diagnostics: True
     value_bootstrap: True

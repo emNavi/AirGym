@@ -344,7 +344,6 @@ class Hovering(BaseTask):
 
         self.obs_buf[..., 0:18] -= self.target_states
         
-        self.obs_buf[..., 18:30] = torch.rand((self.num_envs, 12), device=self.device)
         return self.obs_buf
 
     def add_noise(self):

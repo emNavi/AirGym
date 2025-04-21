@@ -5,8 +5,8 @@ import numpy as np
 from airgym import AIRGYM_ROOT_DIR
 
 class BalloonCfg(BaseConfig):
-    seed = 1
-
+    seed = -1
+    
     class env:
         target_state = np.array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]) 
         num_envs = 4 # must be a square number

@@ -9,7 +9,7 @@ import pytorch3d.transforms as T
 
 LENGTH = 8.0
 WIDTH = 4.0
-FLY_HEIGHT = 1.0
+FLY_HEIGHT = 1.5 #1.0
 
 def quaternion_conjugate(q: torch.Tensor):
     """Compute the conjugate of a quaternion."""
@@ -227,7 +227,7 @@ class Planning(Customized):
         thrust_reward = .5 * (1-torch.abs(0.1533 - self.actions[..., -1]))
         
         # guidance reward
-        forward_reward = 5 * (torch.norm(self.goal_positions - self.pre_root_positions, dim=-1) - torch.norm(self.goal_positions - self.root_positions, dim=-1))
+        forward_reward = .1 * (torch.norm(self.goal_positions - self.pre_root_positions, dim=-1) - torch.norm(self.goal_positions - self.root_positions, dim=-1))
 
         # heading reward
         forward_vec = self.pos_diff_local / torch.norm(self.pos_diff_local, dim=-1, keepdim=True)
@@ -235,7 +235,7 @@ class Planning(Customized):
         heading_reward = torch.sum(forward_vec * heading_vec, dim=-1)
 
         # speed reward
-        speed_reward = torch.max(1 - torch.exp(torch.max(torch.tensor(0.0), torch.norm(self.vel_local, dim=-1) - 1.5)), torch.tensor(-1.0))
+        speed_reward = -0.5 * (1-torch.exp(- 2 * torch.square(self.vel_local[..., 0]-1.5))).squeeze(-1)
 
         # height reward
         z_reward = torch.min(torch.min(self.root_positions[..., 2] - 1.8, torch.tensor(0.0)), 1.2 - self.root_positions[..., 2])
@@ -252,15 +252,14 @@ class Planning(Customized):
 
         # reach goal
         reach_goal = self.related_dist < 0.3
-        reach_goal_reward = torch.where(reach_goal, torch.tensor(0.0), torch.tensor(0.0))
+        reach_goal_reward = torch.where(reach_goal, torch.tensor(20.0), torch.tensor(0.0))
 
         reward = (
             continous_action_reward
             + forward_reward
-            + alive_reward
+            + forward_reward * (alive_reward + esdf_reward)
             + ups_reward
             + z_reward
-            + esdf_reward
             + speed_reward
             + heading_reward
             + thrust_reward
