@@ -15,4 +15,4 @@ logs
 *.bag
 *.bag.active
 pretraned
-trained
+trained_model
