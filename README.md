@@ -326,4 +326,11 @@ We thanks colleagues @emNavi Tech (https://emnavi.tech/) who develope and mainta
 Also, we thanks the excellent work by Aerial Gym Simulator licensed(https://github.com/ntnu-arl/aerial_gym_simulator) under the BSD 3-Clause License. AirGym is modified and greatly improved upon Aerial Gym Simulator especially for Sim-to-Real task.
 
 ## Citation
-TBC
+```
+@article{huang2025general,
+  title={A General Infrastructure and Workflow for Quadrotor Deep Reinforcement Learning and Reality Deployment},
+  author={Huang, Kangyao and Wang, Hao and Luo, Yu and Chen, Jingyu and Chen, Jintao and Zhang, Xiangkui and Ji, Xiangyang and Liu, Huaping},
+  journal={arXiv preprint arXiv:2504.15129},
+  year={2025}
+}
+```
