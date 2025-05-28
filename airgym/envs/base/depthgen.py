@@ -7,19 +7,20 @@ from isaacgym import gymtorch, gymapi
 from airgym.utils.torch_utils import *
 
 from airgym.envs.base.base_task import BaseTask
-from airgym.envs.base.customized_config import CustomizedCfg
+from airgym.envs.base.depthgen_config import DepthGenCfg
 
 from airgym.assets.asset_manager import AssetManager
 
 import pytorch3d.transforms as T
 import cv2
 import os
+import time
 
 from rlPx4Controller.pyParallelControl import ParallelRateControl,ParallelVelControl,ParallelAttiControl,ParallelPosControl
 
-LENGTH = 8.0
-WIDTH = 8.0
-FLY_HEIGHT = 1.0
+LENGTH = 3.0
+WIDTH = 2.0
+FLY_HEIGHT = 0.5
 
 def compute_yaw_diff(a: torch.Tensor, b: torch.Tensor):
     """Compute the difference between two sets of Euler angles. a & b in [-pi, pi]"""
@@ -28,15 +29,16 @@ def compute_yaw_diff(a: torch.Tensor, b: torch.Tensor):
     diff = torch.where(diff > torch.pi, diff - 2*torch.pi, diff)
     return diff
 
-class Customized(BaseTask):
+class DepthGen(BaseTask):
 
-    def __init__(self, cfg: CustomizedCfg, sim_params, physics_engine, sim_device, headless):
+    def __init__(self, cfg: DepthGenCfg, sim_params, physics_engine, sim_device, headless):
         self.cfg = cfg
         assert cfg.env.ctl_mode is not None, "Please specify one control mode!"
         print("ctl mode =========== ", cfg.env.ctl_mode)
         self.ctl_mode = cfg.env.ctl_mode
         self.cfg.env.num_actions = 5 if cfg.env.ctl_mode == "atti" else 4
-        self.max_episode_length = int(self.cfg.env.episode_length_s / self.cfg.sim.dt)
+        # self.max_episode_length = int(self.cfg.env.episode_length_s / self.cfg.sim.dt)
+        self.max_episode_length = 2
         self.debug_viz = False
         num_actors = 1
 
@@ -352,7 +354,7 @@ class Customized(BaseTask):
         self.env_boundary_root_states[env_ids, 0, 6:7] = 1
 
         # randomize env asset root states
-        self.env_asset_root_states[env_ids, :, 0:1] = LENGTH * torch_rand_float(-1.0, 1.0, (num_resets, self.num_assets, 1), self.device) + torch.tensor([0.], device=self.device)
+        self.env_asset_root_states[env_ids, :, 0:1] = LENGTH * torch_rand_float(0.0, 1.0, (num_resets, self.num_assets, 1), self.device) + torch.tensor([0.], device=self.device)
         self.env_asset_root_states[env_ids, :, 1:2] = WIDTH * torch_rand_float(-1.0, 1.0, (num_resets, self.num_assets, 1), self.device) + torch.tensor([0.], device=self.device)
         self.env_asset_root_states[env_ids, :, 2:3] = 0
         assets_root_angle = torch.concatenate([0 * torch_rand_float(-torch.pi, torch.pi, (num_resets, self.num_assets, 2), self.device),
@@ -360,13 +362,21 @@ class Customized(BaseTask):
         assets_matrix = T.euler_angles_to_matrix(assets_root_angle, 'XYZ')
         assets_root_quats = T.matrix_to_quaternion(assets_matrix)
         self.env_asset_root_states[env_ids, :, 3:7] = assets_root_quats[:, :, [1, 2, 3, 0]]
+        # self.env_asset_root_states[env_ids, :, 0:1] = LENGTH * torch_rand_float(0.0, 1.0, (num_resets, self.num_assets, 1), self.device) + torch.tensor([0.], device=self.device)
+        # self.env_asset_root_states[env_ids, :, 1:2] = WIDTH * torch_rand_float(-1.0, 1.0, (num_resets, self.num_assets, 1), self.device) + torch.tensor([0.], device=self.device)
+        # self.env_asset_root_states[env_ids, :, 2:3] = torch_rand_float(-1.0, 1.0, (num_resets, self.num_assets, 1), self.device) + torch.tensor([0.5], device=self.device)
+        # assets_root_angle = torch.concatenate([1 * torch_rand_float(-torch.pi, torch.pi, (num_resets, self.num_assets, 2), self.device),
+        #                                torch_rand_float(-torch.pi, torch.pi, (num_resets, self.num_assets, 1), self.device)], dim=-1)
+        # assets_matrix = T.euler_angles_to_matrix(assets_root_angle, 'XYZ')
+        # assets_root_quats = T.matrix_to_quaternion(assets_matrix)
+        # self.env_asset_root_states[env_ids, :, 3:7] = assets_root_quats[:, :, [1, 2, 3, 0]]
 
         # randomize root states
-        self.root_states[env_ids, 0:2] = torch.tensor([-LENGTH-0.5, 0.], device=self.device)
-        self.root_states[env_ids, 2:3] = .0 *torch_rand_float(-1., 1., (num_resets, 1), self.device) + FLY_HEIGHT
+        self.root_states[env_ids, 0:2] = torch.tensor([-0.3, 0.], device=self.device)
+        self.root_states[env_ids, 2:3] = 0.15 *torch_rand_float(-1., 1., (num_resets, 1), self.device) + FLY_HEIGHT + 0.1
 
         # randomize root orientation
-        root_angle = torch.concatenate([0.01*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), 
+        root_angle = torch.concatenate([0.04*torch_rand_float(-torch.pi, torch.pi, (num_resets, 2), self.device), 
                                        0.05*torch_rand_float(-torch.pi, torch.pi, (num_resets, 1), self.device)], dim=-1)
 
         matrix = T.euler_angles_to_matrix(root_angle, 'XYZ')
@@ -427,6 +437,8 @@ class Customized(BaseTask):
             # self.full_camera_array[env_id, :] = apply_gaussian_blur(self.full_camera_array[env_id, :])
 
             depth_image = self.full_camera_array[env_id, :].T.cpu().numpy()
+            t = time.time()
+            np.save(os.path.join("./misc", f"{t}.npy"), depth_image)
             dist = cv2.normalize(depth_image, None, 0,255, cv2.NORM_MINMAX, cv2.CV_8UC1)
             depth_colored = cv2.applyColorMap(dist, cv2.COLORMAP_PLASMA)
             # depth_colored = cv2.applyColorMap(dist, cv2.COLORMAP_JET)

@@ -5,7 +5,11 @@ from lib.model.base_model import BaseModel
 from lib.network.mlp import MLP
 from lib.network.resnet import ResNetFeatureExtractor
 from lib.network.cnn import CNNFeatureExtractor
+from lib.network.vae_image_encoder import VAEImageEncoder
 from lib.core.running_mean_std import RunningMeanStd, RunningMeanStdObs
+
+from types import SimpleNamespace
+
 
 class ModelA2CContinuousLogStd(BaseModel):
     def __init__(self, params, keys):
@@ -25,6 +29,9 @@ class ModelA2CContinuousLogStd(BaseModel):
         elif self.has_cnn:
             self.actor_cnn = CNNFeatureExtractor(feature_dim=self.feature_dim)
             self.actor_mlp = MLP(input_shape['observation'][0]+self.feature_dim, self.mlp_cfg['units'], self.mlp_cfg['activation'])
+        elif self.has_vae:
+            self.actor_enc = VAEImageEncoder(self.vae_cfg)
+            self.actor_mlp = MLP(input_shape['observation'][0]+self.feature_dim, self.mlp_cfg['units'], self.mlp_cfg['activation'])
         else:
             self.actor_mlp = MLP(input_shape[0], self.mlp_cfg['units'], self.mlp_cfg['activation'])
         
@@ -34,6 +41,9 @@ class ModelA2CContinuousLogStd(BaseModel):
                 self.critic_mlp = MLP(input_shape['observation'][0]+self.feature_dim, self.mlp_cfg['units'], self.mlp_cfg['activation'])
             elif self.has_cnn:
                 self.critic_cnn = CNNFeatureExtractor(feature_dim=self.feature_dim)
+                self.critic_mlp = MLP(input_shape['observation'][0]+self.feature_dim, self.mlp_cfg['units'], self.mlp_cfg['activation'])
+            elif self.has_vae:
+                self.critic_enc = VAEImageEncoder(self.vae_cfg)
                 self.critic_mlp = MLP(input_shape['observation'][0]+self.feature_dim, self.mlp_cfg['units'], self.mlp_cfg['activation'])
             else:
                 self.critic_mlp = MLP(input_shape[0], self.mlp_cfg['units'], self.mlp_cfg['activation'])
@@ -100,6 +110,20 @@ class ModelA2CContinuousLogStd(BaseModel):
 
                 a_out = self.actor_mlp(normed_a_out)
                 c_out = self.critic_mlp(normed_c_out)
+            
+            elif self.has_vae:
+                normed_image = self.norm_image(input_dict['obs']['image'])
+                a_enc_out = self.actor_enc.encode(normed_image)
+                c_enc_out = self.critic_enc.encode(normed_image)
+
+                a_out = torch.cat((input_dict['obs']['observation'], a_enc_out), dim=-1)
+                c_out = torch.cat((input_dict['obs']['observation'], c_enc_out), dim=-1)
+
+                normed_a_out = self.norm_observation(a_out)
+                normed_c_out = self.norm_observation(c_out)
+
+                a_out = self.actor_mlp(normed_a_out)
+                c_out = self.critic_mlp(normed_c_out)
 
             else:
                 norm_out = self.norm_obs(input_dict['obs'])
@@ -119,11 +143,19 @@ class ModelA2CContinuousLogStd(BaseModel):
                 a_resnet_out = c_resnet_out = self.actor_resnet(normed_image)
                 out = torch.cat((input_dict['obs']['observation'], a_resnet_out), dim=-1)
                 norm_out = self.norm_observation(out)
+
             elif self.has_cnn:
                 normed_image = self.norm_image(input_dict['obs']['image'])
                 a_cnn_out = c_cnn_out = self.actor_cnn(normed_image)
                 out = torch.cat((input_dict['obs']['observation'], a_cnn_out), dim=-1)
                 norm_out = self.norm_observation(out)
+
+            elif self.has_vae:
+                normed_image = self.norm_image(input_dict['obs']['image'])
+                a_enc_out = c_enc_out = self.actor_enc.encode(normed_image)
+                out = torch.cat((input_dict['obs']['observation'], a_enc_out), dim=-1)
+                norm_out = self.norm_observation(out)
+
             else:
                 norm_out = self.norm_obs(input_dict['obs'])
             
@@ -171,6 +203,7 @@ class ModelA2CContinuousLogStd(BaseModel):
         self.has_space = 'space' in params
         self.has_resnet = 'resnet' in params
         self.has_cnn = 'cnn' in params
+        self.has_vae = 'vae' in params
 
         if self.has_space:
             self.is_continuous = 'continuous'in params['space']
@@ -188,3 +221,7 @@ class ModelA2CContinuousLogStd(BaseModel):
         
         if self.has_cnn:
             self.feature_dim = params['cnn']['output_dim']
+
+        if self.has_vae:
+            self.vae_cfg = SimpleNamespace(**params['vae'])
+            self.feature_dim = self.vae_cfg.latent_dims

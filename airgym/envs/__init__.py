@@ -44,6 +44,13 @@ TASK_CONFIGS = [
         'config_class': 'PlanningCfg',
         'task_module': 'task.planning',
         'task_class': 'Planning'
+    },
+    {
+        'name': 'depthgen',
+        'config_module': 'base.depthgen_config',
+        'config_class': 'DepthGenCfg',
+        'task_module': 'base.depthgen',
+        'task_class': 'DepthGen'
     }
 ]
 

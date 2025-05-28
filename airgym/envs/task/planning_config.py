@@ -72,7 +72,7 @@ class PlanningCfg(BaseConfig):
             
         include_group_asset = {
             "thin": {
-                "num_assets": 40,
+                "num_assets": 40, #40
                 "collision_mask": 1,
                 "color": [139, 69, 0],
             },

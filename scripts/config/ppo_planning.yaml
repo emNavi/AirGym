@@ -28,8 +28,15 @@ params:
       initializer:
         name: default
         scale: 2
-    cnn:
-      output_dim: 30
+    # cnn:
+    #   output_dim: 30
+    vae:
+      latent_dims: 64
+      model_folder: "/home/kjaebye/isaac/AirGym/scripts/trained_model"
+      model_file: "vae_model.pth"
+      image_res: [120, 212]
+      interpolation_mode: "bilinear"
+      return_sampled_latent: False
 
   config:
     env_name: planning

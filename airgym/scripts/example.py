@@ -14,9 +14,9 @@ def sample_command(args):
     command_actions = torch.zeros((env_cfg.env.num_envs, env_cfg.env.num_actions))
     
     # four actions
-    command_actions[:, 0] = 0.
+    command_actions[:, 0] = -0.3
     command_actions[:, 1] = 0.
-    command_actions[:, 2] = 1.
+    command_actions[:, 2] = 0.5
     command_actions[:, 3] = 0.
     
     # five actions
@@ -27,7 +27,7 @@ def sample_command(args):
     # command_actions[:, 4] = -0.69
     
     env.reset()
-    for i in range(0, 50000):
+    for i in range(0, 1000):
         obs, priviliged_obs, rewards, resets, extras = env.step(command_actions)
 
 

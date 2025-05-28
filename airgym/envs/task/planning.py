@@ -235,7 +235,7 @@ class Planning(Customized):
         heading_reward = torch.sum(forward_vec * heading_vec, dim=-1)
 
         # speed reward
-        speed_reward = -0.5 * (1-torch.exp(- 2 * torch.square(self.vel_local[..., 0]-1.5))).squeeze(-1)
+        speed_reward = -0.5 * (1-torch.exp(- 2 * torch.square(self.vel_local[..., 0]-1.0))).squeeze(-1)
 
         # height reward
         z_reward = torch.min(torch.min(self.root_positions[..., 2] - 1.8, torch.tensor(0.0)), 1.2 - self.root_positions[..., 2])
@@ -248,16 +248,17 @@ class Planning(Customized):
         esdf_reward = 0.5 * (1-torch.exp(- 0.5 * torch.square(self.esdf_dist))).squeeze(-1)
 
         # collision
-        alive_reward = torch.where(self.esdf_dist > 0.3, torch.tensor(0.0), torch.tensor(-10.0)).squeeze(-1)
+        alive_reward = torch.where(self.esdf_dist > 0.3, torch.tensor(0.0), torch.tensor(-5.0)).squeeze(-1)
 
         # reach goal
         reach_goal = self.related_dist < 0.3
-        reach_goal_reward = torch.where(reach_goal, torch.tensor(20.0), torch.tensor(0.0))
+        # reach_goal_reward = torch.where(reach_goal, torch.tensor(20.0), torch.tensor(0.0))
+        reach_goal_reward = torch.where(reach_goal, torch.tensor(200.0), torch.tensor(0.0))
 
         reward = (
             continous_action_reward
             + forward_reward
-            + forward_reward * (alive_reward + esdf_reward)
+            + alive_reward + esdf_reward
             + ups_reward
             + z_reward
             + speed_reward

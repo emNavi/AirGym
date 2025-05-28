@@ -4,7 +4,7 @@ from airgym.assets import *
 import numpy as np
 from airgym import AIRGYM_ROOT_DIR
 
-class CustomizedCfg(BaseConfig):
+class DepthGenCfg(BaseConfig):
     seed = -1
     
     class env:
@@ -76,11 +76,11 @@ class CustomizedCfg(BaseConfig):
             
         include_group_asset = {
             "thin": {
-                "num_assets": 0,
+                "num_assets": 3,
                 "collision_mask": 0,
             },
             "trees": {
-                "num_assets": 0,
+                "num_assets": 3,
                 "collision_mask": 0,
             },
             "vtrees": {
@@ -88,17 +88,22 @@ class CustomizedCfg(BaseConfig):
                 "collision_mask": 0,
             },
             "cubes": {
-                "num_assets": 40,
+                "num_assets": 3,
                 "collision_mask": 1,
             },
             "flags": {
-                "num_assets": 5,
+                "num_assets": 3,
                 "collision_mask": 1,
             },
+            "objects": {
+                "num_assets": 0,
+                "collision_mask": 1,
+
+            }
         }
 
         include_boundary = {
             "18x18ground": {
-                "num_assets": 1,
+                "num_assets": 0,
             },
         }
