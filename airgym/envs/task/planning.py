@@ -158,6 +158,9 @@ class Planning(Customized):
         self.progress_buf += 1
         self.check_collisions()
         self.compute_observations()
+
+        flattened_array = self.full_camera_array.clone().view(self.full_camera_array.size(0), -1)
+        self.esdf_dist = torch.min(flattened_array, dim=1, keepdim=False).values
         self.compute_reward()
 
         if self.cfg.env.reset_on_collision:
@@ -176,9 +179,6 @@ class Planning(Customized):
             'image': self.full_camera_array,
             'observation': self.obs_buf,
         }
-
-        flattened_array = self.full_camera_array.clone().view(self.full_camera_array.size(0), -1)
-        self.esdf_dist = torch.min(flattened_array, dim=1, keepdim=False).values
 
         self.prev_related_dist = self.related_dist
         return obs, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
@@ -248,7 +248,7 @@ class Planning(Customized):
         esdf_reward = 0.5 * (1-torch.exp(- 0.5 * torch.square(self.esdf_dist))).squeeze(-1)
 
         # collision
-        alive_reward = torch.where(self.esdf_dist > 0.3, torch.tensor(0.0), torch.tensor(-5.0)).squeeze(-1)
+        alive_reward = torch.where(self.esdf_dist > 0.3, torch.tensor(0.0), torch.tensor(-1.0)).squeeze(-1)
 
         # reach goal
         reach_goal = self.related_dist < 0.3
