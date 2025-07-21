@@ -32,7 +32,7 @@ params:
     #   output_dim: 30
     vae:
       latent_dims: 64
-      model_folder: "/home/kjaebye/isaac/AirGym/trained"
+      model_folder: "/home/kjaebye/isaac/AirGym/trained" # path to your trained model directory
       model_file: "vae_model.pth"
       image_res: [120, 212]
       interpolation_mode: "bilinear"

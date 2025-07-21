@@ -192,6 +192,22 @@ The input arguments can be overrided:
 | --file | Spicify an algorithm config file for training. |
 
 
+### Visual Encoding Approaches
+We provide two types of depth encoding methods: `cnn` and `vae`. Using `cnn` is to train an end-to-end model from scratch, including the image encoder, while this is often very hard. Using `vae` as encoder is more recommended, and we provide a pretrained depth `vae` model with depth input as `(212,120)`. The `vae` model is frozen by default.
+
+To select the types of encoding, please edit cfg file in `scripts/config/ppo_planning`:
+```yaml
+# cnn:
+#   output_dim: 30
+vae:
+  latent_dims: 64
+  model_folder: "/home/kjaebye/isaac/AirGym/trained" # path to your trained model directory
+  model_file: "vae_model.pth"
+  image_res: [120, 212]
+  interpolation_mode: "bilinear"
+  return_sampled_latent: False
+```
+
 ### Playing and Testing
 Load a trained checkpoint is quite easy:
 ```bash
