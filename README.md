@@ -11,6 +11,8 @@
 </div>
 
 ### Changes Reminder
+> ___v0.4.1 released___ on 2025.09.27: Fix bugs: `planning` task resets at start when loading trained model `planning_cnn_rate.pth`.
+
 > ___v0.4.0 released___ on 2025.04.21: Update reward functions for `planning`. Upload pretrained model for task `planning`.
 
 > ___v0.3.0 released___ on 2025.04.16: Bugs fixed on environments registry, and tests had done on every tasks.
