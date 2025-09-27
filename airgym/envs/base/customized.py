@@ -422,9 +422,9 @@ class Customized(BaseTask):
                 # Apply convolution for Gaussian blur
                 return F.conv2d(depth_map.unsqueeze(0), kernel, padding=kernel_size//2).squeeze(0)
             
-            # self.full_camera_array[env_id, :] = add_gaussian_noise(self.full_camera_array[env_id, :])
-            # self.full_camera_array[env_id, :] = add_multiplicative_noise(self.full_camera_array[env_id, :])
-            # self.full_camera_array[env_id, :] = apply_gaussian_blur(self.full_camera_array[env_id, :])
+            self.full_camera_array[env_id, :] = add_gaussian_noise(self.full_camera_array[env_id, :])
+            self.full_camera_array[env_id, :] = add_multiplicative_noise(self.full_camera_array[env_id, :])
+            self.full_camera_array[env_id, :] = apply_gaussian_blur(self.full_camera_array[env_id, :])
 
             depth_image = self.full_camera_array[env_id, :].T.cpu().numpy()
             dist = cv2.normalize(depth_image, None, 0,255, cv2.NORM_MINMAX, cv2.CV_8UC1)
