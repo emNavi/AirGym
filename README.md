@@ -240,6 +240,13 @@ TASK_CONFIGS = [
 ```
 We recommend users inherit from task `hovering`(no camera) and `customized`(depth).
 
+### Use Multi-agent Environment
+We give a simple multi-agent environment demo called `maplanning`. Please run to test:
+```bash
+python airgym/scripts/ma_example.py --ctl_mode pos --num_envs 4 --task maplanning
+```
+You could modify this file and build your own MARL environment.
+
 ### Add New Assets
 We use an asset register to manage assets, and an asset manager to realize quickly assets loading and environment creating.
 

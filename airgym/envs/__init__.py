@@ -46,6 +46,13 @@ TASK_CONFIGS = [
         'task_class': 'Planning'
     },
     {
+        'name': 'maplanning',
+        'config_module': 'task.maplanning_config',
+        'config_class': 'MAPlanningCfg',
+        'task_module': 'task.maplanning',
+        'task_class': 'MAPlanning'
+    },
+    {
         'name': 'depthgen',
         'config_module': 'base.depthgen_config',
         'config_class': 'DepthGenCfg',
