@@ -189,6 +189,8 @@ class AssetManager:
         camera_handles = []
         camera_tensors = []
         env_asset_handles = [] # env_assets are assets except robots
+        body_handle = 0
+        rigid_body_count = 0
 
         for robot_dict in self.robot_list:
             gym_robot = robot_dict["gym_robot"]
@@ -201,11 +203,14 @@ class AssetManager:
 
             if robot_dict["enable_onboard_cameras"]:
                 cam_handle = self.gym.create_camera_sensor(env_handle, robot_dict["camera_props"])
-                self.gym.attach_camera_to_body(cam_handle, env_handle, robot_handle, robot_dict["local_transform"], gymapi.FOLLOW_TRANSFORM)
+                # 这里需要将camera attach到对应的刚体上,而不是robot_handle上, X152b有5个刚体, 0号刚体是base_link
+                # self.gym.attach_camera_to_body(cam_handle, env_handle, robot_handle, robot_dict["local_transform"], gymapi.FOLLOW_TRANSFORM)
+                self.gym.attach_camera_to_body(cam_handle, env_handle, body_handle+rigid_body_count, robot_dict["local_transform"], gymapi.FOLLOW_TRANSFORM)
                 camera_handles.append(cam_handle)
                 camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, env_handle, cam_handle, gymapi.IMAGE_DEPTH)
                 torch_cam_tensor = gymtorch.wrap_tensor(camera_tensor) # (height, width)
                 camera_tensors.append(torch_cam_tensor)
+                rigid_body_count += self.gym.get_actor_rigid_body_count(env_handle, robot_handle)
 
         for env_asset_dict in self.asset_list:
             env_asset_handles.append(self._create_asset_from_file(env_asset_dict, env_handle, start_pose, env_id))
