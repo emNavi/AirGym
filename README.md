@@ -354,9 +354,9 @@ Also, we thanks the excellent work by Aerial Gym Simulator licensed(https://gith
 
 ## Citation
 ```
-@article{huang2025general,
-  title={A General Infrastructure and Workflow for Quadrotor Deep Reinforcement Learning and Reality Deployment},
-  author={Huang, Kangyao and Wang, Hao and Luo, Yu and Chen, Jingyu and Chen, Jintao and Zhang, Xiangkui and Ji, Xiangyang and Liu, Huaping},
+@article{huang2025airgym,
+  title={Towards Task-Oriented Flying: Framework, Infrastructure, and Principles},
+  author={Huang, Kangyao and Wang, Hao and Chen, Jingyu and Chen, Jintao and Luo, Yu and Guo, Di and Zhang, Xiangkui and Ji, Xiangyang and Liu, Huaping},
   journal={arXiv preprint arXiv:2504.15129},
   year={2025}
 }
