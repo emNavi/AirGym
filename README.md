@@ -3,7 +3,7 @@
   ![GitHub Release](https://img.shields.io/github/v/release/emnavi/airgym)
   <img src="https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C?logo=pytorch">
 <div align="center">
-  <img src="doc/logo2.png" width="300" style="margin-bottom: 20px;">
+  <!-- <img src="doc/logo2.png" width="300" style="margin-bottom: 20px;"> -->
   <p style="font-size: 1.2em; margin-top: -10px;">
     <i>A High-Performance Quadrotor Deep Reinforcement Learning Platform</i> <br>
     <b>Built on <span style="color: #76b900;">NVIDIA IsaacGym</span></b>
@@ -351,13 +351,3 @@ We build the project upon BSD 3-Clause and claim the contributions of those who 
 We thanks colleagues @emNavi Tech (https://emnavi.tech/) who develope and maintain the outstanding hardware device [emNavi-X152b](https://emnavi.tech/droneKit/#x152b%E5%B9%B3%E5%8F%B0) for Sim-to-Real task.
 
 Also, we thanks the excellent work by Aerial Gym Simulator licensed(https://github.com/ntnu-arl/aerial_gym_simulator) under the BSD 3-Clause License. AirGym is modified and greatly improved upon Aerial Gym Simulator especially for Sim-to-Real task.
-
-## Citation
-```
-@article{huang2025airgym,
-  title={Towards Task-Oriented Flying: Framework, Infrastructure, and Principles},
-  author={Huang, Kangyao and Wang, Hao and Chen, Jingyu and Chen, Jintao and Luo, Yu and Guo, Di and Zhang, Xiangkui and Ji, Xiangyang and Liu, Huaping},
-  journal={arXiv preprint arXiv:2504.15129},
-  year={2025}
-}
-```
